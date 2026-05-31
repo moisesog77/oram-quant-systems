@@ -2,6 +2,7 @@
 ORAM Quant Systems — Institutional-Grade Trading Intelligence
 """
 import streamlit as st
+from datetime import datetime, timezone
 
 st.set_page_config(
     page_title="ORAM Quant Systems",
@@ -10,10 +11,27 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Tema independiente del sistema ────────────────────────────────────────────
 if "theme" not in st.session_state:
-    st.session_state["theme"] = "dark"
+    st.session_state["theme"] = "dark"   # siempre oscuro por defecto
 
-from ui.styles import inject_styles, toggle_theme, get_theme, get_colors, APP_TAGLINE, LOGO_GOLD, LOGO_BLUE, LOGO_TEAL
+# ── Sesión con timeout de 40 minutos ─────────────────────────────────────────
+SESSION_TIMEOUT = 40 * 60   # 40 min en segundos
+
+def _check_session():
+    """Verifica si la sesión sigue activa. Cierra si pasaron 40 min sin actividad."""
+    now = datetime.now(timezone.utc).timestamp()
+    if "last_activity" not in st.session_state:
+        st.session_state["last_activity"] = now
+    # Renovar actividad en cada interacción
+    st.session_state["last_activity"] = now
+
+def _is_session_valid():
+    now = datetime.now(timezone.utc).timestamp()
+    last = st.session_state.get("last_activity", now)
+    return (now - last) < SESSION_TIMEOUT
+
+from ui.styles import inject_styles, toggle_theme, get_theme, get_colors, APP_TAGLINE
 inject_styles()
 
 from modules.auth          import render_auth
@@ -36,16 +54,23 @@ inicializar_db()
 if "user" not in st.session_state:
     st.session_state.user = None
 
+# Verificar timeout
+if st.session_state.user is not None:
+    if not _is_session_valid():
+        st.session_state.user = None
+        st.session_state.pop("last_activity", None)
+        st.rerun()
+    else:
+        _check_session()
+
 if st.session_state.user is None:
     render_auth()
 else:
     c    = get_colors()
     dark = get_theme() == "dark"
     user = st.session_state.user
-    m    = "#edf4ff" if dark else "#0b1824"
 
     with st.sidebar:
-        # Logo
         st.markdown(
             f'<div class="oram-logo-wrap">'
             f'<div class="oram-logo">'
@@ -84,6 +109,7 @@ else:
         with col_s:
             if st.button("🚪", use_container_width=True, help="Cerrar sesión"):
                 st.session_state.user = None
+                st.session_state.pop("last_activity", None)
                 st.rerun()
 
         st.markdown(

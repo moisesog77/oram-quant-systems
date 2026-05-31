@@ -1,6 +1,16 @@
 [server]
 enableCORS = false
 enableXsrfProtection = false
+headless = true
 
 [browser]
 gatherUsageStats = false
+serverAddress = "0.0.0.0"
+
+[theme]
+# Forzar tema base — el código Python maneja oscuro/claro
+base = "dark"
+backgroundColor = "#06090f"
+secondaryBackgroundColor = "#0c1219"
+textColor = "#c8d8ea"
+font = "sans serif"

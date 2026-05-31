@@ -415,9 +415,9 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     border:1px solid {c['border']}!important;border-radius:8px!important;
 }}
 [data-testid="stMultiSelect"] [data-baseweb="tag"]{{
-    background:{c['glow']}!important;
-    border:1px solid {c['accent']}!important;
-    color:{c['text']}!important;border-radius:4px!important;
+    background:{c['bg_card2']}!important;
+    border:1px solid {c['border2']}!important;
+    color:{c['text']}!important;border-radius:5px!important;
 }}
 [data-testid="stMultiSelect"] input{{color:{c['text']}!important;background:transparent!important}}
 /* Labels */
@@ -447,9 +447,15 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 .stButton>button:active{{transform:scale(.98)!important}}
 .stFormSubmitButton>button{{
     background:{c['btn_bg']}!important;
-    border:1px solid {c['accent']}!important;color:{c['accent']}!important;
+    border:1px solid {c['border2']}!important;
+    color:{c['text']}!important;
+    font-weight:600!important;
 }}
-.stFormSubmitButton>button:hover{{background:{c['glow']}!important}}
+.stFormSubmitButton>button:hover{{
+    border-color:{c['accent']}!important;
+    color:{c['accent']}!important;
+    background:{c['glow']}!important;
+}}
 
 /* ── FORM ───────────────────────────────────────────── */
 [data-testid="stForm"]{{
@@ -655,12 +661,12 @@ pre,[data-testid="stCode"]>div{{
     background: {c['accent']} !important;
     color: #ffffff !important;
 }}
-/* Tags multiselect */
+/* Tags multiselect — sin amarillo */
 [data-baseweb="tag"] {{
-    background: {c['glow']} !important;
-    border: 1px solid {c['accent']} !important;
+    background: {c['bg_card2']} !important;
+    border: 1px solid {c['border2']} !important;
     color: {c['text']} !important;
-    border-radius: 4px !important;
+    border-radius: 5px !important;
 }}
 [data-baseweb="tag"] span {{
     color: {c['text']} !important;
@@ -715,7 +721,7 @@ textarea {{
     white-space: nowrap !important;
     overflow: visible !important;
     background: {c['bg_card2']} !important;
-    border: 1px solid {c['border']} !important;
+    border: 1px solid {c['border2']} !important;
     color: {c['text']} !important;
     border-radius: 5px !important;
     padding: 2px 8px !important;

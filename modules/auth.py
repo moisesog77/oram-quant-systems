@@ -3,38 +3,54 @@ modules/auth.py — ORAM Quant Systems
 """
 import streamlit as st
 from database.db import autenticar_usuario, crear_usuario
-from ui.styles import get_colors, get_theme, APP_TAGLINE, LOGO_GOLD, LOGO_BLUE, LOGO_TEAL
+from ui.styles import toggle_theme, get_theme, APP_TAGLINE, LOGO_GOLD, LOGO_BLUE, LOGO_TEAL
 
 def render_auth():
     dark  = get_theme() == "dark"
-    c     = get_colors()
     m     = "#edf4ff" if dark else "#0b1824"
     muted = "#637a94" if dark else "#526070"
-    bg    = ("radial-gradient(ellipse at 25% 50%,#0a1525 0%,#06090f 100%)"
-             if dark else "linear-gradient(135deg,#eef2f7 0%,#e6edf5 100%)")
 
-    st.markdown(f'<style>.main{{background:{bg}!important}}</style>',
-                unsafe_allow_html=True)
+    # Fondo siempre definido por el tema del app, NO por el sistema
+    bg = ("radial-gradient(ellipse at 25% 50%,#0a1525 0%,#06090f 100%)"
+          if dark else "linear-gradient(135deg,#eef2f7 0%,#e6edf5 100%)")
 
+    st.markdown(
+        f'<style>'
+        f'.main{{background:{bg}!important}}'
+        f'.stApp{{background:{bg}!important}}'
+        f'[data-testid="stAppViewContainer"]{{background:{bg}!important}}'
+        f'</style>',
+        unsafe_allow_html=True,
+    )
+
+    # Logo — colores hardcodeados, siempre visibles en ambos temas
     O = f'<span style="color:{LOGO_GOLD}">O</span>'
     R = f'<span style="color:{LOGO_BLUE}">R</span>'
     A = f'<span style="color:{LOGO_TEAL}">A</span>'
     M = f'<span style="color:{m}">M</span>'
 
     st.markdown(
-        f'<div style="max-width:480px;margin:3.5rem auto 0 auto;text-align:center;padding:0 1rem">'
+        f'<div style="max-width:480px;margin:2.5rem auto 0 auto;text-align:center;padding:0 1rem">'
         f'<div style="margin-bottom:0.4rem">'
         f'<span style="font-family:\'Space Grotesk\',sans-serif;font-size:4rem;'
         f'font-weight:800;letter-spacing:-4px;line-height:1">{O}{R}{A}{M}</span>'
         f'</div>'
         f'<div style="font-family:\'Space Grotesk\',sans-serif;font-size:1.1rem;'
-        f'font-weight:600;color:{m};letter-spacing:0.5px;margin-bottom:0.35rem">Quant Systems</div>'
+        f'font-weight:600;color:{m};letter-spacing:0.5px;margin-bottom:0.3rem">Quant Systems</div>'
         f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;'
-        f'color:{muted};letter-spacing:3px;text-transform:uppercase;margin-bottom:2.5rem">'
+        f'color:{muted};letter-spacing:3px;text-transform:uppercase;margin-bottom:1.5rem">'
         f'{APP_TAGLINE}</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
+
+    # Toggle de tema en la pantalla de login
+    col_l, col_c, col_r = st.columns([1, 2, 1])
+    with col_r:
+        theme_label = "☀️ Claro" if dark else "🌙 Oscuro"
+        if st.button(theme_label, key="auth_theme_toggle", help="Cambiar tema"):
+            toggle_theme()
+            st.rerun()
 
     col_l, col_c, col_r = st.columns([1, 2, 1])
     with col_c:
@@ -51,6 +67,8 @@ def render_auth():
                         data = autenticar_usuario(user, pw)
                         if data:
                             st.session_state.user = data
+                            from datetime import datetime, timezone
+                            st.session_state["last_activity"] = datetime.now(timezone.utc).timestamp()
                             st.rerun()
                         else:
                             st.error("Credenciales incorrectas.")
