@@ -13,35 +13,32 @@ def render_auth():
     bg          = "radial-gradient(ellipse at 25% 50%,#0a1525 0%,#06090f 100%)" if dark else "linear-gradient(135deg,#eef2f7 0%,#e6edf5 100%)"
     card_bg     = "#0c1219"  if dark else "#ffffff"
     card_border = "#1b2a40"  if dark else "#dde5ef"
-    input_bg    = "#080d14"  if dark else "#f4f8fc"
+    input_bg    = "#080d14"  if dark else "#f0f4f8"
     input_text  = "#c8d8ea"  if dark else "#1a2b3c"
-    input_ph    = "#3a5068"  if dark else "#a0aeba"
-    input_bdr   = "#2a4560"  if dark else "#b8cfe0"
+    input_ph    = "#3a5068"  if dark else "#9baab8"
+    input_bdr   = "#2a4560"  if dark else "#94a3b8"
     label_col   = "#4a6a84"  if dark else "#6b7f94"
     tab_active  = "#c9a227"
     focus_clr   = "#22c55e"
     focus_glow  = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
     shadow      = "0 8px 40px rgba(0,0,0,0.28)" if dark else "0 4px 24px rgba(0,0,0,0.09)"
-    eye_col     = "#3a5068"  if dark else "#9baab8"
+    eye_col     = "#64748b"  if dark else "#64748b"
     tbtn_bg     = "rgba(12,18,25,0.88)"   if dark else "rgba(255,255,255,0.94)"
     tbtn_txt    = "#c8d8ea"               if dark else "#2a3f54"
     tbtn_bdr    = "rgba(255,255,255,0.12)" if dark else "rgba(0,0,0,0.09)"
 
     st.markdown(f"""
 <style>
-/* ══════════════════════════════════════════════════
-   FONDO — degradado completo, sin línea de corte
-   La estrategia: poner el gradient en html/body/.stApp
-   y hacer TRANSPARENTES todos los contenedores hijos
-   ══════════════════════════════════════════════════ */
+/* ══════════════════════════════════════
+   FONDO — gradient en html/body, todo
+   lo demás transparente
+   ══════════════════════════════════════ */
 html, body {{
     background: {bg} !important;
     background-attachment: fixed !important;
     min-height: 100vh !important;
 }}
-.stApp {{
-    background: transparent !important;
-}}
+.stApp,
 [data-testid="stAppViewContainer"],
 [data-testid="stAppViewContainer"] > section,
 [data-testid="stAppViewContainer"] > section > div,
@@ -57,99 +54,103 @@ html, body {{
 
 /* ── TABS ── */
 .stTabs [data-baseweb="tab-list"] {{
-    background:transparent!important;
-    border-bottom:1px solid {card_border}!important;
-    gap:0!important;padding:0!important;
+    background: transparent !important;
+    border-bottom: 1px solid {card_border} !important;
+    gap: 0 !important; padding: 0 !important;
 }}
 .stTabs [data-baseweb="tab"] {{
-    font-family:'Inter',sans-serif!important;font-size:0.88rem!important;
-    font-weight:500!important;color:{label_col}!important;
-    background:transparent!important;border:none!important;
-    padding:0.6rem 1.1rem!important;
+    font-family: 'Inter',sans-serif !important;
+    font-size: 0.88rem !important; font-weight: 500 !important;
+    color: {label_col} !important; background: transparent !important;
+    border: none !important; padding: 0.6rem 1.1rem !important;
 }}
 .stTabs [data-baseweb="tab"] p {{
-    color:inherit!important;-webkit-text-fill-color:inherit!important;
+    color: inherit !important; -webkit-text-fill-color: inherit !important;
 }}
 .stTabs [aria-selected="true"] {{
-    color:{tab_active}!important;-webkit-text-fill-color:{tab_active}!important;
-    border-bottom:2px solid {tab_active}!important;font-weight:600!important;
+    color: {tab_active} !important; -webkit-text-fill-color: {tab_active} !important;
+    border-bottom: 2px solid {tab_active} !important; font-weight: 600 !important;
 }}
 
 /* ── FORM CARD ── */
 [data-testid="stForm"] {{
-    background:{card_bg}!important;
-    border:1px solid {card_border}!important;
-    border-radius:16px!important;
-    padding:1.8rem 1.8rem 2rem!important;
-    box-shadow:{shadow}!important;
-    overflow:visible!important;
+    background: {card_bg} !important;
+    border: 1px solid {card_border} !important;
+    border-radius: 16px !important;
+    padding: 1.8rem 1.8rem 2rem !important;
+    box-shadow: {shadow} !important;
+    overflow: visible !important;
 }}
 
 /* ── LABELS ── */
-.stTextInput label, .stNumberInput label {{
-    color:{label_col}!important;
-    font-family:'Inter',sans-serif!important;
-    font-size:0.72rem!important;font-weight:600!important;
-    letter-spacing:1px!important;text-transform:uppercase!important;
-    margin-bottom:0.3rem!important;display:block!important;
+.stTextInput label,
+.stNumberInput label {{
+    color: {label_col} !important;
+    font-family: 'Inter',sans-serif !important;
+    font-size: 0.72rem !important; font-weight: 600 !important;
+    letter-spacing: 1px !important; text-transform: uppercase !important;
+    margin-bottom: 0.3rem !important; display: block !important;
 }}
 
-/* ══════════════════════════════════════════════════
-   TEXT INPUT — estructura Streamlit:
+/* ══════════════════════════════════════════════════════════
+   TEXT INPUT — Estrategia definitiva para Streamlit 1.x
+   
+   La estructura DOM real es:
      .stTextInput
-       > div  (wrapper externo)
-         > div  (o [data-testid="stTextInputRootElement"])
-           [data-baseweb="input"]
-             input
-             button (ojo)
-   REGLA: el borde va SOLO en el div del nivel "root element".
-   Los niveles internos (baseweb, input real) son transparentes.
-   ══════════════════════════════════════════════════ */
-.stTextInput {{
-    margin-bottom: 0.1rem !important;
-}}
+       [data-testid="stTextInputRootElement"]   ← BORDE AQUÍ
+         [data-baseweb="input"]                 ← flex row interno
+           input                                ← el campo real
+           button                               ← ojo
+   
+   Usamos [data-baseweb="input"] como target principal
+   porque es el elemento flex que contiene input + ojo,
+   y es consistente entre versiones de Streamlit.
+   ══════════════════════════════════════════════════════════ */
 
-/* Nivel 1 — wrapper externo: sin fondo, sin borde */
-.stTextInput > div {{
+/* Reset completo de todos los wrappers previos */
+.stTextInput,
+.stTextInput > div,
+.stTextInput > div > div,
+.stTextInput > div > div > div {{
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
+    outline: none !important;
 }}
+.stTextInput {{ margin-bottom: 0.2rem !important; }}
 
-/* Nivel 2 — AQUÍ va el borde (ambos nombres posibles del elemento) */
-.stTextInput > div > div {{
+/* ★ EL BORDE VA AQUÍ — [data-baseweb="input"] es el contenedor
+     flex real que engloba input + botón ojo en todas las versiones */
+.stTextInput [data-baseweb="input"] {{
     background: {input_bg} !important;
-    border: 1.5px solid {input_bdr} !important;
+    border: 2px solid {input_bdr} !important;
     border-radius: 10px !important;
+    box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    box-shadow: none !important;
-    overflow: hidden !important;
     display: flex !important;
-    align-items: stretch !important;
-    min-height: 44px !important;
-    transition: border-color .15s, box-shadow .15s !important;
+    align-items: center !important;
+    min-height: 46px !important;
+    overflow: hidden !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
 }}
-.stTextInput > div > div:focus-within {{
+.stTextInput [data-baseweb="input"]:focus-within {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
 
-/* Nivel 3 — Base Web input wrapper: transparent, sin borde */
-.stTextInput [data-baseweb="input"],
+/* Base-input interno — solo layout, sin borde */
 .stTextInput [data-baseweb="base-input"] {{
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    width: 100% !important;
     display: flex !important;
     align-items: center !important;
     flex: 1 !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
+    width: 100% !important;
 }}
 
 /* Input real — texto */
@@ -160,12 +161,13 @@ html, body {{
     outline: none !important;
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family: 'Inter',sans-serif !important;
     font-size: 0.93rem !important;
-    padding: 0 0.85rem !important;
+    padding: 0 0.9rem !important;
     flex: 1 !important;
     min-width: 0 !important;
-    height: 44px !important;
+    height: 46px !important;
+    width: 100% !important;
 }}
 .stTextInput input::placeholder {{
     color: {input_ph} !important;
@@ -173,52 +175,58 @@ html, body {{
     opacity: 1 !important;
 }}
 
-/* Botón ojo — centrado, sin fondo, con SVG stroke */
-.stTextInput button {{
+/* ── BOTÓN OJO — limpio, sin interferir con el borde ── */
+.stTextInput [data-baseweb="input"] button {{
     all: unset !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 40px !important;
-    height: 44px !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 46px !important;
     flex-shrink: 0 !important;
     cursor: pointer !important;
     background: transparent !important;
     border: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    opacity: 0.7 !important;
+    opacity: 0.55 !important;
     transition: opacity .15s !important;
 }}
-.stTextInput button:hover {{
+.stTextInput [data-baseweb="input"] button:hover {{
     opacity: 1 !important;
 }}
-.stTextInput button svg {{
-    width: 18px !important;
-    height: 18px !important;
+.stTextInput [data-baseweb="input"] button svg {{
+    width: 17px !important;
+    height: 17px !important;
     fill: none !important;
     stroke: {eye_col} !important;
     stroke-width: 1.8 !important;
     pointer-events: none !important;
     display: block !important;
-}}
-.stTextInput button:hover svg {{
-    stroke: {input_text} !important;
+    flex-shrink: 0 !important;
 }}
 
 /* ── NUMBER INPUT ── */
-[data-testid="stNumberInput"] > div {{
+[data-testid="stNumberInput"],
+[data-testid="stNumberInput"] > div,
+[data-testid="stNumberInput"] > div > div {{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}}
+[data-testid="stNumberInput"] [data-baseweb="input"] {{
     background: {input_bg} !important;
-    border: 1.5px solid {input_bdr} !important;
+    border: 2px solid {input_bdr} !important;
     border-radius: 10px !important;
-    overflow: hidden !important;
     box-shadow: none !important;
     display: flex !important;
     align-items: center !important;
-    min-height: 44px !important;
-    transition: border-color .15s, box-shadow .15s !important;
+    min-height: 46px !important;
+    overflow: hidden !important;
+    transition: border-color .18s, box-shadow .18s !important;
 }}
-[data-testid="stNumberInput"] > div:focus-within {{
+[data-testid="stNumberInput"] [data-baseweb="input"]:focus-within {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
@@ -229,33 +237,27 @@ html, body {{
     outline: none !important;
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family: 'Inter',sans-serif !important;
     font-size: 0.93rem !important;
     padding: 0 0.75rem !important;
     flex: 1 !important;
+    height: 46px !important;
 }}
 
 /* ── BOTÓN SUBMIT VERDE ── */
 .stFormSubmitButton > button {{
     background: linear-gradient(135deg,#16a34a 0%,#14743d 100%) !important;
-    border: none !important;
-    border-radius: 10px !important;
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff !important;
-    font-family: 'Inter', sans-serif !important;
-    font-size: 0.95rem !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.3px !important;
-    padding: 0.72rem 1rem !important;
-    width: 100% !important;
+    border: none !important; border-radius: 10px !important;
+    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
+    font-family: 'Inter',sans-serif !important; font-size: 0.95rem !important;
+    font-weight: 600 !important; letter-spacing: 0.3px !important;
+    padding: 0.75rem 1rem !important; width: 100% !important;
     margin-top: 0.6rem !important;
     box-shadow: 0 4px 16px rgba(22,163,74,0.38) !important;
-    transition: all .18s ease !important;
-    cursor: pointer !important;
+    transition: all .18s ease !important; cursor: pointer !important;
 }}
 .stFormSubmitButton > button * {{
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff !important;
+    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
 }}
 .stFormSubmitButton > button:hover {{
     background: linear-gradient(135deg,#22c55e 0%,#16a34a 100%) !important;
@@ -267,15 +269,13 @@ html, body {{
     box-shadow: 0 2px 8px rgba(22,163,74,0.3) !important;
 }}
 
-/* ── QUITAR FOCUS AMARILLO ── */
+/* ── Eliminar outline amarillo ── */
 *, *:focus, *:focus-visible {{ outline: none !important; }}
-
-/* ── PRESS ENTER hint — ocultar ── */
 [data-testid="InputInstructions"] {{ display: none !important; }}
 </style>
 """, unsafe_allow_html=True)
 
-    # ── Cabecera: Logo + botón tema en la misma fila ──
+    # ── Cabecera: Logo + botón tema ──
     O = f'<span style="color:{LOGO_GOLD}">O</span>'
     R = f'<span style="color:{LOGO_BLUE}">R</span>'
     A = f'<span style="color:{LOGO_TEAL}">A</span>'
@@ -304,20 +304,20 @@ html, body {{
         st.markdown(f"""
 <style>
 [data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child .stButton > button {{
-    background:{tbtn_bg}!important;
-    backdrop-filter:blur(10px)!important;
-    -webkit-backdrop-filter:blur(10px)!important;
-    color:{tbtn_txt}!important;
-    -webkit-text-fill-color:{tbtn_txt}!important;
-    border:1px solid {tbtn_bdr}!important;
-    border-radius:999px!important;
-    font-family:'Inter',sans-serif!important;
-    font-size:0.82rem!important;font-weight:500!important;
-    padding:0.4rem 1.1rem!important;
-    box-shadow:0 2px 14px rgba(0,0,0,0.18)!important;
-    width:auto!important;white-space:nowrap!important;
-    float:right!important;
-    transition:all .18s ease!important;
+    background: {tbtn_bg} !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    color: {tbtn_txt} !important;
+    -webkit-text-fill-color: {tbtn_txt} !important;
+    border: 1px solid {tbtn_bdr} !important;
+    border-radius: 999px !important;
+    font-family: 'Inter',sans-serif !important;
+    font-size: 0.82rem !important; font-weight: 500 !important;
+    padding: 0.4rem 1.1rem !important;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.18) !important;
+    width: auto !important; white-space: nowrap !important;
+    float: right !important;
+    transition: all .18s ease !important;
 }}
 </style>
 """, unsafe_allow_html=True)
