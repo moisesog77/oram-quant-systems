@@ -113,36 +113,34 @@ else:
 
         st.markdown(f'''
 <style>
-/* ═══ SIDEBAR BUTTONS — píldoras idénticas al login ═══════════════
-   Usamos especificidad máxima con el atributo data-testid del key  */
+/* ═══ SIDEBAR BUTTONS — píldoras premium con hover idéntico al login ═══ */
 
-/* Base compartida — forma de píldora perfecta */
+/* Base compartida */
 [data-testid="stButton-sb_theme"] button,
 [data-testid="stButton-sb_logout"] button {{
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     width: 100% !important;
-    min-height: 36px !important;
+    min-height: 38px !important;
     box-sizing: border-box !important;
-    /* ── píldora ── */
     border-radius: 999px !important;
-    /* ── tipografía ── */
     font-family: "Inter", sans-serif !important;
     font-size: 0.82rem !important;
-    font-weight: 500 !important;
-    letter-spacing: 0.1px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.2px !important;
     line-height: 1 !important;
-    /* ── espacio interno ── */
-    padding: 0.42rem 1rem !important;
-    /* ── comportamiento ── */
+    padding: 0.48rem 1rem !important;
     cursor: pointer !important;
     transition: all .18s ease !important;
     white-space: nowrap !important;
-    text-decoration: none !important;
+}}
+[data-testid="stButton-sb_theme"] button *,
+[data-testid="stButton-sb_logout"] button * {{
+    transition: all .18s ease !important;
 }}
 
-/* Botón TEMA */
+/* Botón TEMA — píldora glass */
 [data-testid="stButton-sb_theme"] button {{
     background: {_tbtn_bg} !important;
     color: {_tbtn_txt} !important;
@@ -150,14 +148,19 @@ else:
     border: 1px solid {_tbtn_bdr} !important;
     backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.06) !important;
 }}
 [data-testid="stButton-sb_theme"] button:hover {{
-    box-shadow: 0 4px 18px rgba(0,0,0,0.22) !important;
-    opacity: 0.88 !important;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10) !important;
+    transform: translateY(-1px) !important;
+    opacity: 0.92 !important;
+}}
+[data-testid="stButton-sb_theme"] button:active {{
+    transform: scale(0.97) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18) !important;
 }}
 
-/* Botón SALIR */
+/* Botón SALIR — píldora roja */
 [data-testid="stButton-sb_logout"] button {{
     background: {_logout_bg} !important;
     color: {_logout_txt} !important;
@@ -165,11 +168,17 @@ else:
     border: 1px solid {_logout_bdr} !important;
     backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
-    box-shadow: 0 2px 10px rgba(239,68,68,0.12) !important;
+    box-shadow: 0 2px 10px rgba(239,68,68,0.12), inset 0 1px 0 rgba(255,255,255,0.04) !important;
 }}
 [data-testid="stButton-sb_logout"] button:hover {{
-    background: rgba(239,68,68,0.18) !important;
-    box-shadow: 0 4px 18px rgba(239,68,68,0.25) !important;
+    background: rgba(239,68,68,0.22) !important;
+    box-shadow: 0 6px 20px rgba(239,68,68,0.32) !important;
+    transform: translateY(-1px) !important;
+    border-color: rgba(239,68,68,0.50) !important;
+}}
+[data-testid="stButton-sb_logout"] button:active {{
+    transform: scale(0.97) !important;
+    box-shadow: 0 2px 8px rgba(239,68,68,0.20) !important;
 }}
 </style>
 ''', unsafe_allow_html=True)

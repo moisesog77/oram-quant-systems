@@ -335,20 +335,32 @@ html, body {{
     width: 36px !important; min-width: 36px !important;
     height: 100% !important; min-height: 42px !important;
     flex-shrink: 0 !important; cursor: pointer !important;
-    background: transparent !important; border: none !important;
+    border: none !important;
     border-left: 1px solid {input_bdr} !important;
-    opacity: 0.6 !important;
-    transition: opacity .15s, background .15s !important;
+    transition: background .15s !important;
 }}
-[data-testid="stNumberInput-StepDown"]:hover,
+[data-testid="stNumberInput-StepDown"] {{
+    background: rgba(217,83,79,0.10) !important;
+}}
+[data-testid="stNumberInput-StepDown"]:hover {{
+    background: rgba(217,83,79,0.26) !important;
+}}
+[data-testid="stNumberInput-StepDown"] svg {{
+    width: 14px !important; height: 14px !important;
+    fill: none !important; stroke: #d9534f !important;
+    stroke-width: 2.2 !important; pointer-events: none !important;
+    display: block !important; flex-shrink: 0 !important;
+}}
+[data-testid="stNumberInput-StepUp"] {{
+    background: rgba(92,184,92,0.10) !important;
+}}
 [data-testid="stNumberInput-StepUp"]:hover {{
-    opacity: 1 !important; background: rgba(34,197,94,0.08) !important;
+    background: rgba(92,184,92,0.26) !important;
 }}
-[data-testid="stNumberInput-StepDown"] svg,
 [data-testid="stNumberInput-StepUp"] svg {{
     width: 14px !important; height: 14px !important;
-    fill: none !important; stroke: {eye_col} !important;
-    stroke-width: 2 !important; pointer-events: none !important;
+    fill: none !important; stroke: #5cb85c !important;
+    stroke-width: 2.2 !important; pointer-events: none !important;
     display: block !important; flex-shrink: 0 !important;
 }}
 
@@ -379,7 +391,27 @@ html, body {{
 
 /* ── Eliminar outline amarillo ── */
 *, *:focus, *:focus-visible {{ outline: none !important; }}
-[data-testid="InputInstructions"] {{ display: none !important; }}
+
+/* ── "Press Enter to submit form" — ocultar completamente ──
+   Streamlit muestra este hint en 3 posibles elementos según versión */
+[data-testid="InputInstructions"],
+[data-testid="InputInstructions"] *,
+div[class*="instructions"],
+p[class*="instructions"] {{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}}
+
+/* ── Margen inferior del number_input dentro del form de login ──
+   Evita que el hint flotante colisione con el botón Crear cuenta.
+   Solo aplica dentro de stForm (login/registro), no en dashboard. */
+[data-testid="stForm"] [data-testid="stNumberInput"] {{
+    margin-bottom: 1.2rem !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 

@@ -458,7 +458,7 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     height:100%!important;gap:0!important;padding:0!important;
     background:transparent!important;border:none!important;
 }}
-/* Botones +/- — estilo premium, sin colores rojo/verde */
+/* Botones +/- — estilo premium con colores semánticos */
 [data-testid="stNumberInput-StepDown"],
 [data-testid="stNumberInput-StepUp"]{{
     all:unset!important;box-sizing:border-box!important;
@@ -467,23 +467,37 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     width:36px!important;min-width:36px!important;
     height:100%!important;min-height:42px!important;
     flex-shrink:0!important;cursor:pointer!important;
-    background:transparent!important;border:none!important;
+    border:none!important;
     border-left:1px solid {c['border']}!important;
-    opacity:0.6!important;
-    transition:opacity .15s,background .15s!important;
     border-radius:0!important;
+    transition:background .15s,opacity .15s!important;
 }}
-[data-testid="stNumberInput-StepDown"]:hover,
+/* Botón — (StepDown) → rojo premium */
+[data-testid="stNumberInput-StepDown"]{{
+    background:rgba(217,83,79,0.12)!important;
+}}
+[data-testid="stNumberInput-StepDown"]:hover{{
+    background:rgba(217,83,79,0.28)!important;
+}}
+[data-testid="stNumberInput-StepDown"] svg{{
+    width:14px!important;height:14px!important;
+    fill:none!important;
+    stroke:#d9534f!important;
+    stroke-width:2.2!important;
+    pointer-events:none!important;display:block!important;
+}}
+/* Botón + (StepUp) → verde premium */
+[data-testid="stNumberInput-StepUp"]{{
+    background:rgba(92,184,92,0.12)!important;
+}}
 [data-testid="stNumberInput-StepUp"]:hover{{
-    opacity:1!important;
-    background:rgba(34,197,94,0.08)!important;
+    background:rgba(92,184,92,0.28)!important;
 }}
-[data-testid="stNumberInput-StepDown"] svg,
 [data-testid="stNumberInput-StepUp"] svg{{
     width:14px!important;height:14px!important;
     fill:none!important;
-    stroke:{c['text_muted']}!important;
-    stroke-width:2!important;
+    stroke:#5cb85c!important;
+    stroke-width:2.2!important;
     pointer-events:none!important;display:block!important;
 }}
 /* Date input — sin doble borde */
