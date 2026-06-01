@@ -11,9 +11,265 @@ from ui.styles import metric_card, get_colors, page_header
 
 def render_dashboard():
     user = st.session_state.user
-    page_header("⬛", "Dashboard", f"Bienvenido, {user['username'].upper()}")
+    page_header("📈", "Dashboard", f"Bienvenido, {user['username'].upper()}")
 
     c = get_colors()
+    dark = st.session_state.get("theme", "dark") == "dark"
+
+    # ── Variables de color para inputs premium (consistentes con auth.py) ──
+    input_bg  = "#080d14" if dark else "#f0f4f8"
+    input_bdr = "#2a4560" if dark else "#94a3b8"
+    focus_clr = "#22c55e"
+    focus_glow = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
+    eye_col   = "#64748b"
+    input_text = "#c8d8ea" if dark else "#1a2b3c"
+    input_ph   = "#3a5068" if dark else "#9baab8"
+    label_col  = "#4a6a84" if dark else "#6b7f94"
+
+    # ── CSS: botón verde idéntico a stFormSubmitButton + inputs premium ──
+    st.markdown(f"""
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   BOTÓN "Actualizar capital" — idéntico al botón verde de
+   'Guardar configuración' en Bot Telegram (stFormSubmitButton).
+   Selector: data-testid del key específico para máxima especificidad
+   y cero efecto secundario en otros botones de la app.
+   ═══════════════════════════════════════════════════════════════ */
+[data-testid="stButton-btn_actualizar_capital"] > button {{
+    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.3px !important;
+    padding: 0.72rem 1rem !important;
+    width: 100% !important;
+    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.38) !important;
+    transition: all .18s ease !important;
+    cursor: pointer !important;
+    margin-top: 0.5rem !important;
+}}
+[data-testid="stButton-btn_actualizar_capital"] > button * {{
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}}
+[data-testid="stButton-btn_actualizar_capital"] > button:hover {{
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+    box-shadow: 0 6px 24px rgba(34, 197, 94, 0.48) !important;
+    transform: translateY(-1px) !important;
+}}
+[data-testid="stButton-btn_actualizar_capital"] > button:active {{
+    transform: scale(0.98) !important;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3) !important;
+}}
+
+/* ═══════════════════════════════════════════════════════════════
+   INPUTS PREMIUM dentro del expander "Configuración de cuenta"
+   Selector scoped a [data-testid="stExpander"] para no afectar
+   ningún otro input de la aplicación.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Labels ── */
+[data-testid="stExpander"] .stTextInput label,
+[data-testid="stExpander"] .stNumberInput label {{
+    color: {label_col} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+    margin-bottom: 0.3rem !important;
+    display: block !important;
+}}
+
+/* ── Text input — reset wrappers ── */
+[data-testid="stExpander"] .stTextInput,
+[data-testid="stExpander"] .stTextInput > div,
+[data-testid="stExpander"] .stTextInput > div > div,
+[data-testid="stExpander"] .stTextInput > div > div > div {{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}}
+/* ── Text input — borde premium en data-baseweb="input" ── */
+[data-testid="stExpander"] .stTextInput [data-baseweb="input"] {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    min-height: 46px !important;
+    overflow: hidden !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+}}
+[data-testid="stExpander"] .stTextInput [data-baseweb="input"]:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+[data-testid="stExpander"] .stTextInput [data-baseweb="base-input"] {{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    flex: 1 !important;
+    min-height: 46px !important;
+}}
+[data-testid="stExpander"] .stTextInput input {{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.93rem !important;
+    padding: 0 0.9rem !important;
+    flex: 1 !important;
+    height: 46px !important;
+}}
+[data-testid="stExpander"] .stTextInput input::placeholder {{
+    color: {input_ph} !important;
+    -webkit-text-fill-color: {input_ph} !important;
+    opacity: 1 !important;
+}}
+/* ── Ojo del password — mismo estilo que auth.py ── */
+[data-testid="stExpander"] .stTextInput [data-baseweb="input"] button {{
+    all: unset !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 46px !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    opacity: 0.55 !important;
+    transition: opacity .15s !important;
+}}
+[data-testid="stExpander"] .stTextInput [data-baseweb="input"] button:hover {{
+    opacity: 1 !important;
+}}
+[data-testid="stExpander"] .stTextInput [data-baseweb="input"] button svg {{
+    width: 17px !important;
+    height: 17px !important;
+    fill: none !important;
+    stroke: {eye_col} !important;
+    stroke-width: 1.8 !important;
+    pointer-events: none !important;
+    display: block !important;
+}}
+
+/* ── Number input — reset wrappers ── */
+[data-testid="stExpander"] [data-testid="stNumberInput"],
+[data-testid="stExpander"] [data-testid="stNumberInput"] > div,
+[data-testid="stExpander"] [data-testid="stNumberInput"] > div > div,
+[data-testid="stExpander"] [data-testid="stNumberInput"] > div > div > div {{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}}
+/* ── Number input — borde premium ── */
+[data-testid="stExpander"] [data-testid="stNumberInput"] > div:last-child {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+    min-height: 46px !important;
+    overflow: hidden !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    padding: 0 !important;
+}}
+[data-testid="stExpander"] [data-testid="stNumberInput"] > div:last-child:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+[data-testid="stExpander"] [data-testid="stNumberInput"] input,
+[data-testid="stExpander"] [data-testid="stNumberInput"] input[type="number"] {{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.93rem !important;
+    padding: 0 0.75rem !important;
+    flex: 1 !important;
+    height: 46px !important;
+    -moz-appearance: textfield !important;
+}}
+[data-testid="stExpander"] [data-testid="stNumberInput"] input::-webkit-outer-spin-button,
+[data-testid="stExpander"] [data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+}}
+/* ── Wrapper de botones +/- ── */
+[data-testid="stExpander"] [data-testid="stNumberInput"] > div:last-child > div:last-child {{
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: stretch !important;
+    height: 100% !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+}}
+/* ── Botones +/- individuales ── */
+[data-testid="stExpander"] [data-testid="stNumberInput-StepDown"],
+[data-testid="stExpander"] [data-testid="stNumberInput-StepUp"] {{
+    all: unset !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: stretch !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 100% !important;
+    min-height: 42px !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+    background: transparent !important;
+    border: none !important;
+    border-left: 1px solid {input_bdr} !important;
+    opacity: 0.6 !important;
+    transition: opacity .15s, background .15s !important;
+}}
+[data-testid="stExpander"] [data-testid="stNumberInput-StepDown"]:hover,
+[data-testid="stExpander"] [data-testid="stNumberInput-StepUp"]:hover {{
+    opacity: 1 !important;
+    background: rgba(34, 197, 94, 0.08) !important;
+}}
+[data-testid="stExpander"] [data-testid="stNumberInput-StepDown"] svg,
+[data-testid="stExpander"] [data-testid="stNumberInput-StepUp"] svg {{
+    width: 14px !important;
+    height: 14px !important;
+    fill: none !important;
+    stroke: {eye_col} !important;
+    stroke-width: 2 !important;
+    pointer-events: none !important;
+    display: block !important;
+}}
+</style>
+""", unsafe_allow_html=True)
+
     trades = obtener_trades(user["id"])
     df     = pd.DataFrame(trades) if trades else pd.DataFrame()
 
@@ -121,8 +377,8 @@ def render_dashboard():
     with st.expander("⚙️ Configuración de cuenta"):
         new_cap = st.number_input("Capital inicial (USD)", value=float(capital_ini),
                                    min_value=100.0, step=100.0)
-        if st.button("Actualizar capital"):
+        if st.button("💾 Actualizar capital", key="btn_actualizar_capital"):
             actualizar_capital(user["id"], new_cap)
             st.session_state.user["capital_inicial"] = new_cap
-            st.success("Capital actualizado.")
+            st.success("✅ Capital actualizado.")
             st.rerun()

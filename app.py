@@ -84,7 +84,7 @@ else:
         )
 
         nav = st.radio("Navegación", [
-            "⬛ Dashboard",
+            "📈 Dashboard",
             "📡 Análisis en Vivo",
             "🔭 Multi-Timeframe",
             "📋 Diario de Trades",
@@ -198,7 +198,7 @@ else:
         )
 
     page_map = {
-        "⬛ Dashboard":            render_dashboard,
+        "📈 Dashboard":            render_dashboard,
         "📡 Análisis en Vivo":     render_live_analysis,
         "🔭 Multi-Timeframe":      render_multi_tf,
         "📋 Diario de Trades":     render_journal,

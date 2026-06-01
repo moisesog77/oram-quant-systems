@@ -197,13 +197,19 @@ html,body{{
 [data-testid="stSidebarCollapsedControl"] button:hover {{
     background-color: {c['nav_hover']} !important;
 }}
+/* ── Icono << — negro sólido en todo momento (expandido y colapsado) ── */
 [data-testid="stSidebarCollapsedControl"] svg,
+[data-testid="stSidebarCollapsedControl"] svg *,
 [data-testid="stSidebarCollapsedControl"] svg path,
 [data-testid="stSidebarCollapsedControl"] svg polyline,
-[data-testid="stSidebarCollapsedControl"] svg line {{
-    fill: {c['text']} !important;
-    stroke: {c['text']} !important;
-    color: {c['text']} !important;
+[data-testid="stSidebarCollapsedControl"] svg line,
+[data-testid="stBaseButton-headerNoPadding"] svg,
+[data-testid="stBaseButton-headerNoPadding"] svg *,
+[data-testid="stSidebarCollapseButton"] svg,
+[data-testid="stSidebarCollapseButton"] svg * {{
+    fill: {c['text_strong']} !important;
+    stroke: {c['text_strong']} !important;
+    color: {c['text_strong']} !important;
 }}
 
 /* ── HIDE DEPLOY ────────────────────────────────────── */
