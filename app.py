@@ -100,14 +100,65 @@ else:
 
         st.divider()
 
+        # Colores píldora según tema — mismo estilo que el login
+        _dark = get_theme() == "dark"
+        _tbtn_bg  = "rgba(12,18,25,0.88)"    if _dark else "rgba(255,255,255,0.94)"
+        _tbtn_txt = "#c8d8ea"                 if _dark else "#2a3f54"
+        _tbtn_bdr = "rgba(255,255,255,0.12)"  if _dark else "rgba(0,0,0,0.09)"
+        _logout_bg  = "rgba(239,68,68,0.12)"  if _dark else "rgba(239,68,68,0.08)"
+        _logout_txt = "#ef4444"
+        _logout_bdr = "rgba(239,68,68,0.25)"  if _dark else "rgba(239,68,68,0.20)"
+
+        st.markdown(f'''
+<style>
+/* ── Botones del sidebar — misma píldora que el login ── */
+section[data-testid="stSidebar"] .stButton > button {{
+    border-radius: 999px !important;
+    font-family: "Inter", sans-serif !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+    padding: 0.4rem 0.9rem !important;
+    width: 100% !important;
+    transition: all .18s ease !important;
+    border: 1px solid !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
+    white-space: nowrap !important;
+}}
+/* Botón tema */
+section[data-testid="stSidebar"] .stButton:first-of-type > button {{
+    background: {_tbtn_bg} !important;
+    color: {_tbtn_txt} !important;
+    -webkit-text-fill-color: {_tbtn_txt} !important;
+    border-color: {_tbtn_bdr} !important;
+}}
+section[data-testid="stSidebar"] .stButton:first-of-type > button:hover {{
+    box-shadow: 0 4px 16px rgba(0,0,0,0.22) !important;
+    opacity: 0.9 !important;
+}}
+/* Botón cerrar sesión — píldora roja */
+section[data-testid="stSidebar"] .stButton:last-of-type > button {{
+    background: {_logout_bg} !important;
+    color: {_logout_txt} !important;
+    -webkit-text-fill-color: {_logout_txt} !important;
+    border-color: {_logout_bdr} !important;
+}}
+section[data-testid="stSidebar"] .stButton:last-of-type > button:hover {{
+    background: rgba(239,68,68,0.20) !important;
+    box-shadow: 0 4px 16px rgba(239,68,68,0.25) !important;
+}}
+</style>
+''', unsafe_allow_html=True)
+
         col_t, col_s = st.columns(2)
         with col_t:
-            label = "☀️" if get_theme() == "dark" else "🌙"
-            if st.button(label, width='stretch', help="Cambiar tema"):
+            label = "☀️ Claro" if get_theme() == "dark" else "🌙 Oscuro"
+            if st.button(label, key="sb_theme", help="Cambiar tema"):
                 toggle_theme()
                 st.rerun()
         with col_s:
-            if st.button("🚪", width='stretch', help="Cerrar sesión"):
+            if st.button("🚪 Salir", key="sb_logout", help="Cerrar sesión"):
                 st.session_state.user = None
                 st.session_state.pop("last_activity", None)
                 st.rerun()
