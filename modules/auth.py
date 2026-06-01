@@ -392,14 +392,68 @@ html, body {{
 /* ── Eliminar outline amarillo ── */
 *, *:focus, *:focus-visible {{ outline: none !important; }}
 
-/* ── "Press Enter to submit form" y recuadro fantasma del number_input ──
+/* ══════════════════════════════════════════════════════════════
+   RECUADRO FANTASMA — solución definitiva
    
-   El recuadro que aparece al hacer clic en Capital Inicial tiene 3 causas:
-   1. [data-testid="InputInstructions"] — hint de texto oculto
-   2. Un <input> hermano del stNumberInput inyectado por Streamlit
-   3. El margin-bottom que reserva espacio para ese elemento
+   El recuadro debajo del number_input en un st.form es el
+   segundo elemento hijo del stNumberInput. Streamlit lo genera
+   como contenedor de validación del formulario. Puede ser un
+   <input>, <div>, <span> o <p> dependiendo de la versión.
    
-   Solución: ocultar el input fantasma directamente + quitar el margin. */
+   Estrategia: ocultar TODOS los hijos directos del stNumberInput
+   que NO sean el primer div (el contenedor con borde).
+   El selector :not(:first-child) captura todo lo demás.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Ocultar cualquier elemento que NO sea el primer hijo del stNumberInput */
+[data-testid="stNumberInput"] > *:not(:first-child) {{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    outline: none !important;
+    opacity: 0 !important;
+    position: absolute !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+}}
+
+/* Refuerzo específico por tipo de elemento */
+[data-testid="stNumberInput"] > input,
+[data-testid="stNumberInput"] > div:not(:first-child),
+[data-testid="stNumberInput"] > span,
+[data-testid="stNumberInput"] > p {{
+    display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    position: absolute !important;
+    overflow: hidden !important;
+}}
+
+/* Mismo fix dentro de stForm — más especificidad */
+[data-testid="stForm"] [data-testid="stNumberInput"] > *:not(:first-child) {{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    outline: none !important;
+    opacity: 0 !important;
+    position: absolute !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+}}
+
+/* InputInstructions — hint "Press Enter to submit form" */
 [data-testid="InputInstructions"],
 [data-testid="InputInstructions"] *,
 div[class*="instructions"],
@@ -409,36 +463,6 @@ p[class*="instructions"] {{
     height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: hidden !important;
-}}
-
-/* Input fantasma — hermano directo del stNumberInput (NO el input real
-   que vive dentro del div con borde). Streamlit lo inyecta para capturar
-   el Enter del formulario. Aplica con position:absolute para sacarlo
-   del flujo sin afectar el layout del campo real. */
-[data-testid="stNumberInput"] > input {{
-    position: absolute !important;
-    opacity: 0 !important;
-    height: 0 !important;
-    width: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    outline: none !important;
-    pointer-events: none !important;
-    overflow: hidden !important;
-}}
-/* Mismo fix dentro de stForm */
-[data-testid="stForm"] [data-testid="stNumberInput"] > input {{
-    position: absolute !important;
-    opacity: 0 !important;
-    height: 0 !important;
-    width: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    outline: none !important;
-    pointer-events: none !important;
     overflow: hidden !important;
 }}
 </style>
