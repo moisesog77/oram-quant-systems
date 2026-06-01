@@ -100,7 +100,7 @@ else:
 
         st.divider()
 
-        # Colores píldora según tema — mismo estilo que el login
+        # Colores exactamente iguales al botón de login
         _dark = get_theme() == "dark"
         _tbtn_bg  = "rgba(12,18,25,0.88)"    if _dark else "rgba(255,255,255,0.94)"
         _tbtn_txt = "#c8d8ea"                 if _dark else "#2a3f54"
@@ -109,56 +109,69 @@ else:
         _logout_txt = "#ef4444"
         _logout_bdr = "rgba(239,68,68,0.25)"  if _dark else "rgba(239,68,68,0.20)"
 
+        # Inyectar CSS con alta especificidad usando los keys exactos
         st.markdown(f'''
 <style>
-/* ── Botones del sidebar — misma píldora que el login ── */
-section[data-testid="stSidebar"] .stButton > button {{
+/* ── Reset total de botones del sidebar ── */
+section[data-testid="stSidebar"] .stButton > button,
+section[data-testid="stSidebar"] .stButton > button:focus,
+section[data-testid="stSidebar"] .stButton > button:active {{
+    all: unset !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
     border-radius: 999px !important;
     font-family: "Inter", sans-serif !important;
     font-size: 0.82rem !important;
     font-weight: 500 !important;
-    padding: 0.4rem 0.9rem !important;
-    width: 100% !important;
+    padding: 0.42rem 0.75rem !important;
+    cursor: pointer !important;
     transition: all .18s ease !important;
-    border: 1px solid !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
     white-space: nowrap !important;
+    letter-spacing: 0.1px !important;
 }}
-/* Botón tema */
-section[data-testid="stSidebar"] .stButton:first-of-type > button {{
+/* Botón tema — píldora translúcida */
+[data-testid="stButton-sb_theme"] > button,
+[data-testid="stButton-sb_theme"] > button:hover {{
     background: {_tbtn_bg} !important;
     color: {_tbtn_txt} !important;
     -webkit-text-fill-color: {_tbtn_txt} !important;
-    border-color: {_tbtn_bdr} !important;
+    border: 1px solid {_tbtn_bdr} !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18) !important;
 }}
-section[data-testid="stSidebar"] .stButton:first-of-type > button:hover {{
-    box-shadow: 0 4px 16px rgba(0,0,0,0.22) !important;
+[data-testid="stButton-sb_theme"] > button:hover {{
+    box-shadow: 0 4px 18px rgba(0,0,0,0.26) !important;
     opacity: 0.9 !important;
 }}
-/* Botón cerrar sesión — píldora roja */
-section[data-testid="stSidebar"] .stButton:last-of-type > button {{
+/* Botón salir — píldora roja */
+[data-testid="stButton-sb_logout"] > button {{
     background: {_logout_bg} !important;
     color: {_logout_txt} !important;
     -webkit-text-fill-color: {_logout_txt} !important;
-    border-color: {_logout_bdr} !important;
+    border: 1px solid {_logout_bdr} !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    box-shadow: 0 2px 12px rgba(239,68,68,0.15) !important;
 }}
-section[data-testid="stSidebar"] .stButton:last-of-type > button:hover {{
-    background: rgba(239,68,68,0.20) !important;
-    box-shadow: 0 4px 16px rgba(239,68,68,0.25) !important;
+[data-testid="stButton-sb_logout"] > button:hover {{
+    background: rgba(239,68,68,0.22) !important;
+    box-shadow: 0 4px 18px rgba(239,68,68,0.28) !important;
 }}
 </style>
 ''', unsafe_allow_html=True)
 
         col_t, col_s = st.columns(2)
         with col_t:
-            label = "☀️ Claro" if get_theme() == "dark" else "🌙 Oscuro"
-            if st.button(label, key="sb_theme", help="Cambiar tema"):
+            label = "☀️ Claro" if _dark else "🌙 Oscuro"
+            if st.button(label, key="sb_theme"):
                 toggle_theme()
                 st.rerun()
         with col_s:
-            if st.button("🚪 Salir", key="sb_logout", help="Cerrar sesión"):
+            if st.button("🚪 Salir", key="sb_logout"):
                 st.session_state.user = None
                 st.session_state.pop("last_activity", None)
                 st.rerun()

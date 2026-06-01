@@ -209,17 +209,12 @@ section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span,
 section[data-testid="stSidebar"] div{{color:{c['text']}!important}}
+/* Sidebar buttons — base, los estilos específicos van en app.py */
 section[data-testid="stSidebar"] .stButton>button{{
     border-radius:999px!important;
     font-family:'Inter',sans-serif!important;
     font-size:0.82rem!important;font-weight:500!important;
-    padding:0.4rem 0.9rem!important;
-    width:100%!important;
     transition:all .18s ease!important;
-    border:1px solid!important;
-    backdrop-filter:blur(10px)!important;
-    -webkit-backdrop-filter:blur(10px)!important;
-    box-shadow:0 2px 10px rgba(0,0,0,0.15)!important;
     white-space:nowrap!important;
 }}
 
