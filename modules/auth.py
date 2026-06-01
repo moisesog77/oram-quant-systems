@@ -274,16 +274,51 @@ html, body {{
     margin: 0 !important;
 }}
 
-/* Botones +/− (StepUp / StepDown) — mismo estilo que el ojo */
+/* ══════════════════════════════════════════════════════════
+   BOTONES +/− — alineación vertical centrada
+   
+   DOM real:
+     [data-testid="stNumberInput"] > div:last-child   ← flex row (borde)
+       input                                           ← campo de texto
+       div  ← WRAPPER de ambos botones                ← este necesita flex
+         button[data-testid="stNumberInput-StepDown"]
+         button[data-testid="stNumberInput-StepUp"]
+   
+   El problema: el div wrapper de los botones es display:block
+   por defecto, así que los botones se apilan en vertical y
+   quedan pegados al tope. Se aísla SOLO ese div con el
+   selector :last-child > div:last-child para no tocar nada más.
+   ══════════════════════════════════════════════════════════ */
+
+/* Wrapper de los dos botones — convertir a flex row centrado */
+[data-testid="stNumberInput"] > div:last-child > div:last-child {{
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: stretch !important;
+    height: 100% !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}}
+
+/* Botones individuales — tamaño cuadrado centrado */
 [data-testid="stNumberInput-StepDown"],
 [data-testid="stNumberInput-StepUp"] {{
     all: unset !important;
+    box-sizing: border-box !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    align-self: stretch !important;
     width: 36px !important;
     min-width: 36px !important;
-    height: 46px !important;
+    height: 100% !important;
+    min-height: 42px !important;
     flex-shrink: 0 !important;
     cursor: pointer !important;
     background: transparent !important;
@@ -291,10 +326,6 @@ html, body {{
     border-left: 1px solid {input_bdr} !important;
     opacity: 0.6 !important;
     transition: opacity .15s, background .15s !important;
-}}
-[data-testid="stNumberInput-StepDown"] {{
-    border-left: 1px solid {input_bdr} !important;
-    border-right: none !important;
 }}
 [data-testid="stNumberInput-StepDown"]:hover,
 [data-testid="stNumberInput-StepUp"]:hover {{
@@ -309,6 +340,8 @@ html, body {{
     stroke: {eye_col} !important;
     stroke-width: 2 !important;
     pointer-events: none !important;
+    display: block !important;
+    flex-shrink: 0 !important;
 }}
 
 /* ── BOTÓN SUBMIT VERDE ── */
