@@ -45,6 +45,23 @@ def render_auth():
     )
 
     # Toggle de tema en la pantalla de login
+    # Colores explícitos para el botón — independiente del color-scheme del OS
+    btn_bg    = "#ffffff" if not dark else "#0c1219"
+    btn_color = "#1a2b3c" if not dark else "#c8d8ea"
+    btn_border = "#d0dcea" if not dark else "#1b2a40"
+    st.markdown(
+        f'<style>'
+        f'[data-testid="stButton"] #auth_theme_toggle,'
+        f'button[kind="secondary"][data-testid="baseButton-secondary"]{{}}' 
+        f'div[data-testid="stHorizontalBlock"] > div:last-child .stButton > button{{'
+        f'background:{btn_bg}!important;'
+        f'color:{btn_color}!important;'
+        f'-webkit-text-fill-color:{btn_color}!important;'
+        f'border:1px solid {btn_border}!important;'
+        f'}}'
+        f'</style>',
+        unsafe_allow_html=True,
+    )
     col_l, col_c, col_r = st.columns([1, 2, 1])
     with col_r:
         theme_label = "☀️ Claro" if dark else "🌙 Oscuro"
@@ -92,6 +109,14 @@ def render_auth():
                     else:
                         ok = crear_usuario(new_user, new_pw, capital_inicial=capital)
                         if ok:
-                            st.success("✅ Cuenta creada. Inicia sesión.")
+                            # Auto-login tras registro exitoso
+                            data = autenticar_usuario(new_user, new_pw)
+                            if data:
+                                st.session_state.user = data
+                                from datetime import datetime, timezone
+                                st.session_state["last_activity"] = datetime.now(timezone.utc).timestamp()
+                                st.rerun()
+                            else:
+                                st.success("✅ Cuenta creada. Inicia sesión.")
                         else:
                             st.error("Ese nombre de usuario ya existe.")

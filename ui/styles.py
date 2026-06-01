@@ -345,13 +345,14 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 }}
 
 /* ── INPUTS — COMPLETO SIN DOBLE BORDE ─────────────── */
-/* Text input */
+/* Text input (incluye password) */
 .stTextInput>div>div{{
     background:{c['input_bg']}!important;
     border:1px solid {c['border']}!important;
     border-radius:8px!important;
     transition:border-color .15s,box-shadow .15s;
     box-shadow:none!important;
+    padding:0!important;
 }}
 .stTextInput>div>div:focus-within{{
     border-color:{c['accent']}!important;
@@ -361,6 +362,29 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     background:transparent!important;color:{c['text']}!important;
     font-family:'JetBrains Mono',monospace!important;
     border:none!important;box-shadow:none!important;outline:none!important;
+}}
+/* Password — eliminar el div extra que aparece junto al ojo */
+.stTextInput [data-baseweb="input"]{{
+    background:transparent!important;
+    border:none!important;box-shadow:none!important;padding:0!important;
+    gap:0!important;
+}}
+.stTextInput [data-baseweb="input"] > div:not(:has(input)):not(:has(button)){{
+    display:none!important;
+}}
+/* Botón del ojo en password */
+.stTextInput [data-testid="textInputRootElement"] button,
+.stTextInput button[aria-label*="password"],
+.stTextInput button[kind="icon"]{{
+    background:transparent!important;
+    border:none!important;box-shadow:none!important;
+    color:{c['text_muted']}!important;
+    padding:0 8px!important;
+}}
+.stTextInput [data-testid="textInputRootElement"] button svg,
+.stTextInput button svg{{
+    fill:{c['text_muted']}!important;
+    stroke:{c['text_muted']}!important;
 }}
 /* Textarea */
 .stTextArea>div>div{{
@@ -491,25 +515,47 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     background:{c['btn_bg']}!important;
     border:1px solid {c['border']}!important;
     color:{c['text']}!important;
+    -webkit-text-fill-color:{c['text']}!important;
     font-family:'Inter',sans-serif!important;font-weight:500!important;
     border-radius:8px!important;padding:.48rem 1rem!important;
     transition:all .18s ease;letter-spacing:.15px;
 }}
+.stButton>button *{{
+    color:{c['text']}!important;
+    -webkit-text-fill-color:{c['text']}!important;
+}}
 .stButton>button:hover{{
     border-color:{c['accent']}!important;
-    color:{c['accent']}!important;background:{c['glow']}!important;
+    color:{c['accent']}!important;
+    -webkit-text-fill-color:{c['accent']}!important;
+    background:{c['glow']}!important;
 }}
 .stButton>button:active{{transform:scale(.98)!important}}
 .stFormSubmitButton>button{{
-    background:{c['btn_bg']}!important;
-    border:1px solid {c['border2']}!important;
-    color:{c['text']}!important;
+    background:{'linear-gradient(135deg,#16a34a 0%,#15803d 100%)' if dark else 'linear-gradient(135deg,#15803d 0%,#166534 100%)'}!important;
+    border:1px solid {'#16a34a' if dark else '#15803d'}!important;
+    color:#ffffff!important;
+    -webkit-text-fill-color:#ffffff!important;
+    font-family:'Inter',sans-serif!important;
     font-weight:600!important;
+    letter-spacing:0.3px!important;
+    border-radius:8px!important;
+    box-shadow:{'0 2px 12px rgba(22,163,74,0.35)' if dark else '0 2px 10px rgba(21,128,61,0.30)'}!important;
+    transition:all .18s ease!important;
+}}
+.stFormSubmitButton>button *{{
+    color:#ffffff!important;
+    -webkit-text-fill-color:#ffffff!important;
 }}
 .stFormSubmitButton>button:hover{{
-    border-color:{c['accent']}!important;
-    color:{c['accent']}!important;
-    background:{c['glow']}!important;
+    background:{'linear-gradient(135deg,#22c55e 0%,#16a34a 100%)' if dark else 'linear-gradient(135deg,#16a34a 0%,#15803d 100%)'}!important;
+    border-color:{'#22c55e' if dark else '#16a34a'}!important;
+    box-shadow:{'0 4px 20px rgba(34,197,94,0.45)' if dark else '0 4px 16px rgba(22,163,74,0.40)'}!important;
+    transform:translateY(-1px)!important;
+}}
+.stFormSubmitButton>button:active{{
+    transform:scale(.98) translateY(0)!important;
+    box-shadow:{'0 1px 6px rgba(22,163,74,0.30)' if dark else '0 1px 4px rgba(21,128,61,0.25)'}!important;
 }}
 
 /* ── FORM ───────────────────────────────────────────── */
@@ -811,6 +857,60 @@ textarea {{
     height: auto !important;
     padding: 4px 8px !important;
 }}
+/* ── PASSWORD INPUT — eliminar espacio extra junto al ojo ── */
+/* En Streamlit 1.58 el password wrapper tiene estructura:
+   stTextInput > div > div[data-baseweb="input"] > div.input > input
+                                                 > div.trailing > button(ojo)
+   El div extra que genera el espacio es un segundo div vacío */
+[data-testid="stTextInputRootElement"]{{
+    background:{c['input_bg']}!important;
+    border:1px solid {c['border']}!important;
+    border-radius:8px!important;
+    padding:0!important;
+    display:flex!important;align-items:center!important;
+    transition:border-color .15s,box-shadow .15s;
+    box-shadow:none!important;
+}}
+[data-testid="stTextInputRootElement"]:focus-within{{
+    border-color:{c['accent']}!important;
+    box-shadow:0 0 0 3px {c['glow']}!important;
+}}
+[data-testid="stTextInputRootElement"] input{{
+    background:transparent!important;
+    border:none!important;box-shadow:none!important;outline:none!important;
+    color:{c['text']}!important;
+    -webkit-text-fill-color:{c['text']}!important;
+    flex:1!important;padding:.45rem .6rem!important;
+    font-family:'JetBrains Mono',monospace!important;
+}}
+[data-testid="stTextInputRootElement"] > div{{
+    background:transparent!important;
+    border:none!important;box-shadow:none!important;
+    padding:0!important;width:100%!important;
+}}
+/* Botón ojo — sin fondo extra */
+[data-testid="stTextInputRootElement"] button{{
+    background:transparent!important;
+    border:none!important;box-shadow:none!important;
+    padding:0 10px!important;cursor:pointer!important;
+    color:{c['text_muted']}!important;flex-shrink:0!important;
+}}
+[data-testid="stTextInputRootElement"] button:hover{{
+    color:{c['text']}!important;
+}}
+[data-testid="stTextInputRootElement"] button svg{{
+    fill:{c['text_muted']}!important;width:16px!important;height:16px!important;
+}}
+/* Anular el div fantasma que crea el espacio extra */
+[data-testid="stTextInputRootElement"] > div > div:empty{{
+    display:none!important;width:0!important;padding:0!important;
+}}
+[data-baseweb="input"]{{
+    background:transparent!important;
+    border:none!important;box-shadow:none!important;
+    padding:0!important;gap:0!important;
+}}
+
 /* ── SCROLLBAR ──────────────────────────────────────── */
 ::-webkit-scrollbar{{width:4px;height:4px}}
 ::-webkit-scrollbar-track{{background:{c['bg']}}}
