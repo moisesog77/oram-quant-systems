@@ -143,19 +143,33 @@ body {{
 
 /* ── RESET ─────────────────────────────────────────── */
 *,*::before,*::after{{box-sizing:border-box}}
-html,body,[class*="css"]{{
+html,body{{
     font-family:'Inter',sans-serif!important;
     background-color:{c['bg']}!important;
     color:{c['text']}!important;
     -webkit-font-smoothing:antialiased;
+    min-height:100vh!important;
 }}
+[class*="css"]{{
+    font-family:'Inter',sans-serif!important;
+    color:{c['text']}!important;
+}}
+/* stApp y contenedores internos: TRANSPARENTES para que el gradient de auth pase */
+.stApp{{background:transparent!important;background-color:transparent!important;}}
 .main,.block-container{{
+    background:transparent!important;
     background-color:transparent!important;
     padding-top:1.2rem!important;
     color:{c['text']}!important;
 }}
-.stApp,[data-testid="stAppViewContainer"]{{background-color:{c['bg']}!important}}
-[data-testid="stMain"],[data-testid="stMainBlockContainer"]{{background-color:transparent!important}}
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewContainer"]>section,
+[data-testid="stAppViewContainer"]>section>div,
+[data-testid="stMain"],
+[data-testid="stMainBlockContainer"]{{
+    background:transparent!important;
+    background-color:transparent!important;
+}}
 [data-testid="stBottom"],[data-testid="stBottom"]>div{{background:{c['bg']}!important}}
 
 /* ── SIDEBAR TOGGLE BUTTON — visible en ambos temas ──────── */

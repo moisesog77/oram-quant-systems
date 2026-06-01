@@ -16,7 +16,7 @@ def render_auth():
     input_bg    = "#080d14"  if dark else "#f4f8fc"
     input_text  = "#c8d8ea"  if dark else "#1a2b3c"
     input_ph    = "#3a5068"  if dark else "#a0aeba"
-    input_bdr   = "#2a4560"  if dark else "#b8cfe0"   # borde visible siempre
+    input_bdr   = "#2a4560"  if dark else "#b8cfe0"
     label_col   = "#4a6a84"  if dark else "#6b7f94"
     tab_active  = "#c9a227"
     focus_clr   = "#22c55e"
@@ -29,22 +29,30 @@ def render_auth():
 
     st.markdown(f"""
 <style>
-/* ── FONDO — degradado completo sin línea de corte ── */
-html, body, .stApp,
+/* ══════════════════════════════════════════════════
+   FONDO — degradado completo, sin línea de corte
+   La estrategia: poner el gradient en html/body/.stApp
+   y hacer TRANSPARENTES todos los contenedores hijos
+   ══════════════════════════════════════════════════ */
+html, body {{
+    background: {bg} !important;
+    background-attachment: fixed !important;
+    min-height: 100vh !important;
+}}
+.stApp {{
+    background: transparent !important;
+}}
 [data-testid="stAppViewContainer"],
 [data-testid="stAppViewContainer"] > section,
 [data-testid="stAppViewContainer"] > section > div,
-.main, .block-container,
 [data-testid="stMain"],
-[data-testid="stMainBlockContainer"] {{
-    background:{bg}!important;
-    background-image:{bg}!important;
-    padding:0!important;max-width:100%!important;
-}}
-/* Forzar que NINGÚN contenedor hijo rompa el degradado con color sólido */
-[data-testid="stAppViewContainer"] > *,
-[data-testid="stAppViewContainer"] > * > * {{
-    background:transparent!important;
+[data-testid="stMainBlockContainer"],
+.main,
+.block-container {{
+    background: transparent !important;
+    background-color: transparent !important;
+    padding: 0 !important;
+    max-width: 100% !important;
 }}
 
 /* ── TABS ── */
@@ -78,7 +86,7 @@ html, body, .stApp,
 }}
 
 /* ── LABELS ── */
-.stTextInput label,.stNumberInput label {{
+.stTextInput label, .stNumberInput label {{
     color:{label_col}!important;
     font-family:'Inter',sans-serif!important;
     font-size:0.72rem!important;font-weight:600!important;
@@ -86,138 +94,184 @@ html, body, .stApp,
     margin-bottom:0.3rem!important;display:block!important;
 }}
 
-/* ══ TEXT INPUT ══
-   Streamlit 1.58 estructura:
-   .stTextInput > div > div  ← borde aquí
-     [data-baseweb="input"]  ← flex row, sin borde
-       input
-       button (ojo)                                    */
-.stTextInput {{ margin-bottom:0.1rem!important; }}
+/* ══════════════════════════════════════════════════
+   TEXT INPUT — estructura Streamlit:
+     .stTextInput
+       > div  (wrapper externo)
+         > div  (o [data-testid="stTextInputRootElement"])
+           [data-baseweb="input"]
+             input
+             button (ojo)
+   REGLA: el borde va SOLO en el div del nivel "root element".
+   Los niveles internos (baseweb, input real) son transparentes.
+   ══════════════════════════════════════════════════ */
+.stTextInput {{
+    margin-bottom: 0.1rem !important;
+}}
+
+/* Nivel 1 — wrapper externo: sin fondo, sin borde */
 .stTextInput > div {{
-    background:transparent!important;border:none!important;
-    box-shadow:none!important;padding:0!important;margin:0!important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
 }}
-/* CONTENEDOR CON BORDE — 4 esquinas perfectas */
-.stTextInput > div > div,
-.stTextInput [data-testid="stTextInputRootElement"],
-[data-testid="stTextInputRootElement"] {{
-    background:{input_bg}!important;
-    border:1.5px solid {input_bdr}!important;
-    border-radius:10px!important;
-    padding:0!important;margin:0!important;
-    box-shadow:none!important;
-    overflow:hidden!important;
-    display:flex!important;align-items:stretch!important;
-    min-height:44px!important;
-    transition:border-color .15s,box-shadow .15s!important;
+
+/* Nivel 2 — AQUÍ va el borde (ambos nombres posibles del elemento) */
+.stTextInput > div > div {{
+    background: {input_bg} !important;
+    border: 1.5px solid {input_bdr} !important;
+    border-radius: 10px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: stretch !important;
+    min-height: 44px !important;
+    transition: border-color .15s, box-shadow .15s !important;
 }}
-.stTextInput > div > div:focus-within,
-.stTextInput [data-testid="stTextInputRootElement"]:focus-within,
-[data-testid="stTextInputRootElement"]:focus-within {{
-    border-color:{focus_clr}!important;
-    box-shadow:0 0 0 3px {focus_glow}!important;
+.stTextInput > div > div:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
-/* Base Web — transparente */
+
+/* Nivel 3 — Base Web input wrapper: transparent, sin borde */
 .stTextInput [data-baseweb="input"],
-.stTextInput [data-baseweb="base-input"],
-[data-testid="stTextInputRootElement"] {{
-    background:transparent!important;border:none!important;
-    box-shadow:none!important;padding:0!important;margin:0!important;
-    width:100%!important;display:flex!important;align-items:center!important;
-    flex:1!important;
+.stTextInput [data-baseweb="base-input"] {{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    flex: 1 !important;
+    min-height: 44px !important;
 }}
-/* Input real */
+
+/* Input real — texto */
 .stTextInput input {{
-    background:transparent!important;border:none!important;
-    box-shadow:none!important;outline:none!important;
-    color:{input_text}!important;-webkit-text-fill-color:{input_text}!important;
-    font-family:'Inter',sans-serif!important;font-size:0.93rem!important;
-    padding:0 0.85rem!important;flex:1!important;
-    min-width:0!important;height:44px!important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.93rem !important;
+    padding: 0 0.85rem !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+    height: 44px !important;
 }}
 .stTextInput input::placeholder {{
-    color:{input_ph}!important;-webkit-text-fill-color:{input_ph}!important;
-    opacity:1!important;
+    color: {input_ph} !important;
+    -webkit-text-fill-color: {input_ph} !important;
+    opacity: 1 !important;
 }}
-/* Botón ojo — limpio y centrado */
-.stTextInput button,
-[data-testid="stTextInputRootElement"] button {{
-    all:unset!important;
-    display:flex!important;align-items:center!important;
-    justify-content:center!important;
-    width:42px!important;height:44px!important;
-    flex-shrink:0!important;cursor:pointer!important;
-    transition:opacity .15s!important;
-    background:transparent!important;
-    border:none!important;
-    padding:0 10px!important;
+
+/* Botón ojo — centrado, sin fondo, con SVG stroke */
+.stTextInput button {{
+    all: unset !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 40px !important;
+    height: 44px !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    opacity: 0.7 !important;
+    transition: opacity .15s !important;
 }}
-.stTextInput button svg,
-[data-testid="stTextInputRootElement"] button svg {{
-    width:18px!important;height:18px!important;
-    color:{eye_col}!important;
-    fill:none!important;
-    stroke:{eye_col}!important;
-    stroke-width:1.8!important;
-    pointer-events:none!important;
+.stTextInput button:hover {{
+    opacity: 1 !important;
 }}
-.stTextInput button:hover svg,
-[data-testid="stTextInputRootElement"] button:hover svg {{
-    stroke:{input_text}!important;
-    color:{input_text}!important;
+.stTextInput button svg {{
+    width: 18px !important;
+    height: 18px !important;
+    fill: none !important;
+    stroke: {eye_col} !important;
+    stroke-width: 1.8 !important;
+    pointer-events: none !important;
+    display: block !important;
+}}
+.stTextInput button:hover svg {{
+    stroke: {input_text} !important;
 }}
 
 /* ── NUMBER INPUT ── */
 [data-testid="stNumberInput"] > div {{
-    background:{input_bg}!important;
-    border:1.5px solid {input_bdr}!important;
-    border-radius:10px!important;overflow:hidden!important;
-    box-shadow:none!important;display:flex!important;
-    align-items:center!important;min-height:44px!important;
-    transition:border-color .15s,box-shadow .15s!important;
+    background: {input_bg} !important;
+    border: 1.5px solid {input_bdr} !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+    min-height: 44px !important;
+    transition: border-color .15s, box-shadow .15s !important;
 }}
 [data-testid="stNumberInput"] > div:focus-within {{
-    border-color:{focus_clr}!important;
-    box-shadow:0 0 0 3px {focus_glow}!important;
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
 [data-testid="stNumberInput"] input {{
-    background:transparent!important;border:none!important;
-    box-shadow:none!important;outline:none!important;
-    color:{input_text}!important;-webkit-text-fill-color:{input_text}!important;
-    font-family:'Inter',sans-serif!important;font-size:0.93rem!important;
-    padding:0 0.75rem!important;flex:1!important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.93rem !important;
+    padding: 0 0.75rem !important;
+    flex: 1 !important;
 }}
 
 /* ── BOTÓN SUBMIT VERDE ── */
 .stFormSubmitButton > button {{
-    background:linear-gradient(135deg,#16a34a 0%,#14743d 100%)!important;
-    border:none!important;border-radius:10px!important;
-    color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;
-    font-family:'Inter',sans-serif!important;font-size:0.95rem!important;
-    font-weight:600!important;letter-spacing:0.3px!important;
-    padding:0.72rem 1rem!important;width:100%!important;
-    margin-top:0.6rem!important;
-    box-shadow:0 4px 16px rgba(22,163,74,0.38)!important;
-    transition:all .18s ease!important;cursor:pointer!important;
+    background: linear-gradient(135deg,#16a34a 0%,#14743d 100%) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.3px !important;
+    padding: 0.72rem 1rem !important;
+    width: 100% !important;
+    margin-top: 0.6rem !important;
+    box-shadow: 0 4px 16px rgba(22,163,74,0.38) !important;
+    transition: all .18s ease !important;
+    cursor: pointer !important;
 }}
 .stFormSubmitButton > button * {{
-    color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
 }}
 .stFormSubmitButton > button:hover {{
-    background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%)!important;
-    box-shadow:0 6px 24px rgba(34,197,94,0.48)!important;
-    transform:translateY(-1px)!important;
+    background: linear-gradient(135deg,#22c55e 0%,#16a34a 100%) !important;
+    box-shadow: 0 6px 24px rgba(34,197,94,0.48) !important;
+    transform: translateY(-1px) !important;
 }}
 .stFormSubmitButton > button:active {{
-    transform:scale(0.98)!important;
-    box-shadow:0 2px 8px rgba(22,163,74,0.3)!important;
+    transform: scale(0.98) !important;
+    box-shadow: 0 2px 8px rgba(22,163,74,0.3) !important;
 }}
 
 /* ── QUITAR FOCUS AMARILLO ── */
-*,*:focus,*:focus-visible {{ outline:none!important; }}
+*, *:focus, *:focus-visible {{ outline: none !important; }}
 
 /* ── PRESS ENTER hint — ocultar ── */
-[data-testid="InputInstructions"] {{ display:none!important; }}
+[data-testid="InputInstructions"] {{ display: none !important; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -227,7 +281,6 @@ html, body, .stApp,
     A = f'<span style="color:{LOGO_TEAL}">A</span>'
     M = f'<span style="color:{m}">M</span>'
 
-    # El botón tema va en col_right — alineado verticalmente con el logo
     col_left, col_logo, col_right = st.columns([1, 2, 1])
 
     with col_logo:
@@ -246,12 +299,10 @@ html, body, .stApp,
 """, unsafe_allow_html=True)
 
     with col_right:
-        # Alinear el botón verticalmente con el logo (padding top)
         st.markdown('<div style="padding-top:2.1rem;display:flex;justify-content:flex-end">', unsafe_allow_html=True)
         theme_icon = "☀️ Claro" if dark else "🌙 Oscuro"
         st.markdown(f"""
 <style>
-/* Botón tema — píldora derecha, estilo concreto */
 [data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child .stButton > button {{
     background:{tbtn_bg}!important;
     backdrop-filter:blur(10px)!important;
