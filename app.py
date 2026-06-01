@@ -100,66 +100,76 @@ else:
 
         st.divider()
 
-        # Colores exactamente iguales al botón de login
         _dark = get_theme() == "dark"
+
+        # Colores del botón tema — idénticos al login
         _tbtn_bg  = "rgba(12,18,25,0.88)"    if _dark else "rgba(255,255,255,0.94)"
         _tbtn_txt = "#c8d8ea"                 if _dark else "#2a3f54"
-        _tbtn_bdr = "rgba(255,255,255,0.12)"  if _dark else "rgba(0,0,0,0.09)"
-        _logout_bg  = "rgba(239,68,68,0.12)"  if _dark else "rgba(239,68,68,0.08)"
-        _logout_txt = "#ef4444"
-        _logout_bdr = "rgba(239,68,68,0.25)"  if _dark else "rgba(239,68,68,0.20)"
+        _tbtn_bdr = "rgba(200,216,234,0.18)"  if _dark else "rgba(0,0,0,0.12)"
+        # Colores del botón salir — píldora roja
+        _logout_bg  = "rgba(239,68,68,0.10)"  if _dark else "rgba(239,68,68,0.07)"
+        _logout_txt = "#f87171"               if _dark else "#dc2626"
+        _logout_bdr = "rgba(239,68,68,0.30)"  if _dark else "rgba(220,38,38,0.25)"
 
-        # Inyectar CSS con alta especificidad usando los keys exactos
         st.markdown(f'''
 <style>
-/* ── Reset total de botones del sidebar ── */
-section[data-testid="stSidebar"] .stButton > button,
-section[data-testid="stSidebar"] .stButton > button:focus,
-section[data-testid="stSidebar"] .stButton > button:active {{
-    all: unset !important;
+/* ═══ SIDEBAR BUTTONS — píldoras idénticas al login ═══════════════
+   Usamos especificidad máxima con el atributo data-testid del key  */
+
+/* Base compartida — forma de píldora perfecta */
+[data-testid="stButton-sb_theme"] button,
+[data-testid="stButton-sb_logout"] button {{
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     width: 100% !important;
+    min-height: 36px !important;
     box-sizing: border-box !important;
+    /* ── píldora ── */
     border-radius: 999px !important;
+    /* ── tipografía ── */
     font-family: "Inter", sans-serif !important;
     font-size: 0.82rem !important;
     font-weight: 500 !important;
-    padding: 0.42rem 0.75rem !important;
+    letter-spacing: 0.1px !important;
+    line-height: 1 !important;
+    /* ── espacio interno ── */
+    padding: 0.42rem 1rem !important;
+    /* ── comportamiento ── */
     cursor: pointer !important;
     transition: all .18s ease !important;
     white-space: nowrap !important;
-    letter-spacing: 0.1px !important;
+    text-decoration: none !important;
 }}
-/* Botón tema — píldora translúcida */
-[data-testid="stButton-sb_theme"] > button,
-[data-testid="stButton-sb_theme"] > button:hover {{
+
+/* Botón TEMA */
+[data-testid="stButton-sb_theme"] button {{
     background: {_tbtn_bg} !important;
     color: {_tbtn_txt} !important;
     -webkit-text-fill-color: {_tbtn_txt} !important;
     border: 1px solid {_tbtn_bdr} !important;
     backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.18) !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
 }}
-[data-testid="stButton-sb_theme"] > button:hover {{
-    box-shadow: 0 4px 18px rgba(0,0,0,0.26) !important;
-    opacity: 0.9 !important;
+[data-testid="stButton-sb_theme"] button:hover {{
+    box-shadow: 0 4px 18px rgba(0,0,0,0.22) !important;
+    opacity: 0.88 !important;
 }}
-/* Botón salir — píldora roja */
-[data-testid="stButton-sb_logout"] > button {{
+
+/* Botón SALIR */
+[data-testid="stButton-sb_logout"] button {{
     background: {_logout_bg} !important;
     color: {_logout_txt} !important;
     -webkit-text-fill-color: {_logout_txt} !important;
     border: 1px solid {_logout_bdr} !important;
     backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
-    box-shadow: 0 2px 12px rgba(239,68,68,0.15) !important;
+    box-shadow: 0 2px 10px rgba(239,68,68,0.12) !important;
 }}
-[data-testid="stButton-sb_logout"] > button:hover {{
-    background: rgba(239,68,68,0.22) !important;
-    box-shadow: 0 4px 18px rgba(239,68,68,0.28) !important;
+[data-testid="stButton-sb_logout"] button:hover {{
+    background: rgba(239,68,68,0.18) !important;
+    box-shadow: 0 4px 18px rgba(239,68,68,0.25) !important;
 }}
 </style>
 ''', unsafe_allow_html=True)
