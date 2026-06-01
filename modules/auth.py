@@ -386,29 +386,49 @@ html, body {{
     # ══════════════════════════════════════════════════
     #  CABECERA — Logo ORAM colorido + botón tema
     # ══════════════════════════════════════════════════
-    # Tarea 2: Logo con colores brand reales (LOGO_GOLD / BLUE / TEAL)
-    # Se renderizan como spans inline con color individual por letra
-    # usando las constantes de ui/styles.py — no hay riesgo de que
-    # los estilos globales los sobreescriban porque son style="..." inline.
-    O = f'<span style="color:{LOGO_GOLD};text-shadow:0 0 24px rgba(201,162,39,0.35)">O</span>'
-    R = f'<span style="color:{LOGO_BLUE};text-shadow:0 0 24px rgba(61,155,233,0.35)">R</span>'
-    A = f'<span style="color:{LOGO_TEAL};text-shadow:0 0 24px rgba(0,196,167,0.35)">A</span>'
-    M = f'<span style="color:{m}">M</span>'
+    # Colores más saturados y vibrantes por modo:
+    # — Modo oscuro: versiones más brillantes de cada tono (fondo negro amplifica el glow)
+    # — Modo claro:  versiones más oscuras y saturadas (necesitan más peso sobre gris)
+    if dark:
+        c_O   = "#e8b830"   # gold más brillante
+        c_R   = "#4aadff"   # blue más eléctrico
+        c_A   = "#00dfc0"   # teal más vibrante
+        c_M   = "#edf4ff"   # blanco puro
+        glow_O = "0 0 18px rgba(232,184,48,0.75),  0 0 40px rgba(232,184,48,0.30)"
+        glow_R = "0 0 18px rgba(74,173,255,0.75),  0 0 40px rgba(74,173,255,0.30)"
+        glow_A = "0 0 18px rgba(0,223,192,0.75),   0 0 40px rgba(0,223,192,0.30)"
+        glow_M = "0 0 14px rgba(237,244,255,0.25)"
+    else:
+        c_O   = "#a07a00"   # gold oscuro-saturado, legible sobre gris claro
+        c_R   = "#1565c0"   # blue profundo
+        c_A   = "#007a6a"   # teal oscuro
+        c_M   = "#0b1824"   # casi negro
+        glow_O = "0 1px 0 rgba(160,122,0,0.18)"
+        glow_R = "0 1px 0 rgba(21,101,192,0.18)"
+        glow_A = "0 1px 0 rgba(0,122,106,0.18)"
+        glow_M = "none"
+
+    O = f'<span style="color:{c_O};text-shadow:{glow_O};-webkit-text-stroke:0.5px {c_O}">O</span>'
+    R = f'<span style="color:{c_R};text-shadow:{glow_R};-webkit-text-stroke:0.5px {c_R}">R</span>'
+    A = f'<span style="color:{c_A};text-shadow:{glow_A};-webkit-text-stroke:0.5px {c_A}">A</span>'
+    M = f'<span style="color:{c_M};text-shadow:{glow_M}">M</span>'
 
     col_left, col_logo, col_right = st.columns([1, 2, 1])
 
     with col_logo:
+        logo_filter = "drop-shadow(0 0 20px rgba(180,140,30,0.22)) drop-shadow(0 0 8px rgba(61,155,233,0.18))" if dark else "none"
         st.markdown(f"""
-<div style="text-align:center;padding:2rem 0 0 0">
+<div style="text-align:center;padding:2rem 0 0 0;filter:{logo_filter}">
   <div style="margin-bottom:0.25rem">
     <span style="font-family:'Space Grotesk',sans-serif;font-size:3.8rem;
-        font-weight:800;letter-spacing:-4px;line-height:1">{O}{R}{A}{M}</span>
+        font-weight:800;letter-spacing:-4px;line-height:1;
+        -webkit-font-smoothing:antialiased;text-rendering:geometricPrecision">{O}{R}{A}{M}</span>
   </div>
   <div style="font-family:'Space Grotesk',sans-serif;font-size:1rem;font-weight:600;
-      color:{m};letter-spacing:0.4px;margin-bottom:0.2rem">Quant Systems</div>
+      color:{m};letter-spacing:0.4px;margin-bottom:0.2rem;filter:none">{'' if dark else ''}<span style="opacity:0.85">Quant Systems</span></div>
   <div style="font-family:'JetBrains Mono',monospace;font-size:0.57rem;
       color:{muted};letter-spacing:3px;text-transform:uppercase;
-      margin-bottom:1.4rem">{APP_TAGLINE}</div>
+      margin-bottom:1.4rem;filter:none">{APP_TAGLINE}</div>
 </div>
 """, unsafe_allow_html=True)
 
