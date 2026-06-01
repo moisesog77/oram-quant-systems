@@ -1,10 +1,140 @@
 """
 modules/auth.py — ORAM Quant Systems
 """
+import time
 import streamlit as st
 from database.db import autenticar_usuario, crear_usuario
 from ui.styles import toggle_theme, get_theme, APP_TAGLINE, LOGO_GOLD, LOGO_BLUE, LOGO_TEAL
 
+
+# ══════════════════════════════════════════════════════
+#  HELPER — Pantalla de bienvenida Premium tras registro
+# ══════════════════════════════════════════════════════
+def _mostrar_bienvenida_premium(username: str, dark: bool) -> None:
+    """
+    Muestra un overlay de confirmación premium con fade-in,
+    luego hace sleep(2.5) y llama st.rerun() para entrar a la app.
+    Modular: llámalo desde cualquier flujo de registro con
+        _mostrar_bienvenida_premium(username, dark)
+    """
+    overlay_bg  = "rgba(6,9,15,0.92)"  if dark else "rgba(238,242,247,0.94)"
+    card_bg     = "#0c1219"            if dark else "#ffffff"
+    card_border = "#1b2a40"            if dark else "#dde5ef"
+    text_main   = "#edf4ff"            if dark else "#0b1824"
+    text_muted  = "#637a94"            if dark else "#7a8fa0"
+
+    # CSS del overlay + keyframe fade-in (inyectado UNA SOLA VEZ)
+    st.markdown(f"""
+<style>
+@keyframes oram-fadein {{
+    from {{ opacity: 0; transform: translateY(14px) scale(0.97); }}
+    to   {{ opacity: 1; transform: translateY(0)   scale(1);    }}
+}}
+@keyframes oram-pulse {{
+    0%,100% {{ box-shadow: 0 0 0 0   rgba(34,197,94,0.40); }}
+    50%      {{ box-shadow: 0 0 0 18px rgba(34,197,94,0);   }}
+}}
+@keyframes oram-spin {{
+    to {{ transform: rotate(360deg); }}
+}}
+#oram-welcome-overlay {{
+    position: fixed;
+    inset: 0;
+    background: {overlay_bg};
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}}
+#oram-welcome-card {{
+    background: {card_bg};
+    border: 1px solid {card_border};
+    border-radius: 20px;
+    padding: 2.8rem 3rem 2.4rem;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    animation: oram-fadein 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+}}
+.oram-check-ring {{
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: rgba(34,197,94,0.12);
+    border: 2px solid #22c55e;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.4rem;
+    animation: oram-pulse 1.6s ease-in-out infinite;
+}}
+.oram-check-ring svg {{
+    width: 30px; height: 30px;
+    stroke: #22c55e; fill: none;
+    stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+}}
+.oram-welcome-logo {{
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.1rem; font-weight: 800;
+    letter-spacing: -1px; margin-bottom: 0.15rem;
+}}
+.oram-welcome-title {{
+    font-family: 'Inter', sans-serif;
+    font-size: 1.15rem; font-weight: 700;
+    color: {text_main}; margin-bottom: 0.5rem;
+}}
+.oram-welcome-sub {{
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem; color: {text_muted};
+    margin-bottom: 1.6rem; line-height: 1.5;
+}}
+.oram-spinner-row {{
+    display: flex; align-items: center;
+    justify-content: center; gap: 0.55rem;
+}}
+.oram-spinner {{
+    width: 16px; height: 16px;
+    border: 2px solid rgba(34,197,94,0.25);
+    border-top-color: #22c55e;
+    border-radius: 50%;
+    animation: oram-spin 0.75s linear infinite;
+    flex-shrink: 0;
+}}
+.oram-spinner-label {{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; letter-spacing: 1.5px;
+    text-transform: uppercase; color: {text_muted};
+}}
+</style>
+<div id="oram-welcome-overlay">
+  <div id="oram-welcome-card">
+    <div class="oram-check-ring">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="oram-welcome-logo">
+      <span style="color:{LOGO_GOLD}">O</span><span style="color:{LOGO_BLUE}">R</span><span style="color:{LOGO_TEAL}">A</span><span style="color:{text_main}">M</span>
+      <span style="color:{text_muted};font-weight:500;font-size:0.85rem;letter-spacing:0px"> Quant Systems</span>
+    </div>
+    <div class="oram-welcome-title">¡Bienvenido, {username}!</div>
+    <div class="oram-welcome-sub">
+      Tu cuenta ha sido creada con éxito.<br>
+      Acceso institucional activado.
+    </div>
+    <div class="oram-spinner-row">
+      <div class="oram-spinner"></div>
+      <span class="oram-spinner-label">Cargando plataforma&hellip;</span>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    time.sleep(2.5)
+    st.rerun()
+
+
+# ══════════════════════════════════════════════════════
+#  RENDER PRINCIPAL
+# ══════════════════════════════════════════════════════
 def render_auth():
     dark  = get_theme() == "dark"
     m     = "#edf4ff" if dark else "#0b1824"
@@ -92,22 +222,7 @@ html, body {{
     margin-bottom: 0.3rem !important; display: block !important;
 }}
 
-/* ══════════════════════════════════════════════════════════
-   TEXT INPUT — Estrategia definitiva para Streamlit 1.x
-   
-   La estructura DOM real es:
-     .stTextInput
-       [data-testid="stTextInputRootElement"]   ← BORDE AQUÍ
-         [data-baseweb="input"]                 ← flex row interno
-           input                                ← el campo real
-           button                               ← ojo
-   
-   Usamos [data-baseweb="input"] como target principal
-   porque es el elemento flex que contiene input + ojo,
-   y es consistente entre versiones de Streamlit.
-   ══════════════════════════════════════════════════════════ */
-
-/* Reset completo de todos los wrappers previos */
+/* ── TEXT INPUT ── */
 .stTextInput,
 .stTextInput > div,
 .stTextInput > div > div,
@@ -118,130 +233,70 @@ html, body {{
     outline: none !important;
 }}
 .stTextInput {{ margin-bottom: 0.2rem !important; }}
-
-/* ★ EL BORDE VA AQUÍ — [data-baseweb="input"] es el contenedor
-     flex real que engloba input + botón ojo en todas las versiones */
 .stTextInput [data-baseweb="input"] {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important;
     box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    min-height: 46px !important;
-    overflow: hidden !important;
+    padding: 0 !important; margin: 0 !important;
+    display: flex !important; align-items: center !important;
+    min-height: 46px !important; overflow: hidden !important;
     transition: border-color .18s ease, box-shadow .18s ease !important;
 }}
 .stTextInput [data-baseweb="input"]:focus-within {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
-
-/* Base-input interno — solo layout, sin borde */
 .stTextInput [data-baseweb="base-input"] {{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    flex: 1 !important;
-    min-height: 46px !important;
-    width: 100% !important;
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; padding: 0 !important; margin: 0 !important;
+    display: flex !important; align-items: center !important;
+    flex: 1 !important; min-height: 46px !important; width: 100% !important;
 }}
-
-/* Input real — texto */
 .stTextInput input {{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    font-family: 'Inter',sans-serif !important;
-    font-size: 0.93rem !important;
-    padding: 0 0.9rem !important;
-    flex: 1 !important;
-    min-width: 0 !important;
-    height: 46px !important;
-    width: 100% !important;
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
+    color: {input_text} !important; -webkit-text-fill-color: {input_text} !important;
+    font-family: 'Inter',sans-serif !important; font-size: 0.93rem !important;
+    padding: 0 0.9rem !important; flex: 1 !important;
+    min-width: 0 !important; height: 46px !important; width: 100% !important;
 }}
 .stTextInput input::placeholder {{
-    color: {input_ph} !important;
-    -webkit-text-fill-color: {input_ph} !important;
+    color: {input_ph} !important; -webkit-text-fill-color: {input_ph} !important;
     opacity: 1 !important;
 }}
-
-/* ── BOTÓN OJO — limpio, sin interferir con el borde ── */
 .stTextInput [data-baseweb="input"] button {{
     all: unset !important;
-    display: flex !important;
-    align-items: center !important;
+    display: flex !important; align-items: center !important;
     justify-content: center !important;
-    width: 44px !important;
-    min-width: 44px !important;
-    height: 46px !important;
-    flex-shrink: 0 !important;
-    cursor: pointer !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    opacity: 0.55 !important;
-    transition: opacity .15s !important;
+    width: 44px !important; min-width: 44px !important; height: 46px !important;
+    flex-shrink: 0 !important; cursor: pointer !important;
+    background: transparent !important; border: none !important;
+    padding: 0 !important; margin: 0 !important;
+    opacity: 0.55 !important; transition: opacity .15s !important;
 }}
-.stTextInput [data-baseweb="input"] button:hover {{
-    opacity: 1 !important;
-}}
+.stTextInput [data-baseweb="input"] button:hover {{ opacity: 1 !important; }}
 .stTextInput [data-baseweb="input"] button svg {{
-    width: 17px !important;
-    height: 17px !important;
-    fill: none !important;
-    stroke: {eye_col} !important;
-    stroke-width: 1.8 !important;
-    pointer-events: none !important;
-    display: block !important;
-    flex-shrink: 0 !important;
+    width: 17px !important; height: 17px !important;
+    fill: none !important; stroke: {eye_col} !important;
+    stroke-width: 1.8 !important; pointer-events: none !important;
+    display: block !important; flex-shrink: 0 !important;
 }}
 
-/* ══════════════════════════════════════════════════════════
-   NUMBER INPUT — DOM real de st.number_input en Streamlit:
-     [data-testid="stNumberInput"]
-       > div  (label wrapper)
-       > div  (control wrapper)  ← BORDE AQUÍ
-           input[type="number"]
-           div (botones +/−)
-             [data-testid="stNumberInput-StepDown"]
-             [data-testid="stNumberInput-StepUp"]
-   
-   A diferencia de stTextInput, number_input NO usa
-   [data-baseweb="input"] — el borde va directo en el
-   segundo div hijo del root element.
-   ══════════════════════════════════════════════════════════ */
-
-/* Reset completo de wrappers */
+/* ── NUMBER INPUT ── */
 [data-testid="stNumberInput"],
 [data-testid="stNumberInput"] > div,
 [data-testid="stNumberInput"] > div > div,
 [data-testid="stNumberInput"] > div > div > div {{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
 }}
-
-/* Contenedor con borde — segundo div (el que tiene input + botones) */
 [data-testid="stNumberInput"] > div:last-child {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important;
-    box-shadow: none !important;
-    display: flex !important;
-    align-items: center !important;
-    min-height: 46px !important;
+    box-shadow: none !important; display: flex !important;
+    align-items: center !important; min-height: 46px !important;
     overflow: hidden !important;
     transition: border-color .18s ease, box-shadow .18s ease !important;
     padding: 0 !important;
@@ -250,98 +305,51 @@ html, body {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
-
-/* Input real — texto y número */
 [data-testid="stNumberInput"] input,
 [data-testid="stNumberInput"] input[type="number"] {{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    font-family: 'Inter',sans-serif !important;
-    font-size: 0.93rem !important;
-    padding: 0 0.75rem !important;
-    flex: 1 !important;
-    height: 46px !important;
-    width: 100% !important;
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
+    color: {input_text} !important; -webkit-text-fill-color: {input_text} !important;
+    font-family: 'Inter',sans-serif !important; font-size: 0.93rem !important;
+    padding: 0 0.75rem !important; flex: 1 !important;
+    height: 46px !important; width: 100% !important;
     -moz-appearance: textfield !important;
 }}
 [data-testid="stNumberInput"] input::-webkit-outer-spin-button,
 [data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
-    -webkit-appearance: none !important;
-    margin: 0 !important;
+    -webkit-appearance: none !important; margin: 0 !important;
 }}
-
-/* ══════════════════════════════════════════════════════════
-   BOTONES +/− — alineación vertical centrada
-   
-   DOM real:
-     [data-testid="stNumberInput"] > div:last-child   ← flex row (borde)
-       input                                           ← campo de texto
-       div  ← WRAPPER de ambos botones                ← este necesita flex
-         button[data-testid="stNumberInput-StepDown"]
-         button[data-testid="stNumberInput-StepUp"]
-   
-   El problema: el div wrapper de los botones es display:block
-   por defecto, así que los botones se apilan en vertical y
-   quedan pegados al tope. Se aísla SOLO ese div con el
-   selector :last-child > div:last-child para no tocar nada más.
-   ══════════════════════════════════════════════════════════ */
-
-/* Wrapper de los dos botones — convertir a flex row centrado */
 [data-testid="stNumberInput"] > div:last-child > div:last-child {{
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: center !important;
-    align-self: stretch !important;
-    height: 100% !important;
-    gap: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    background: transparent !important;
-    border: none !important;
+    display: flex !important; flex-direction: row !important;
+    align-items: center !important; justify-content: center !important;
+    align-self: stretch !important; height: 100% !important;
+    gap: 0 !important; padding: 0 !important; margin: 0 !important;
+    background: transparent !important; border: none !important;
     box-shadow: none !important;
 }}
-
-/* Botones individuales — tamaño cuadrado centrado */
 [data-testid="stNumberInput-StepDown"],
 [data-testid="stNumberInput-StepUp"] {{
-    all: unset !important;
-    box-sizing: border-box !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    align-self: stretch !important;
-    width: 36px !important;
-    min-width: 36px !important;
-    height: 100% !important;
-    min-height: 42px !important;
-    flex-shrink: 0 !important;
-    cursor: pointer !important;
-    background: transparent !important;
-    border: none !important;
+    all: unset !important; box-sizing: border-box !important;
+    display: flex !important; align-items: center !important;
+    justify-content: center !important; align-self: stretch !important;
+    width: 36px !important; min-width: 36px !important;
+    height: 100% !important; min-height: 42px !important;
+    flex-shrink: 0 !important; cursor: pointer !important;
+    background: transparent !important; border: none !important;
     border-left: 1px solid {input_bdr} !important;
     opacity: 0.6 !important;
     transition: opacity .15s, background .15s !important;
 }}
 [data-testid="stNumberInput-StepDown"]:hover,
 [data-testid="stNumberInput-StepUp"]:hover {{
-    opacity: 1 !important;
-    background: rgba(34,197,94,0.08) !important;
+    opacity: 1 !important; background: rgba(34,197,94,0.08) !important;
 }}
 [data-testid="stNumberInput-StepDown"] svg,
 [data-testid="stNumberInput-StepUp"] svg {{
-    width: 14px !important;
-    height: 14px !important;
-    fill: none !important;
-    stroke: {eye_col} !important;
-    stroke-width: 2 !important;
-    pointer-events: none !important;
-    display: block !important;
-    flex-shrink: 0 !important;
+    width: 14px !important; height: 14px !important;
+    fill: none !important; stroke: {eye_col} !important;
+    stroke-width: 2 !important; pointer-events: none !important;
+    display: block !important; flex-shrink: 0 !important;
 }}
 
 /* ── BOTÓN SUBMIT VERDE ── */
@@ -375,10 +383,16 @@ html, body {{
 </style>
 """, unsafe_allow_html=True)
 
-    # ── Cabecera: Logo + botón tema ──
-    O = f'<span style="color:{LOGO_GOLD}">O</span>'
-    R = f'<span style="color:{LOGO_BLUE}">R</span>'
-    A = f'<span style="color:{LOGO_TEAL}">A</span>'
+    # ══════════════════════════════════════════════════
+    #  CABECERA — Logo ORAM colorido + botón tema
+    # ══════════════════════════════════════════════════
+    # Tarea 2: Logo con colores brand reales (LOGO_GOLD / BLUE / TEAL)
+    # Se renderizan como spans inline con color individual por letra
+    # usando las constantes de ui/styles.py — no hay riesgo de que
+    # los estilos globales los sobreescriban porque son style="..." inline.
+    O = f'<span style="color:{LOGO_GOLD};text-shadow:0 0 24px rgba(201,162,39,0.35)">O</span>'
+    R = f'<span style="color:{LOGO_BLUE};text-shadow:0 0 24px rgba(61,155,233,0.35)">R</span>'
+    A = f'<span style="color:{LOGO_TEAL};text-shadow:0 0 24px rgba(0,196,167,0.35)">A</span>'
     M = f'<span style="color:{m}">M</span>'
 
     col_left, col_logo, col_right = st.columns([1, 2, 1])
@@ -405,19 +419,15 @@ html, body {{
 <style>
 [data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child .stButton > button {{
     background: {tbtn_bg} !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-    color: {tbtn_txt} !important;
-    -webkit-text-fill-color: {tbtn_txt} !important;
-    border: 1px solid {tbtn_bdr} !important;
-    border-radius: 999px !important;
+    backdrop-filter: blur(10px) !important; -webkit-backdrop-filter: blur(10px) !important;
+    color: {tbtn_txt} !important; -webkit-text-fill-color: {tbtn_txt} !important;
+    border: 1px solid {tbtn_bdr} !important; border-radius: 999px !important;
     font-family: 'Inter',sans-serif !important;
     font-size: 0.82rem !important; font-weight: 500 !important;
     padding: 0.4rem 1.1rem !important;
     box-shadow: 0 2px 14px rgba(0,0,0,0.18) !important;
     width: auto !important; white-space: nowrap !important;
-    float: right !important;
-    transition: all .18s ease !important;
+    float: right !important; transition: all .18s ease !important;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -426,11 +436,14 @@ html, body {{
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Formulario centrado ──
+    # ══════════════════════════════════════════════════
+    #  FORMULARIOS
+    # ══════════════════════════════════════════════════
     _, col_form, _ = st.columns([1, 2, 1])
     with col_form:
         tab_login, tab_reg = st.tabs(["Iniciar sesión", "Crear cuenta"])
 
+        # ── Login ──
         with tab_login:
             with st.form("login_form"):
                 user = st.text_input("Usuario", placeholder="tu_usuario")
@@ -449,6 +462,7 @@ html, body {{
                         else:
                             st.error("Credenciales incorrectas.")
 
+        # ── Registro ──
         with tab_reg:
             with st.form("reg_form"):
                 new_user = st.text_input("Usuario", placeholder="elige_un_nombre", key="ru")
@@ -457,7 +471,9 @@ html, body {{
                 capital  = st.number_input("Capital inicial (USD)", value=1000.0,
                                            min_value=100.0, step=500.0)
                 sub_reg  = st.form_submit_button("Crear cuenta →", width="stretch")
+
                 if sub_reg:
+                    # ── Validaciones ──
                     if not new_user or not new_pw:
                         st.error("Completa todos los campos.")
                     elif len(new_pw) < 6:
@@ -468,14 +484,17 @@ html, body {{
                         st.error("El usuario debe tener mínimo 3 caracteres.")
                     else:
                         ok = crear_usuario(new_user, new_pw, capital_inicial=capital)
-                        if ok:
+                        if not ok:
+                            st.error("Ese nombre de usuario ya existe.")
+                        else:
+                            # ── Tarea 1: flujo premium ──
+                            # 1. Autenticar y guardar sesión en state
                             data = autenticar_usuario(new_user, new_pw)
                             if data:
                                 st.session_state.user = data
                                 from datetime import datetime, timezone
                                 st.session_state["last_activity"] = datetime.now(timezone.utc).timestamp()
-                                st.rerun()
-                            else:
-                                st.success("✅ Cuenta creada. Inicia sesión.")
-                        else:
-                            st.error("Ese nombre de usuario ya existe.")
+                            # 2. Mostrar overlay premium + delay + rerun
+                            #    (si autenticar falló igual mostramos
+                            #     la pantalla y el rerun llevará al login)
+                            _mostrar_bienvenida_premium(new_user, dark)
