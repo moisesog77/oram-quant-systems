@@ -427,10 +427,11 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 [data-testid="stNumberInput"]>div{{
     display:flex!important;align-items:center!important;
     background:{c['input_bg']}!important;
-    border:1.5px solid {c['border']}!important;
+    border:2px solid {c['border2']}!important;
     border-radius:10px!important;overflow:hidden!important;
-    gap:3px!important;padding:2px 4px!important;
+    gap:0!important;padding:0!important;
     transition:border-color .15s;box-shadow:none!important;
+    min-height:46px!important;
 }}
 [data-testid="stNumberInput"]>div:focus-within{{
     border-color:{c['green']}!important;
@@ -440,38 +441,50 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     background:transparent!important;border:none!important;
     box-shadow:none!important;outline:none!important;
     color:{c['text']}!important;
-    font-family:'JetBrains Mono',monospace!important;
-    padding:.35rem .5rem!important;flex:1!important;
+    font-family:'Inter',sans-serif!important;
+    font-size:0.93rem!important;
+    padding:0 0.75rem!important;flex:1!important;
+    height:46px!important;
+    -moz-appearance:textfield!important;
 }}
-/* +/- buttons verde/rojo */
-[data-testid="stNumberInput"] button{{
-    border:none!important;border-radius:6px!important;
-    width:26px!important;min-width:26px!important;height:26px!important;
+[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
+[data-testid="stNumberInput"] input::-webkit-inner-spin-button{{
+    -webkit-appearance:none!important;margin:0!important;
+}}
+/* Wrapper flex de los botones +/- */
+[data-testid="stNumberInput"]>div>div:last-child{{
+    display:flex!important;flex-direction:row!important;
+    align-items:center!important;align-self:stretch!important;
+    height:100%!important;gap:0!important;padding:0!important;
+    background:transparent!important;border:none!important;
+}}
+/* Botones +/- — estilo premium, sin colores rojo/verde */
+[data-testid="stNumberInput-StepDown"],
+[data-testid="stNumberInput-StepUp"]{{
+    all:unset!important;box-sizing:border-box!important;
     display:flex!important;align-items:center!important;
-    justify-content:center!important;cursor:pointer!important;
-    transition:all .15s ease!important;flex-shrink:0!important;
-    box-shadow:0 1px 3px rgba(0,0,0,0.25)!important;
-    padding:0!important;
+    justify-content:center!important;align-self:stretch!important;
+    width:36px!important;min-width:36px!important;
+    height:100%!important;min-height:42px!important;
+    flex-shrink:0!important;cursor:pointer!important;
+    background:transparent!important;border:none!important;
+    border-left:1px solid {c['border']}!important;
+    opacity:0.6!important;
+    transition:opacity .15s,background .15s!important;
+    border-radius:0!important;
 }}
-[data-testid="stNumberInput"] button:first-child{{
-    background:linear-gradient(135deg,{c['red']},#b91c1c)!important;
+[data-testid="stNumberInput-StepDown"]:hover,
+[data-testid="stNumberInput-StepUp"]:hover{{
+    opacity:1!important;
+    background:rgba(34,197,94,0.08)!important;
 }}
-[data-testid="stNumberInput"] button:first-child:hover{{
-    background:linear-gradient(135deg,#b91c1c,#991b1b)!important;
-    box-shadow:0 2px 8px rgba(239,68,68,.45)!important;
-    transform:scale(1.08)!important;
-}}
-[data-testid="stNumberInput"] button:last-child{{
-    background:linear-gradient(135deg,{c['green']},#16a34a)!important;
-}}
-[data-testid="stNumberInput"] button:last-child:hover{{
-    background:linear-gradient(135deg,#16a34a,#15803d)!important;
-    box-shadow:0 2px 8px rgba(34,197,94,.45)!important;
-    transform:scale(1.08)!important;
-}}
-[data-testid="stNumberInput"] button svg{{
-    fill:#ffffff!important;stroke:#ffffff!important;
-    width:13px!important;height:13px!important;
+[data-testid="stNumberInput-StepDown"] svg,
+[data-testid="stNumberInput-StepUp"] svg{{
+    width:14px!important;height:14px!important;
+    fill:none!important;
+    stroke:{c['text_muted']}!important;
+    stroke-width:2!important;
+    pointer-events:none!important;display:block!important;
 }}
 /* Date input — sin doble borde */
 [data-testid="stDateInput"]>div{{

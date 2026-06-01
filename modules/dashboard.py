@@ -26,16 +26,21 @@ def render_dashboard():
     input_ph   = "#3a5068" if dark else "#9baab8"
     label_col  = "#4a6a84" if dark else "#6b7f94"
 
-    # ── CSS: botón verde idéntico a stFormSubmitButton + inputs premium ──
+    # ── CSS: botón verde + inputs premium ──────────────────────────────────
+    # NOTA TÉCNICA: st.button() NO genera data-testid="stButton-KEY".
+    # Streamlit solo genera data-testid="stBaseButton-secondary" para todos
+    # los st.button. La única forma segura es buscar el botón por texto
+    # via JavaScript e inyectarle una clase, o usar el selector de posición
+    # dentro del expander. Usamos la estrategia de posición estructural:
+    # el único stBaseButton dentro del expander es "Actualizar capital".
     st.markdown(f"""
 <style>
 /* ═══════════════════════════════════════════════════════════════
-   BOTÓN "Actualizar capital" — idéntico al botón verde de
-   'Guardar configuración' en Bot Telegram (stFormSubmitButton).
-   Selector: data-testid del key específico para máxima especificidad
-   y cero efecto secundario en otros botones de la app.
+   BOTÓN "Actualizar capital"
+   Selector: único stBaseButton-secondary dentro del stExpander.
+   No hay otros botones en ese expander → selector sin colisiones.
    ═══════════════════════════════════════════════════════════════ */
-[data-testid="stButton-btn_actualizar_capital"] > button {{
+[data-testid="stExpander"] [data-testid="stBaseButton-secondary"] {{
     background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
     border: none !important;
     border-radius: 10px !important;
@@ -45,227 +50,61 @@ def render_dashboard():
     font-size: 0.95rem !important;
     font-weight: 600 !important;
     letter-spacing: 0.3px !important;
-    padding: 0.72rem 1rem !important;
+    padding: 0.72rem 1.5rem !important;
     width: 100% !important;
     box-shadow: 0 4px 16px rgba(22, 163, 74, 0.38) !important;
     transition: all .18s ease !important;
     cursor: pointer !important;
-    margin-top: 0.5rem !important;
+    margin-top: 0.6rem !important;
 }}
-[data-testid="stButton-btn_actualizar_capital"] > button * {{
+[data-testid="stExpander"] [data-testid="stBaseButton-secondary"] *,
+[data-testid="stExpander"] [data-testid="stBaseButton-secondary"] p {{
     color: #ffffff !important;
     -webkit-text-fill-color: #ffffff !important;
 }}
-[data-testid="stButton-btn_actualizar_capital"] > button:hover {{
+[data-testid="stExpander"] [data-testid="stBaseButton-secondary"]:hover {{
     background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
     box-shadow: 0 6px 24px rgba(34, 197, 94, 0.48) !important;
     transform: translateY(-1px) !important;
 }}
-[data-testid="stButton-btn_actualizar_capital"] > button:active {{
+[data-testid="stExpander"] [data-testid="stBaseButton-secondary"]:active {{
     transform: scale(0.98) !important;
     box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3) !important;
 }}
 
 /* ═══════════════════════════════════════════════════════════════
-   INPUTS PREMIUM dentro del expander "Configuración de cuenta"
-   Selector scoped a [data-testid="stExpander"] para no afectar
-   ningún otro input de la aplicación.
+   NUMBER INPUT premium — expander scoped
+   El styles.py global ya maneja la base premium de todos los
+   number inputs. Aquí solo añadimos el borde más prominente
+   específico del expander del Dashboard.
    ═══════════════════════════════════════════════════════════════ */
-
-/* ── Labels ── */
-[data-testid="stExpander"] .stTextInput label,
-[data-testid="stExpander"] .stNumberInput label {{
-    color: {label_col} !important;
-    font-family: 'Inter', sans-serif !important;
-    font-size: 0.72rem !important;
-    font-weight: 600 !important;
-    letter-spacing: 1px !important;
-    text-transform: uppercase !important;
-    margin-bottom: 0.3rem !important;
-    display: block !important;
-}}
-
-/* ── Text input — reset wrappers ── */
-[data-testid="stExpander"] .stTextInput,
-[data-testid="stExpander"] .stTextInput > div,
-[data-testid="stExpander"] .stTextInput > div > div,
-[data-testid="stExpander"] .stTextInput > div > div > div {{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-}}
-/* ── Text input — borde premium en data-baseweb="input" ── */
-[data-testid="stExpander"] .stTextInput [data-baseweb="input"] {{
-    background: {input_bg} !important;
+[data-testid="stExpander"] [data-testid="stNumberInput"] > div {{
     border: 2px solid {input_bdr} !important;
+    background: {input_bg} !important;
     border-radius: 10px !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    display: flex !important;
-    align-items: center !important;
     min-height: 46px !important;
-    overflow: hidden !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important;
 }}
-[data-testid="stExpander"] .stTextInput [data-baseweb="input"]:focus-within {{
+[data-testid="stExpander"] [data-testid="stNumberInput"] > div:focus-within {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
-[data-testid="stExpander"] .stTextInput [data-baseweb="base-input"] {{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    flex: 1 !important;
-    min-height: 46px !important;
-}}
-[data-testid="stExpander"] .stTextInput input {{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
+[data-testid="stExpander"] [data-testid="stNumberInput"] input {{
     font-family: 'Inter', sans-serif !important;
     font-size: 0.93rem !important;
-    padding: 0 0.9rem !important;
-    flex: 1 !important;
-    height: 46px !important;
-}}
-[data-testid="stExpander"] .stTextInput input::placeholder {{
-    color: {input_ph} !important;
-    -webkit-text-fill-color: {input_ph} !important;
-    opacity: 1 !important;
-}}
-/* ── Ojo del password — mismo estilo que auth.py ── */
-[data-testid="stExpander"] .stTextInput [data-baseweb="input"] button {{
-    all: unset !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 44px !important;
-    min-width: 44px !important;
-    height: 46px !important;
-    flex-shrink: 0 !important;
-    cursor: pointer !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    opacity: 0.55 !important;
-    transition: opacity .15s !important;
-}}
-[data-testid="stExpander"] .stTextInput [data-baseweb="input"] button:hover {{
-    opacity: 1 !important;
-}}
-[data-testid="stExpander"] .stTextInput [data-baseweb="input"] button svg {{
-    width: 17px !important;
-    height: 17px !important;
-    fill: none !important;
-    stroke: {eye_col} !important;
-    stroke-width: 1.8 !important;
-    pointer-events: none !important;
-    display: block !important;
-}}
-
-/* ── Number input — reset wrappers ── */
-[data-testid="stExpander"] [data-testid="stNumberInput"],
-[data-testid="stExpander"] [data-testid="stNumberInput"] > div,
-[data-testid="stExpander"] [data-testid="stNumberInput"] > div > div,
-[data-testid="stExpander"] [data-testid="stNumberInput"] > div > div > div {{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-}}
-/* ── Number input — borde premium ── */
-[data-testid="stExpander"] [data-testid="stNumberInput"] > div:last-child {{
-    background: {input_bg} !important;
-    border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important;
-    box-shadow: none !important;
-    display: flex !important;
-    align-items: center !important;
-    min-height: 46px !important;
-    overflow: hidden !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important;
-    padding: 0 !important;
-}}
-[data-testid="stExpander"] [data-testid="stNumberInput"] > div:last-child:focus-within {{
-    border-color: {focus_clr} !important;
-    box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-[data-testid="stExpander"] [data-testid="stNumberInput"] input,
-[data-testid="stExpander"] [data-testid="stNumberInput"] input[type="number"] {{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
-    font-family: 'Inter', sans-serif !important;
-    font-size: 0.93rem !important;
     padding: 0 0.75rem !important;
-    flex: 1 !important;
     height: 46px !important;
-    -moz-appearance: textfield !important;
 }}
-[data-testid="stExpander"] [data-testid="stNumberInput"] input::-webkit-outer-spin-button,
-[data-testid="stExpander"] [data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
-    -webkit-appearance: none !important;
-    margin: 0 !important;
-}}
-/* ── Wrapper de botones +/- ── */
-[data-testid="stExpander"] [data-testid="stNumberInput"] > div:last-child > div:last-child {{
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: center !important;
-    align-self: stretch !important;
-    height: 100% !important;
-    gap: 0 !important;
-    padding: 0 !important;
-    background: transparent !important;
-    border: none !important;
-}}
-/* ── Botones +/- individuales ── */
 [data-testid="stExpander"] [data-testid="stNumberInput-StepDown"],
 [data-testid="stExpander"] [data-testid="stNumberInput-StepUp"] {{
-    all: unset !important;
-    box-sizing: border-box !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    align-self: stretch !important;
-    width: 36px !important;
-    min-width: 36px !important;
-    height: 100% !important;
-    min-height: 42px !important;
-    flex-shrink: 0 !important;
-    cursor: pointer !important;
-    background: transparent !important;
-    border: none !important;
     border-left: 1px solid {input_bdr} !important;
     opacity: 0.6 !important;
-    transition: opacity .15s, background .15s !important;
 }}
 [data-testid="stExpander"] [data-testid="stNumberInput-StepDown"]:hover,
 [data-testid="stExpander"] [data-testid="stNumberInput-StepUp"]:hover {{
     opacity: 1 !important;
-    background: rgba(34, 197, 94, 0.08) !important;
-}}
-[data-testid="stExpander"] [data-testid="stNumberInput-StepDown"] svg,
-[data-testid="stExpander"] [data-testid="stNumberInput-StepUp"] svg {{
-    width: 14px !important;
-    height: 14px !important;
-    fill: none !important;
-    stroke: {eye_col} !important;
-    stroke-width: 2 !important;
-    pointer-events: none !important;
-    display: block !important;
+    background: rgba(34,197,94,0.08) !important;
 }}
 </style>
 """, unsafe_allow_html=True)
