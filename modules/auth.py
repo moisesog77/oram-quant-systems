@@ -207,15 +207,34 @@ html, body {{
     flex-shrink: 0 !important;
 }}
 
-/* ── NUMBER INPUT ── */
+/* ══════════════════════════════════════════════════════════
+   NUMBER INPUT — DOM real de st.number_input en Streamlit:
+     [data-testid="stNumberInput"]
+       > div  (label wrapper)
+       > div  (control wrapper)  ← BORDE AQUÍ
+           input[type="number"]
+           div (botones +/−)
+             [data-testid="stNumberInput-StepDown"]
+             [data-testid="stNumberInput-StepUp"]
+   
+   A diferencia de stTextInput, number_input NO usa
+   [data-baseweb="input"] — el borde va directo en el
+   segundo div hijo del root element.
+   ══════════════════════════════════════════════════════════ */
+
+/* Reset completo de wrappers */
 [data-testid="stNumberInput"],
 [data-testid="stNumberInput"] > div,
-[data-testid="stNumberInput"] > div > div {{
+[data-testid="stNumberInput"] > div > div,
+[data-testid="stNumberInput"] > div > div > div {{
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
+    outline: none !important;
 }}
-[data-testid="stNumberInput"] [data-baseweb="input"] {{
+
+/* Contenedor con borde — segundo div (el que tiene input + botones) */
+[data-testid="stNumberInput"] > div:last-child {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important;
@@ -224,13 +243,17 @@ html, body {{
     align-items: center !important;
     min-height: 46px !important;
     overflow: hidden !important;
-    transition: border-color .18s, box-shadow .18s !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    padding: 0 !important;
 }}
-[data-testid="stNumberInput"] [data-baseweb="input"]:focus-within {{
+[data-testid="stNumberInput"] > div:last-child:focus-within {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
-[data-testid="stNumberInput"] input {{
+
+/* Input real — texto y número */
+[data-testid="stNumberInput"] input,
+[data-testid="stNumberInput"] input[type="number"] {{
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -242,6 +265,50 @@ html, body {{
     padding: 0 0.75rem !important;
     flex: 1 !important;
     height: 46px !important;
+    width: 100% !important;
+    -moz-appearance: textfield !important;
+}}
+[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
+[data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+}}
+
+/* Botones +/− (StepUp / StepDown) — mismo estilo que el ojo */
+[data-testid="stNumberInput-StepDown"],
+[data-testid="stNumberInput-StepUp"] {{
+    all: unset !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 46px !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+    background: transparent !important;
+    border: none !important;
+    border-left: 1px solid {input_bdr} !important;
+    opacity: 0.6 !important;
+    transition: opacity .15s, background .15s !important;
+}}
+[data-testid="stNumberInput-StepDown"] {{
+    border-left: 1px solid {input_bdr} !important;
+    border-right: none !important;
+}}
+[data-testid="stNumberInput-StepDown"]:hover,
+[data-testid="stNumberInput-StepUp"]:hover {{
+    opacity: 1 !important;
+    background: rgba(34,197,94,0.08) !important;
+}}
+[data-testid="stNumberInput-StepDown"] svg,
+[data-testid="stNumberInput-StepUp"] svg {{
+    width: 14px !important;
+    height: 14px !important;
+    fill: none !important;
+    stroke: {eye_col} !important;
+    stroke-width: 2 !important;
+    pointer-events: none !important;
 }}
 
 /* ── BOTÓN SUBMIT VERDE ── */
