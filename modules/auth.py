@@ -16,18 +16,16 @@ def render_auth():
     input_bg    = "#080d14"  if dark else "#f4f8fc"
     input_text  = "#c8d8ea"  if dark else "#1a2b3c"
     input_ph    = "#3a5068"  if dark else "#a0aeba"
-    input_bdr   = "#263d58"  if dark else "#c8d8e8"
+    input_bdr   = "#2a4560"  if dark else "#b8cfe0"   # borde visible siempre
     label_col   = "#4a6a84"  if dark else "#6b7f94"
     tab_active  = "#c9a227"
     focus_clr   = "#22c55e"
     focus_glow  = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
-    shadow      = "0 8px 40px rgba(0,0,0,0.25)" if dark else "0 4px 24px rgba(0,0,0,0.09)"
+    shadow      = "0 8px 40px rgba(0,0,0,0.28)" if dark else "0 4px 24px rgba(0,0,0,0.09)"
     eye_col     = "#3a5068"  if dark else "#9baab8"
-
-    # Colores botón tema
-    tbtn_bg  = "rgba(12,18,25,0.85)"   if dark else "rgba(255,255,255,0.92)"
-    tbtn_txt = "#c8d8ea"               if dark else "#2a3f54"
-    tbtn_bdr = "rgba(255,255,255,0.1)" if dark else "rgba(0,0,0,0.08)"
+    tbtn_bg     = "rgba(12,18,25,0.88)"   if dark else "rgba(255,255,255,0.94)"
+    tbtn_txt    = "#c8d8ea"               if dark else "#2a3f54"
+    tbtn_bdr    = "rgba(255,255,255,0.12)" if dark else "rgba(0,0,0,0.09)"
 
     st.markdown(f"""
 <style>
@@ -35,31 +33,6 @@ def render_auth():
 .main,.stApp,[data-testid="stAppViewContainer"],.block-container {{
     background:{bg}!important;
     padding:0!important;max-width:100%!important;
-}}
-
-/* ── BOTÓN TEMA: SOLO UNO, posición fija esquina derecha ──
-   Selector específico para el key="auth_theme_toggle"       */
-[data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child .stButton > button,
-[data-testid="stVerticalBlock"] > div:first-child .stButton > button {{
-    position: fixed !important;
-    top: 1rem !important;
-    right: 1rem !important;
-    z-index: 9999 !important;
-    background: {tbtn_bg} !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-    color: {tbtn_txt} !important;
-    -webkit-text-fill-color: {tbtn_txt} !important;
-    border: 1px solid {tbtn_bdr} !important;
-    border-radius: 999px !important;
-    font-family: 'Inter',sans-serif !important;
-    font-size: 0.82rem !important;
-    font-weight: 500 !important;
-    padding: 0.4rem 1.1rem !important;
-    box-shadow: 0 2px 14px rgba(0,0,0,0.18) !important;
-    width: auto !important;
-    white-space: nowrap !important;
-    transition: all .18s ease !important;
 }}
 
 /* ── TABS ── */
@@ -101,27 +74,18 @@ def render_auth():
     margin-bottom:0.3rem!important;display:block!important;
 }}
 
-/* ══════════════════════════════════════════════════════
-   TEXT INPUT — estructura Streamlit 1.58:
-   .stTextInput
-     > div  (wrapper sin estilo)
-       > div  ← AQUÍ va el borde visible
-         > [data-baseweb="input"]  (flex row)
-           > input
-           > button (ojo)
-   ══════════════════════════════════════════════════════ */
-
-/* Capa 0 — widget root: sin nada */
-.stTextInput {{margin-bottom:0.1rem!important;}}
-
-/* Capa 1 — primer div: invisible */
+/* ══ TEXT INPUT ══
+   Streamlit 1.58 estructura:
+   .stTextInput > div > div  ← borde aquí
+     [data-baseweb="input"]  ← flex row, sin borde
+       input
+       button (ojo)                                    */
+.stTextInput {{ margin-bottom:0.1rem!important; }}
 .stTextInput > div {{
-    background:transparent!important;
-    border:none!important;box-shadow:none!important;
-    padding:0!important;margin:0!important;
+    background:transparent!important;border:none!important;
+    box-shadow:none!important;padding:0!important;margin:0!important;
 }}
-
-/* Capa 2 — CONTENEDOR CON BORDE — las 4 esquinas redondeadas */
+/* CONTENEDOR CON BORDE — 4 esquinas perfectas */
 .stTextInput > div > div {{
     background:{input_bg}!important;
     border:1.5px solid {input_bdr}!important;
@@ -129,8 +93,7 @@ def render_auth():
     padding:0!important;margin:0!important;
     box-shadow:none!important;
     overflow:hidden!important;
-    display:flex!important;
-    align-items:stretch!important;
+    display:flex!important;align-items:stretch!important;
     min-height:44px!important;
     transition:border-color .15s,box-shadow .15s!important;
 }}
@@ -138,35 +101,29 @@ def render_auth():
     border-color:{focus_clr}!important;
     box-shadow:0 0 0 3px {focus_glow}!important;
 }}
-
-/* Capa 3 — Base Web input: transparente, solo flex */
+/* Base Web — transparente */
 .stTextInput [data-baseweb="input"],
 .stTextInput [data-baseweb="base-input"],
 [data-testid="stTextInputRootElement"] {{
-    background:transparent!important;
-    border:none!important;box-shadow:none!important;
-    padding:0!important;margin:0!important;
-    width:100%!important;
-    display:flex!important;align-items:center!important;
+    background:transparent!important;border:none!important;
+    box-shadow:none!important;padding:0!important;margin:0!important;
+    width:100%!important;display:flex!important;align-items:center!important;
     flex:1!important;
 }}
-
-/* Capa 4 — INPUT REAL */
+/* Input real */
 .stTextInput input {{
-    background:transparent!important;
-    border:none!important;box-shadow:none!important;outline:none!important;
+    background:transparent!important;border:none!important;
+    box-shadow:none!important;outline:none!important;
     color:{input_text}!important;-webkit-text-fill-color:{input_text}!important;
     font-family:'Inter',sans-serif!important;font-size:0.93rem!important;
-    padding:0 0.85rem!important;
-    flex:1!important;min-width:0!important;
-    height:44px!important;
+    padding:0 0.85rem!important;flex:1!important;
+    min-width:0!important;height:44px!important;
 }}
 .stTextInput input::placeholder {{
     color:{input_ph}!important;-webkit-text-fill-color:{input_ph}!important;
     opacity:1!important;
 }}
-
-/* BOTÓN OJO — cero fondo, cero borde */
+/* Botón ojo — sin nada */
 .stTextInput button,
 [data-testid="stTextInputRootElement"] button {{
     all:unset!important;
@@ -174,10 +131,8 @@ def render_auth():
     justify-content:center!important;
     width:42px!important;height:44px!important;
     flex-shrink:0!important;cursor:pointer!important;
-    color:{eye_col}!important;
-    transition:color .15s!important;
+    transition:opacity .15s!important;
 }}
-.stTextInput button:hover {{ color:{input_text}!important; }}
 .stTextInput button svg {{
     width:17px!important;height:17px!important;
     fill:{eye_col}!important;
@@ -188,10 +143,9 @@ def render_auth():
 [data-testid="stNumberInput"] > div {{
     background:{input_bg}!important;
     border:1.5px solid {input_bdr}!important;
-    border-radius:10px!important;
-    overflow:hidden!important;box-shadow:none!important;
-    display:flex!important;align-items:center!important;
-    min-height:44px!important;
+    border-radius:10px!important;overflow:hidden!important;
+    box-shadow:none!important;display:flex!important;
+    align-items:center!important;min-height:44px!important;
     transition:border-color .15s,box-shadow .15s!important;
 }}
 [data-testid="stNumberInput"] > div:focus-within {{
@@ -233,24 +187,24 @@ def render_auth():
 
 /* ── QUITAR FOCUS AMARILLO ── */
 *,*:focus,*:focus-visible {{ outline:none!important; }}
+
+/* ── PRESS ENTER hint — ocultar ── */
+[data-testid="InputInstructions"] {{ display:none!important; }}
 </style>
 """, unsafe_allow_html=True)
 
-    # ── Botón tema — ÚNICO, va primero para que el selector CSS lo encuentre ──
-    theme_icon = "☀️ Claro" if dark else "🌙 Oscuro"
-    if st.button(theme_icon, key="auth_theme_toggle"):
-        toggle_theme()
-        st.rerun()
-
-    # ── Logo ──
+    # ── Cabecera: Logo + botón tema en la misma fila ──
     O = f'<span style="color:{LOGO_GOLD}">O</span>'
     R = f'<span style="color:{LOGO_BLUE}">R</span>'
     A = f'<span style="color:{LOGO_TEAL}">A</span>'
     M = f'<span style="color:{m}">M</span>'
 
-    st.markdown(f"""
-<div style="width:100%;max-width:520px;margin:2rem auto 1.4rem auto;
-    padding:0 1rem;text-align:center;">
+    # El botón tema va en col_right — alineado verticalmente con el logo
+    col_left, col_logo, col_right = st.columns([1, 2, 1])
+
+    with col_logo:
+        st.markdown(f"""
+<div style="text-align:center;padding:2rem 0 0 0">
   <div style="margin-bottom:0.25rem">
     <span style="font-family:'Space Grotesk',sans-serif;font-size:3.8rem;
         font-weight:800;letter-spacing:-4px;line-height:1">{O}{R}{A}{M}</span>
@@ -258,11 +212,42 @@ def render_auth():
   <div style="font-family:'Space Grotesk',sans-serif;font-size:1rem;font-weight:600;
       color:{m};letter-spacing:0.4px;margin-bottom:0.2rem">Quant Systems</div>
   <div style="font-family:'JetBrains Mono',monospace;font-size:0.57rem;
-      color:{muted};letter-spacing:3px;text-transform:uppercase">{APP_TAGLINE}</div>
+      color:{muted};letter-spacing:3px;text-transform:uppercase;
+      margin-bottom:1.4rem">{APP_TAGLINE}</div>
 </div>
 """, unsafe_allow_html=True)
 
-    # ── Formulario ──
+    with col_right:
+        # Alinear el botón verticalmente con el logo (padding top)
+        st.markdown('<div style="padding-top:2.1rem;display:flex;justify-content:flex-end">', unsafe_allow_html=True)
+        theme_icon = "☀️ Claro" if dark else "🌙 Oscuro"
+        st.markdown(f"""
+<style>
+/* Botón tema — píldora derecha, estilo concreto */
+[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child .stButton > button {{
+    background:{tbtn_bg}!important;
+    backdrop-filter:blur(10px)!important;
+    -webkit-backdrop-filter:blur(10px)!important;
+    color:{tbtn_txt}!important;
+    -webkit-text-fill-color:{tbtn_txt}!important;
+    border:1px solid {tbtn_bdr}!important;
+    border-radius:999px!important;
+    font-family:'Inter',sans-serif!important;
+    font-size:0.82rem!important;font-weight:500!important;
+    padding:0.4rem 1.1rem!important;
+    box-shadow:0 2px 14px rgba(0,0,0,0.18)!important;
+    width:auto!important;white-space:nowrap!important;
+    float:right!important;
+    transition:all .18s ease!important;
+}}
+</style>
+""", unsafe_allow_html=True)
+        if st.button(theme_icon, key="auth_theme_toggle"):
+            toggle_theme()
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Formulario centrado ──
     _, col_form, _ = st.columns([1, 2, 1])
     with col_form:
         tab_login, tab_reg = st.tabs(["Iniciar sesión", "Crear cuenta"])
