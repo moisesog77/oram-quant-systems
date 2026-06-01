@@ -113,10 +113,130 @@ else:
 
         st.markdown(f'''
 <style>
-/* Los estilos de sb_theme y sb_logout están definidos en styles.py
-   con especificidad máxima: section[stSidebar] + [stButton-KEY] + [stBaseButton-secondary]
-   No se necesita CSS adicional aquí. */
+/* ═══════════════════════════════════════════════════════════════════
+   SIDEBAR PILL BUTTONS
+   Estrategia: JavaScript inyecta las clases .oram-btn-theme y
+   .oram-btn-logout a los botones correctos buscándolos por texto.
+   El CSS apunta a esas clases desde dentro del sidebar.
+   Esta es la única estrategia 100% robusta ante cualquier versión
+   de Streamlit, ya que no depende de data-testid internos.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── TEMA — glass pill ── */
+section[data-testid="stSidebar"] .oram-btn-theme {{
+    background: {_tbtn_bg} !important;
+    color: {_tbtn_txt} !important;
+    -webkit-text-fill-color: {_tbtn_txt} !important;
+    border: 1px solid {_tbtn_bdr} !important;
+    border-radius: 999px !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.07) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+    padding: 0.4rem 1.1rem !important;
+    width: 100% !important;
+    min-height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all .18s ease !important;
+    white-space: nowrap !important;
+    letter-spacing: 0.2px !important;
+}}
+section[data-testid="stSidebar"] .oram-btn-theme:hover {{
+    box-shadow: 0 6px 22px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.12) !important;
+    transform: translateY(-1px) !important;
+    opacity: 0.92 !important;
+}}
+section[data-testid="stSidebar"] .oram-btn-theme:active {{
+    transform: scale(0.97) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18) !important;
+    opacity: 1 !important;
+}}
+section[data-testid="stSidebar"] .oram-btn-theme *,
+section[data-testid="stSidebar"] .oram-btn-theme p {{
+    color: {_tbtn_txt} !important;
+    -webkit-text-fill-color: {_tbtn_txt} !important;
+}}
+
+/* ── SALIR — red pill ── */
+section[data-testid="stSidebar"] .oram-btn-logout {{
+    background: {_logout_bg} !important;
+    color: {_logout_txt} !important;
+    -webkit-text-fill-color: {_logout_txt} !important;
+    border: 1px solid {_logout_bdr} !important;
+    border-radius: 999px !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    box-shadow: 0 2px 10px rgba(239,68,68,0.12), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+    padding: 0.4rem 1.1rem !important;
+    width: 100% !important;
+    min-height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all .18s ease !important;
+    white-space: nowrap !important;
+    letter-spacing: 0.2px !important;
+}}
+section[data-testid="stSidebar"] .oram-btn-logout:hover {{
+    background: rgba(239,68,68,0.22) !important;
+    border-color: rgba(239,68,68,0.50) !important;
+    box-shadow: 0 6px 22px rgba(239,68,68,0.32) !important;
+    transform: translateY(-1px) !important;
+}}
+section[data-testid="stSidebar"] .oram-btn-logout:active {{
+    transform: scale(0.97) !important;
+    box-shadow: 0 2px 8px rgba(239,68,68,0.20) !important;
+}}
+section[data-testid="stSidebar"] .oram-btn-logout *,
+section[data-testid="stSidebar"] .oram-btn-logout p {{
+    color: {_logout_txt} !important;
+    -webkit-text-fill-color: {_logout_txt} !important;
+}}
 </style>
+
+<script>
+(function applyOramSidebarButtons() {{
+    // Textos posibles según tema activo
+    const themeTexts = ['☀️ Claro', '🌙 Oscuro', 'Claro', 'Oscuro'];
+    const logoutTexts = ['🚪 Salir', 'Salir'];
+
+    function tagButtons() {{
+        const sidebar = document.querySelector('[data-testid="stSidebar"]');
+        if (!sidebar) return;
+
+        // Todos los botones dentro del sidebar
+        const btns = sidebar.querySelectorAll('button');
+        btns.forEach(btn => {{
+            const txt = btn.innerText || btn.textContent || '';
+            const trimmed = txt.trim();
+
+            if (themeTexts.some(t => trimmed.includes(t.replace(/[☀️🌙]/g,'').trim()) || trimmed === t)) {{
+                btn.classList.add('oram-btn-theme');
+                btn.classList.remove('oram-btn-logout');
+            }}
+            if (logoutTexts.some(t => trimmed.includes(t.replace('🚪','').trim()) || trimmed === t)) {{
+                btn.classList.add('oram-btn-logout');
+                btn.classList.remove('oram-btn-theme');
+            }}
+        }});
+    }}
+
+    // Ejecutar inmediatamente y observar mutaciones del DOM
+    // (Streamlit re-renderiza el sidebar en cada interacción)
+    tagButtons();
+    const observer = new MutationObserver(() => tagButtons());
+    observer.observe(document.body, {{ childList: true, subtree: true }});
+}})();
+</script>
 ''', unsafe_allow_html=True)
 
         col_t, col_s = st.columns(2)
