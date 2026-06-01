@@ -54,7 +54,7 @@ def render_bot_config():
             actuales = json.loads(cfg.get("activos_monitor",'["EURUSD=X","GBPUSD=X","USDJPY=X"]'))
             sel_activos = st.multiselect("Selecciona activos", todos_activos, default=actuales, key="sel_act_bot")
 
-            if st.form_submit_button("💾 Guardar configuración", use_container_width=True):
+            if st.form_submit_button("💾 Guardar configuración", width='stretch'):
                 actualizar_bot_config(
                     user["id"],
                     telegram_chat_id=chat_id.strip(),
@@ -111,7 +111,7 @@ def render_bot_config():
             with col3:
                 msg_a = st.text_input("Mensaje personalizado", placeholder="ej: OB alcista en 1.0850", key="al_msg")
 
-            if st.form_submit_button("🔔 Crear Alerta", use_container_width=True):
+            if st.form_submit_button("🔔 Crear Alerta", width='stretch'):
                 if precio_a == 0:
                     st.error("El precio no puede ser 0.")
                 else:
@@ -163,4 +163,4 @@ def render_bot_config():
             return ""
 
         st.dataframe(df_show.style.map(color_dir, subset=["direccion"] if "direccion" in df_show.columns else []),
-                     use_container_width=True, height=400)
+                     width='stretch', height=400)

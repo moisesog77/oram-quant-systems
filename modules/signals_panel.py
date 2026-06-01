@@ -55,7 +55,7 @@ def render_signals_panel():
         umbral = st.slider("Confianza mín. %", 0, 90, 50, key="sp_umb")
     with col4:
         st.markdown("&nbsp;")
-        escanear = st.button("⚡ Escanear", use_container_width=True, key="sp_scan")
+        escanear = st.button("⚡ Escanear", width='stretch', key="sp_scan")
 
     # Construir lista de activos
     activos = []
@@ -214,5 +214,5 @@ def render_signals_panel():
                 df_res.style
                     .map(color_dir,  subset=["Dirección"])
                     .map(color_conf, subset=["Conf %"]),
-                use_container_width=True, height=350
+                width='stretch', height=350
             )

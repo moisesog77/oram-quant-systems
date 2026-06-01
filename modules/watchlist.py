@@ -46,7 +46,7 @@ def render_watchlist():
         alias  = st.text_input("Alias (opcional)", placeholder="ej: Cable, DXY...", key="wl_alias")
     with col4:
         st.markdown('<div style="margin-top:1.6rem"></div>', unsafe_allow_html=True)
-        if st.button("➕ Agregar", use_container_width=True):
+        if st.button("➕ Agregar", width='stretch'):
             ok = agregar_watchlist(user["id"], ticker, alias)
             if ok:
                 st.success(f"✅ {ticker} agregado")
@@ -150,9 +150,9 @@ def render_watchlist():
 
                 # Sparkline
                 fig = _sparkline(df, c)
-                st.plotly_chart(fig, use_container_width=True, key=f"spark_{tk}_{i}{j}")
+                st.plotly_chart(fig, width='stretch', key=f"spark_{tk}_{i}{j}")
 
                 # Botón eliminar
-                if st.button(f"🗑️ Quitar {al}", key=f"rm_{tk}", use_container_width=True):
+                if st.button(f"🗑️ Quitar {al}", key=f"rm_{tk}", width='stretch'):
                     eliminar_watchlist(user["id"], tk)
                     st.rerun()

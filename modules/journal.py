@@ -70,7 +70,7 @@ def render_journal():
             notas = st.text_area("Notas / Plan", placeholder="Describe el setup, confluencias, razonamiento...", height=80)
             tags  = st.text_input("Tags (coma)", placeholder="impulso, NY session, OTE, CHoCH...")
 
-            if st.form_submit_button("💾 Guardar Trade", use_container_width=True):
+            if st.form_submit_button("💾 Guardar Trade", width='stretch'):
                 if entrada == 0 or sl == 0 or tp == 0:
                     st.error("Entrada, SL y TP son obligatorios.")
                 else:
@@ -132,7 +132,7 @@ def render_journal():
             return ''
 
         styled = df_show.style.map(color_result, subset=['resultado_usd'])
-        st.dataframe(styled, use_container_width=True, height=400)
+        st.dataframe(styled, width='stretch', height=400)
 
         st.divider()
         if len(df) > 0:
@@ -144,7 +144,7 @@ def render_journal():
                                        key="del_id")
             with col_del2:
                 st.markdown("")
-                if st.button("🗑️ Eliminar", use_container_width=True):
+                if st.button("🗑️ Eliminar", width='stretch'):
                     eliminar_trade(del_id, user["id"])
                     st.success("Trade eliminado.")
                     st.rerun()

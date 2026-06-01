@@ -109,7 +109,7 @@ def render_performance():
             xaxis=dict(color=c['text_muted'], gridcolor=c['grid'], tickfont=dict(color=c['text_muted'],size=9,family='JetBrains Mono'), tickcolor=c['text_muted']),
             yaxis=dict(color=c['text_muted'], gridcolor=c['grid'], tickfont=dict(color=c['text_muted'],size=9,family='JetBrains Mono'), tickcolor=c['text_muted']),
         )
-        st.plotly_chart(fig_hist, use_container_width=True)
+        st.plotly_chart(fig_hist, width='stretch')
 
     with col_g2:
         # PnL por setup
@@ -128,7 +128,7 @@ def render_performance():
                 xaxis=dict(color=c['text_muted'], gridcolor=c['grid'], tickfont=dict(color=c['text_muted'],size=9,family='JetBrains Mono'), tickcolor=c['text_muted']),
                 yaxis=dict(color=c['text_muted'], tickfont=dict(color=c['text_muted'],size=9,family='JetBrains Mono'), tickcolor=c['text_muted']),
             )
-            st.plotly_chart(fig_setup, use_container_width=True)
+            st.plotly_chart(fig_setup, width='stretch')
 
     col_g3, col_g4 = st.columns(2)
 
@@ -151,7 +151,7 @@ def render_performance():
                 xaxis=dict(color=c['text_muted'], showgrid=False, tickfont=dict(color=c['text_muted'],size=9,family='JetBrains Mono'), tickcolor=c['text_muted']),
                 yaxis=dict(color=c['text_muted'], gridcolor=c['grid'], tickfont=dict(color=c['text_muted'],size=9,family='JetBrains Mono'), tickcolor=c['text_muted']),
             )
-            st.plotly_chart(fig_emo, use_container_width=True)
+            st.plotly_chart(fig_emo, width='stretch')
             st.caption("💡 Si ves que operar con FOMO o Revancha da pérdidas, evítalo.")
 
     with col_g4:
@@ -178,7 +178,7 @@ def render_performance():
                     yaxis=dict(color=c['text_muted'], gridcolor=c['grid'], tickfont=dict(color=c['text_muted'],size=9,family='JetBrains Mono'), tickcolor=c['text_muted']),
                     legend=dict(font=dict(color=c['text_muted']), bgcolor='rgba(0,0,0,0)')
                 )
-                st.plotly_chart(fig_rr, use_container_width=True)
+                st.plotly_chart(fig_rr, width='stretch')
 
     # ── Advertencia final ──────────────────────────────────────────────────
     st.divider()

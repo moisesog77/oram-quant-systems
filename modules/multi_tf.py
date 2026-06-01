@@ -98,7 +98,7 @@ def render_multi_tf():
         tf_alto, tf_bajo = MTF_COMBOS[combo]
     with col3:
         st.markdown('<div style="margin-top:1.65rem"></div>', unsafe_allow_html=True)
-        analizar = st.button("🔭 Analizar", use_container_width=True, key="mtf_btn")
+        analizar = st.button("🔭 Analizar", width='stretch', key="mtf_btn")
 
     st.markdown(f"""
     <div class="smc-card smc-card-blue" style="padding:0.7rem 1rem;margin-bottom:1rem">
@@ -166,7 +166,7 @@ def render_multi_tf():
             df_a, status_a = obtener_datos(ticker, tf_alto)
             if df_a is not None:
                 fig_a = _mini_chart(df_a, tf_alto, "EMA50", c)
-                st.plotly_chart(fig_a, use_container_width=True, key=f"chart_alto_{ticker}")
+                st.plotly_chart(fig_a, width='stretch', key=f"chart_alto_{ticker}")
             else:
                 st.caption(f"Sin datos: {status_a}")
 
@@ -175,7 +175,7 @@ def render_multi_tf():
             df_b, status_b = obtener_datos(ticker, tf_bajo)
             if df_b is not None:
                 fig_b = _mini_chart(df_b, tf_bajo, "EMA20", c)
-                st.plotly_chart(fig_b, use_container_width=True, key=f"chart_bajo_{ticker}")
+                st.plotly_chart(fig_b, width='stretch', key=f"chart_bajo_{ticker}")
             else:
                 st.caption(f"Sin datos: {status_b}")
 

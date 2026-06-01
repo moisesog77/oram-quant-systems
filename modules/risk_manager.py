@@ -135,7 +135,7 @@ def render_risk_manager():
             ruina_pct = st.slider("Ruina = pérdida de (%)", 20, 80, 50, key="r_ruin")
             n_sim     = st.select_slider("Simulaciones Monte Carlo", [100,500,1000,2000], value=500, key="r_sim")
 
-        if st.button("🎲 Simular", use_container_width=True, key="sim_btn"):
+        if st.button("🎲 Simular", width='stretch', key="sim_btn"):
             np.random.seed(42)
             ruinas = 0
             trayectorias = []
@@ -188,7 +188,7 @@ def render_risk_manager():
                 xaxis=dict(title="Trade #", color=c["text_muted"], gridcolor=c["grid"], tickfont=dict(color=c["text_muted"],size=9,family='JetBrains Mono'), tickcolor=c["text_muted"]),
                 yaxis=dict(title="Capital (%)", color=c["text_muted"], gridcolor=c["grid"]),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
             if prob_ruina > 20:
                 st.error(f"⚠️ Probabilidad de ruina alta ({prob_ruina:.1f}%). Reduce el riesgo por trade o mejora tu edge.")

@@ -78,7 +78,7 @@ def render_dashboard():
                 yaxis=dict(gridcolor=c['grid'], color=c['text_muted'], tickfont=dict(color=c['grid'],size=9,family='JetBrains Mono'), tickcolor=c['grid']),
                 showlegend=False
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
             # Drawdown
             max_dd = dd_data['max_drawdown']
@@ -111,7 +111,7 @@ def render_dashboard():
                 yaxis=dict(color=c['text_muted'], gridcolor=c['grid'], tickfont=dict(color=c['text_muted'],size=9,family='JetBrains Mono'), tickcolor=c['text_muted']),
                 showlegend=False
             )
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width='stretch')
         else:
             st.info("Sin trades registrados.")
 

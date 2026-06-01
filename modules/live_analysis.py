@@ -184,7 +184,7 @@ def render_live_analysis():
         riesgo_pct = st.number_input("Riesgo %", value=1.0, min_value=0.1, max_value=5.0,
                                       step=0.1, key="rsk_live")
 
-    actualizar = st.button("🔄 Actualizar análisis", use_container_width=True)
+    actualizar = st.button("🔄 Actualizar análisis", width='stretch')
 
     # ── Datos ─────────────────────────────────────────────────────────────
     theme_key = get_theme()
@@ -208,7 +208,7 @@ def render_live_analysis():
 
     # ── LAYOUT PRINCIPAL: gráfica arriba completa, panel abajo ────────────
     # Gráfica a ancho completo
-    st.plotly_chart(_grafica_velas(df, ticker, smc), use_container_width=True)
+    st.plotly_chart(_grafica_velas(df, ticker, smc), width='stretch')
 
     # Panel de análisis debajo en 4 columnas
     precio  = smc.get("precio", 0)

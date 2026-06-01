@@ -83,7 +83,7 @@ else:
             unsafe_allow_html=True,
         )
 
-        nav = st.radio("", [
+        nav = st.radio("Navegación", [
             "⬛ Dashboard",
             "📡 Análisis en Vivo",
             "🔭 Multi-Timeframe",
@@ -103,11 +103,11 @@ else:
         col_t, col_s = st.columns(2)
         with col_t:
             label = "☀️" if get_theme() == "dark" else "🌙"
-            if st.button(label, use_container_width=True, help="Cambiar tema"):
+            if st.button(label, width='stretch', help="Cambiar tema"):
                 toggle_theme()
                 st.rerun()
         with col_s:
-            if st.button("🚪", use_container_width=True, help="Cerrar sesión"):
+            if st.button("🚪", width='stretch', help="Cerrar sesión"):
                 st.session_state.user = None
                 st.session_state.pop("last_activity", None)
                 st.rerun()

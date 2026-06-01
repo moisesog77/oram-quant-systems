@@ -59,7 +59,7 @@ def render_auth():
             with st.form("login_form"):
                 user = st.text_input("Usuario", placeholder="tu_usuario")
                 pw   = st.text_input("Contraseña", type="password", placeholder="••••••••")
-                sub  = st.form_submit_button("Acceder →", use_container_width=True)
+                sub  = st.form_submit_button("Acceder →", width='stretch')
                 if sub:
                     if not user or not pw:
                         st.error("Completa todos los campos.")
@@ -79,7 +79,7 @@ def render_auth():
                 new_pw2  = st.text_input("Confirmar contraseña", type="password", key="rp2")
                 capital  = st.number_input("Capital inicial (USD)", value=1000.0,
                                             min_value=100.0, step=500.0)
-                sub_reg  = st.form_submit_button("Crear cuenta →", use_container_width=True)
+                sub_reg  = st.form_submit_button("Crear cuenta →", width='stretch')
                 if sub_reg:
                     if not new_user or not new_pw:
                         st.error("Completa todos los campos.")

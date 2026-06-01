@@ -49,7 +49,7 @@ def render_backtesting():
             "El timeframe 15m tiene menos historia disponible en yfinance."
         )
 
-        if st.button("▶️ Ejecutar Backtest", use_container_width=True, key="bt_run"):
+        if st.button("▶️ Ejecutar Backtest", width='stretch', key="bt_run"):
             with st.spinner(f"Ejecutando backtest {ticker} {tf} (puede tardar 30-90 seg)..."):
                 res = ejecutar_backtest(ticker, tf, riesgo_pct, umbral, capital)
 
@@ -93,7 +93,7 @@ def render_backtesting():
                         yaxis=dict(gridcolor=c["grid"], color=c["text_muted"], title="Capital USD", tickfont=dict(color=c["grid"],size=9,family='JetBrains Mono'), tickcolor=c["grid"]),
                         showlegend=False,
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
 
                 with col_info:
                     st.markdown(f"""
@@ -127,7 +127,7 @@ def render_backtesting():
                             return ""
                         st.dataframe(
                             df_t.style.map(color_r, subset=["resultado_r"]),
-                            use_container_width=True, height=300
+                            width='stretch', height=300
                         )
 
                 guardar_backtest(user["id"], {
@@ -148,4 +148,4 @@ def render_backtesting():
         cols_show = ["created_at","ticker","timeframe","total_trades",
                      "win_rate","profit_factor","total_pnl","max_drawdown","sharpe"]
         st.dataframe(df_bt[[col for col in cols_show if col in df_bt.columns]],
-                     use_container_width=True)
+                     width='stretch')
