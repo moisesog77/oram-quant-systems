@@ -395,24 +395,25 @@ html, body {{
 /* ══════════════════════════════════════════════════════════════
    RECUADRO FANTASMA — solución definitiva
    
-   El recuadro debajo del number_input en un st.form es el
-   segundo elemento hijo del stNumberInput. Streamlit lo genera
-   como contenedor de validación del formulario. Puede ser un
-   <input>, <div>, <span> o <p> dependiendo de la versión.
+   Estructura DOM real del stNumberInput:
+     [data-testid="stNumberInput"]
+       div (1°) — label wrapper
+       div (2°) — campo real con borde + botones ± ← MANTENER
+       input/div (3°+) — el fantasma ← OCULTAR
    
-   Estrategia: ocultar TODOS los hijos directos del stNumberInput
-   que NO sean el primer div (el contenedor con borde).
-   El selector :not(:first-child) captura todo lo demás.
+   Usamos :last-child para apuntar solo al último elemento,
+   excluyendo el campo real (2°) que necesitamos visible.
+   Con :nth-child(n+3) cubrimos desde el tercero en adelante.
    ══════════════════════════════════════════════════════════════ */
 
-/* Ocultar cualquier elemento que NO sea el primer hijo del stNumberInput */
-[data-testid="stNumberInput"] > *:not(:first-child) {{
+/* Solo el último hijo — el fantasma siempre es el último */
+[data-testid="stNumberInput"] > input:last-child,
+[data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
+[data-testid="stNumberInput"] > *:nth-child(n+3) {{
     display: none !important;
     visibility: hidden !important;
     height: 0 !important;
     min-height: 0 !important;
-    max-height: 0 !important;
-    width: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     border: none !important;
@@ -423,22 +424,9 @@ html, body {{
     overflow: hidden !important;
 }}
 
-/* Refuerzo específico por tipo de elemento */
-[data-testid="stNumberInput"] > input,
-[data-testid="stNumberInput"] > div:not(:first-child),
-[data-testid="stNumberInput"] > span,
-[data-testid="stNumberInput"] > p {{
-    display: none !important;
-    height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    position: absolute !important;
-    overflow: hidden !important;
-}}
-
-/* Mismo fix dentro de stForm — más especificidad */
-[data-testid="stForm"] [data-testid="stNumberInput"] > *:not(:first-child) {{
+/* Refuerzo dentro de stForm */
+[data-testid="stForm"] [data-testid="stNumberInput"] > input:last-child,
+[data-testid="stForm"] [data-testid="stNumberInput"] > *:nth-child(n+3) {{
     display: none !important;
     visibility: hidden !important;
     height: 0 !important;
@@ -446,7 +434,6 @@ html, body {{
     margin: 0 !important;
     padding: 0 !important;
     border: none !important;
-    outline: none !important;
     opacity: 0 !important;
     position: absolute !important;
     pointer-events: none !important;
