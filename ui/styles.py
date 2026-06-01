@@ -90,6 +90,57 @@ def inject_styles():
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;600;700;800&display=swap');
 
+/* ── COLOR-SCHEME FORZADO — independiente del SO ─────
+   Esto evita que el navegador aplique colores del sistema
+   a elementos nativos (scrollbars, inputs, popups).
+   DEBE ir primero antes de cualquier otro estilo.        */
+html {{
+    color-scheme: {'dark' if dark else 'light'} !important;
+}}
+/* Los portals de Base Web (dropdowns) se renderizan
+   directamente en body — necesitan el mismo override   */
+body {{
+    color-scheme: {'dark' if dark else 'light'} !important;
+    background-color: {c['bg']} !important;
+    color: {c['text']} !important;
+}}
+/* Portals de Base Web — contenedor raíz de popups/dropdowns
+   Se montan fuera de la jerarquía del iframe de Streamlit */
+[data-baseweb="layer"],
+[data-baseweb="layer"] > * {{
+    color-scheme: {'dark' if dark else 'light'} !important;
+}}
+/* Cobertura total del portal de dropdowns */
+[data-baseweb="layer"] [data-baseweb="popover"],
+[data-baseweb="layer"] [data-baseweb="popover"] > *,
+[data-baseweb="layer"] [data-baseweb="menu"],
+[data-baseweb="layer"] [data-baseweb="menu"] *,
+[data-baseweb="layer"] [data-baseweb="calendar"],
+[data-baseweb="layer"] [data-baseweb="calendar"] *,
+[data-baseweb="layer"] [role="listbox"],
+[data-baseweb="layer"] [role="listbox"] *,
+[data-baseweb="layer"] ul,
+[data-baseweb="layer"] li,
+[data-baseweb="layer"] [role="option"] {{
+    background-color: {c['bg_card']} !important;
+    color: {c['text']} !important;
+    border-color: {c['border']} !important;
+}}
+[data-baseweb="layer"] li:hover,
+[data-baseweb="layer"] [role="option"]:hover,
+[data-baseweb="layer"] [aria-selected="true"],
+[data-baseweb="layer"] [data-highlighted="true"] {{
+    background-color: {c['nav_hover']} !important;
+    color: {c['text']} !important;
+}}
+/* Tooltip popups */
+[data-baseweb="tooltip"] {{
+    background-color: {c['bg_card2']} !important;
+    color: {c['text']} !important;
+    border: 1px solid {c['border']} !important;
+    border-radius: 6px !important;
+}}
+
 /* ── RESET ─────────────────────────────────────────── */
 *,*::before,*::after{{box-sizing:border-box}}
 html,body,[class*="css"]{{
@@ -403,11 +454,15 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     transition:border-color .15s;
 }}
 .stSelectbox>div>div>div{{color:{c['text']}!important}}
-[data-baseweb="popover"] [role="listbox"]{{
+[data-baseweb="popover"] [role="listbox"],
+[data-baseweb="popover"] [role="listbox"] li,
+[data-baseweb="popover"] [role="listbox"] ul {{
     background:{c['bg_card']}!important;
     border:1px solid {c['border']}!important;border-radius:8px!important;
+    color:{c['text']}!important;
+    color-scheme: {'dark' if dark else 'light'} !important;
 }}
-[data-baseweb="popover"] li{{color:{c['text']}!important;background:transparent!important}}
+[data-baseweb="popover"] li{{color:{c['text']}!important;background:{c['bg_card']}!important}}
 [data-baseweb="popover"] li:hover{{background:{c['nav_hover']}!important}}
 /* Multiselect */
 [data-testid="stMultiSelect"]>div{{
@@ -623,20 +678,34 @@ pre,[data-testid="stCode"]>div{{
     color: {c['text']} !important;
     -webkit-text-fill-color: {c['text']} !important;
 }}
-/* Dropdown menu popup — CRÍTICO para fondo de la lista */
+/* Dropdown menu popup — CRÍTICO para fondo de la lista.
+   Se aplica tanto dentro de la app como en portals de body */
+[data-baseweb="popover"],
+[data-baseweb="popover"] > div,
+[data-baseweb="popover"] [data-baseweb="menu"] {{
+    background: {c['bg_card']} !important;
+    border: 1px solid {c['border']} !important;
+    border-radius: 8px !important;
+    box-shadow: {c['shadow']} !important;
+    color-scheme: {'dark' if dark else 'light'} !important;
+}}
 [data-baseweb="menu"] {{
     background: {c['bg_card']} !important;
     border: 1px solid {c['border']} !important;
     border-radius: 8px !important;
     box-shadow: {c['shadow']} !important;
+    color-scheme: {'dark' if dark else 'light'} !important;
 }}
 [data-baseweb="menu"] ul,
-[data-baseweb="menu"] li {{
+[data-baseweb="menu"] li,
+[data-baseweb="menu"] [role="option"] {{
     background: {c['bg_card']} !important;
     color: {c['text']} !important;
 }}
 [data-baseweb="menu"] li:hover,
-[data-baseweb="menu"] [aria-selected="true"] {{
+[data-baseweb="menu"] [role="option"]:hover,
+[data-baseweb="menu"] [aria-selected="true"],
+[data-baseweb="menu"] [data-highlighted] {{
     background: {c['nav_hover']} !important;
     color: {c['text']} !important;
 }}
