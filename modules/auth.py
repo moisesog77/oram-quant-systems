@@ -392,8 +392,14 @@ html, body {{
 /* ── Eliminar outline amarillo ── */
 *, *:focus, *:focus-visible {{ outline: none !important; }}
 
-/* ── "Press Enter to submit form" — ocultar completamente ──
-   Streamlit muestra este hint en 3 posibles elementos según versión */
+/* ── "Press Enter to submit form" y recuadro fantasma del number_input ──
+   
+   El recuadro que aparece al hacer clic en Capital Inicial tiene 3 causas:
+   1. [data-testid="InputInstructions"] — hint de texto oculto
+   2. Un <input> hermano del stNumberInput inyectado por Streamlit
+   3. El margin-bottom que reserva espacio para ese elemento
+   
+   Solución: ocultar el input fantasma directamente + quitar el margin. */
 [data-testid="InputInstructions"],
 [data-testid="InputInstructions"] *,
 div[class*="instructions"],
@@ -406,11 +412,34 @@ p[class*="instructions"] {{
     overflow: hidden !important;
 }}
 
-/* ── Margen inferior del number_input dentro del form de login ──
-   Evita que el hint flotante colisione con el botón Crear cuenta.
-   Solo aplica dentro de stForm (login/registro), no en dashboard. */
-[data-testid="stForm"] [data-testid="stNumberInput"] {{
-    margin-bottom: 1.2rem !important;
+/* Input fantasma — hermano directo del stNumberInput (NO el input real
+   que vive dentro del div con borde). Streamlit lo inyecta para capturar
+   el Enter del formulario. Aplica con position:absolute para sacarlo
+   del flujo sin afectar el layout del campo real. */
+[data-testid="stNumberInput"] > input {{
+    position: absolute !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    outline: none !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+}}
+/* Mismo fix dentro de stForm */
+[data-testid="stForm"] [data-testid="stNumberInput"] > input {{
+    position: absolute !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    outline: none !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
 }}
 </style>
 """, unsafe_allow_html=True)
