@@ -349,6 +349,7 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 .stTextInput>div{{
     border:none!important;background:transparent!important;
     box-shadow:none!important;padding:0!important;
+    margin:0!important;
 }}
 .stTextInput>div>div{{
     background:{c['input_bg']}!important;
@@ -358,6 +359,7 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     box-shadow:none!important;
     padding:0!important;
     overflow:hidden!important;
+    display:flex!important;align-items:center!important;
 }}
 .stTextInput>div>div:focus-within{{
     border-color:{c['green']}!important;
@@ -410,8 +412,8 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 [data-testid="stNumberInput"]>div{{
     display:flex!important;align-items:center!important;
     background:{c['input_bg']}!important;
-    border:1px solid {c['border']}!important;
-    border-radius:8px!important;overflow:hidden!important;
+    border:1.5px solid {c['border']}!important;
+    border-radius:10px!important;overflow:hidden!important;
     gap:3px!important;padding:2px 4px!important;
     transition:border-color .15s;box-shadow:none!important;
 }}
@@ -537,19 +539,20 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 }}
 .stButton>button:active{{transform:scale(.98)!important}}
 .stFormSubmitButton>button{{
-    background:linear-gradient(135deg,#16a34a 0%,#15803d 100%)!important;
-    border:1.5px solid #16a34a!important;
+    background:linear-gradient(135deg,#16a34a 0%,#14743d 100%)!important;
+    border:none!important;
     color:#ffffff!important;
     -webkit-text-fill-color:#ffffff!important;
     font-family:'Inter',sans-serif!important;
     font-weight:600!important;
     font-size:0.95rem!important;
-    letter-spacing:0.4px!important;
+    letter-spacing:0.3px!important;
     border-radius:10px!important;
-    padding:0.65rem 1rem!important;
-    box-shadow:0 3px 14px rgba(22,163,74,0.35)!important;
+    padding:0.7rem 1rem!important;
+    box-shadow:0 4px 16px rgba(22,163,74,0.38)!important;
     transition:all .18s ease!important;
-    margin-top:0.4rem!important;
+    margin-top:0.5rem!important;
+    width:100%!important;
 }}
 .stFormSubmitButton>button *{{
     color:#ffffff!important;
@@ -557,21 +560,21 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 }}
 .stFormSubmitButton>button:hover{{
     background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%)!important;
-    border-color:#22c55e!important;
-    box-shadow:0 5px 22px rgba(34,197,94,0.45)!important;
+    box-shadow:0 6px 24px rgba(34,197,94,0.48)!important;
     transform:translateY(-1px)!important;
 }}
 .stFormSubmitButton>button:active{{
     transform:scale(.98)!important;
-    box-shadow:0 2px 8px rgba(22,163,74,0.30)!important;
+    box-shadow:0 2px 8px rgba(22,163,74,0.3)!important;
 }}
 
 /* ── FORM ───────────────────────────────────────────── */
 [data-testid="stForm"]{{
     background:{c['bg_card']}!important;
     border:1px solid {c['border']}!important;
-    border-radius:12px!important;padding:1.2rem!important;
+    border-radius:16px!important;padding:1.5rem 1.6rem 1.8rem!important;
     box-shadow:{c['shadow']};
+    overflow:visible!important;
 }}
 
 /* ── TABS ───────────────────────────────────────────── */
