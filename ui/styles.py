@@ -512,30 +512,36 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 /* Botón — (StepDown) → rojo premium */
 [data-testid="stNumberInput-StepDown"]{{
     background:rgba(217,83,79,0.12)!important;
+    box-shadow:inset 2px 0 0 rgba(217,83,79,0.25)!important;
 }}
 [data-testid="stNumberInput-StepDown"]:hover{{
     background:rgba(217,83,79,0.28)!important;
+    box-shadow:inset 2px 0 0 rgba(217,83,79,0.5),0 0 10px rgba(217,83,79,0.20)!important;
 }}
 [data-testid="stNumberInput-StepDown"] svg{{
     width:14px!important;height:14px!important;
     fill:none!important;
-    stroke:#d9534f!important;
-    stroke-width:2.2!important;
+    stroke:#e05c58!important;
+    stroke-width:2.4!important;
     pointer-events:none!important;display:block!important;
+    filter:drop-shadow(0 0 3px rgba(217,83,79,0.6))!important;
 }}
 /* Botón + (StepUp) → verde premium */
 [data-testid="stNumberInput-StepUp"]{{
     background:rgba(92,184,92,0.12)!important;
+    box-shadow:inset 2px 0 0 rgba(92,184,92,0.25)!important;
 }}
 [data-testid="stNumberInput-StepUp"]:hover{{
     background:rgba(92,184,92,0.28)!important;
+    box-shadow:inset 2px 0 0 rgba(92,184,92,0.5),0 0 10px rgba(92,184,92,0.20)!important;
 }}
 [data-testid="stNumberInput-StepUp"] svg{{
     width:14px!important;height:14px!important;
     fill:none!important;
-    stroke:#5cb85c!important;
-    stroke-width:2.2!important;
+    stroke:#4eb84e!important;
+    stroke-width:2.4!important;
     pointer-events:none!important;display:block!important;
+    filter:drop-shadow(0 0 3px rgba(92,184,92,0.6))!important;
 }}
 /* ══════════════════════════════════════════════════════
    RECUADRO FANTASMA — el elemento real es un <input>

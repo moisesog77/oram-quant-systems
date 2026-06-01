@@ -291,7 +291,11 @@ html, body {{
     background: transparent !important; border: none !important;
     box-shadow: none !important; outline: none !important;
 }}
-[data-testid="stNumberInput"] > div:last-child {{
+/* ★ CRÍTICO: usar :nth-child(2) NO :last-child
+   El fantasma tiene position:absolute y sigue siendo el último
+   hijo en el DOM, por lo que :last-child apuntaría al fantasma.
+   El campo real SIEMPRE es el segundo hijo. */
+[data-testid="stNumberInput"] > div:nth-child(2) {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important;
@@ -301,7 +305,7 @@ html, body {{
     transition: border-color .18s ease, box-shadow .18s ease !important;
     padding: 0 !important;
 }}
-[data-testid="stNumberInput"] > div:last-child:focus-within {{
+[data-testid="stNumberInput"] > div:nth-child(2):focus-within {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
@@ -319,7 +323,8 @@ html, body {{
 [data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
     -webkit-appearance: none !important; margin: 0 !important;
 }}
-[data-testid="stNumberInput"] > div:last-child > div:last-child {{
+/* Wrapper interno de los botones ± — último div DENTRO del nth-child(2) */
+[data-testid="stNumberInput"] > div:nth-child(2) > div:last-child {{
     display: flex !important; flex-direction: row !important;
     align-items: center !important; justify-content: center !important;
     align-self: stretch !important; height: 100% !important;
@@ -327,7 +332,31 @@ html, body {{
     background: transparent !important; border: none !important;
     box-shadow: none !important;
 }}
-[data-testid="stNumberInput-StepDown"],
+/* Botón − rojo premium */
+[data-testid="stNumberInput-StepDown"] {{
+    all: unset !important; box-sizing: border-box !important;
+    display: flex !important; align-items: center !important;
+    justify-content: center !important; align-self: stretch !important;
+    width: 36px !important; min-width: 36px !important;
+    height: 100% !important; min-height: 42px !important;
+    flex-shrink: 0 !important; cursor: pointer !important;
+    border-left: 1px solid {input_bdr} !important;
+    background: rgba(217,83,79,0.13) !important;
+    box-shadow: inset 2px 0 0 rgba(217,83,79,0.25) !important;
+    transition: background .15s, box-shadow .15s !important;
+}}
+[data-testid="stNumberInput-StepDown"]:hover {{
+    background: rgba(217,83,79,0.28) !important;
+    box-shadow: inset 2px 0 0 rgba(217,83,79,0.5), 0 0 10px rgba(217,83,79,0.20) !important;
+}}
+[data-testid="stNumberInput-StepDown"] svg {{
+    width: 14px !important; height: 14px !important;
+    fill: none !important; stroke: #e05c58 !important;
+    stroke-width: 2.4 !important; pointer-events: none !important;
+    display: block !important; flex-shrink: 0 !important;
+    filter: drop-shadow(0 0 3px rgba(217,83,79,0.6)) !important;
+}}
+/* Botón + verde premium */
 [data-testid="stNumberInput-StepUp"] {{
     all: unset !important; box-sizing: border-box !important;
     display: flex !important; align-items: center !important;
@@ -335,33 +364,21 @@ html, body {{
     width: 36px !important; min-width: 36px !important;
     height: 100% !important; min-height: 42px !important;
     flex-shrink: 0 !important; cursor: pointer !important;
-    border: none !important;
     border-left: 1px solid {input_bdr} !important;
-    transition: background .15s !important;
-}}
-[data-testid="stNumberInput-StepDown"] {{
-    background: rgba(217,83,79,0.10) !important;
-}}
-[data-testid="stNumberInput-StepDown"]:hover {{
-    background: rgba(217,83,79,0.26) !important;
-}}
-[data-testid="stNumberInput-StepDown"] svg {{
-    width: 14px !important; height: 14px !important;
-    fill: none !important; stroke: #d9534f !important;
-    stroke-width: 2.2 !important; pointer-events: none !important;
-    display: block !important; flex-shrink: 0 !important;
-}}
-[data-testid="stNumberInput-StepUp"] {{
-    background: rgba(92,184,92,0.10) !important;
+    background: rgba(92,184,92,0.13) !important;
+    box-shadow: inset 2px 0 0 rgba(92,184,92,0.25) !important;
+    transition: background .15s, box-shadow .15s !important;
 }}
 [data-testid="stNumberInput-StepUp"]:hover {{
-    background: rgba(92,184,92,0.26) !important;
+    background: rgba(92,184,92,0.28) !important;
+    box-shadow: inset 2px 0 0 rgba(92,184,92,0.5), 0 0 10px rgba(92,184,92,0.20) !important;
 }}
 [data-testid="stNumberInput-StepUp"] svg {{
     width: 14px !important; height: 14px !important;
-    fill: none !important; stroke: #5cb85c !important;
-    stroke-width: 2.2 !important; pointer-events: none !important;
+    fill: none !important; stroke: #4eb84e !important;
+    stroke-width: 2.4 !important; pointer-events: none !important;
     display: block !important; flex-shrink: 0 !important;
+    filter: drop-shadow(0 0 3px rgba(92,184,92,0.6)) !important;
 }}
 
 /* ── BOTÓN SUBMIT VERDE ── */
