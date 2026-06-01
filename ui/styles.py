@@ -346,17 +346,22 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 
 /* ── INPUTS — COMPLETO SIN DOBLE BORDE ─────────────── */
 /* Text input (incluye password) */
+.stTextInput>div{{
+    border:none!important;background:transparent!important;
+    box-shadow:none!important;padding:0!important;
+}}
 .stTextInput>div>div{{
     background:{c['input_bg']}!important;
-    border:1px solid {c['border']}!important;
-    border-radius:8px!important;
+    border:1.5px solid {c['border']}!important;
+    border-radius:10px!important;
     transition:border-color .15s,box-shadow .15s;
     box-shadow:none!important;
     padding:0!important;
+    overflow:hidden!important;
 }}
 .stTextInput>div>div:focus-within{{
-    border-color:{c['accent']}!important;
-    box-shadow:0 0 0 3px {c['glow']}!important;
+    border-color:{c['green']}!important;
+    box-shadow:0 0 0 3px rgba(34,197,94,0.15)!important;
 }}
 .stTextInput input{{
     background:transparent!important;color:{c['text']}!important;
@@ -393,8 +398,8 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     border-radius:8px!important;
 }}
 .stTextArea>div>div:focus-within{{
-    border-color:{c['accent']}!important;
-    box-shadow:0 0 0 3px {c['glow']}!important;
+    border-color:{c['green']}!important;
+    box-shadow:0 0 0 3px rgba(34,197,94,0.15)!important;
 }}
 .stTextArea textarea{{
     background:transparent!important;color:{c['text']}!important;
@@ -411,8 +416,8 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     transition:border-color .15s;box-shadow:none!important;
 }}
 [data-testid="stNumberInput"]>div:focus-within{{
-    border-color:{c['accent']}!important;
-    box-shadow:0 0 0 3px {c['glow']}!important;
+    border-color:{c['green']}!important;
+    box-shadow:0 0 0 3px rgba(34,197,94,0.15)!important;
 }}
 [data-testid="stNumberInput"] input{{
     background:transparent!important;border:none!important;
@@ -467,8 +472,8 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     font-family:'JetBrains Mono',monospace!important;
 }}
 [data-testid="stDateInput"]:focus-within>div{{
-    border-color:{c['accent']}!important;
-    box-shadow:0 0 0 3px {c['glow']}!important;
+    border-color:{c['green']}!important;
+    box-shadow:0 0 0 3px rgba(34,197,94,0.15)!important;
 }}
 /* Selectbox */
 .stSelectbox>div>div{{
@@ -532,30 +537,33 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 }}
 .stButton>button:active{{transform:scale(.98)!important}}
 .stFormSubmitButton>button{{
-    background:{'linear-gradient(135deg,#16a34a 0%,#15803d 100%)' if dark else 'linear-gradient(135deg,#15803d 0%,#166534 100%)'}!important;
-    border:1px solid {'#16a34a' if dark else '#15803d'}!important;
+    background:linear-gradient(135deg,#16a34a 0%,#15803d 100%)!important;
+    border:1.5px solid #16a34a!important;
     color:#ffffff!important;
     -webkit-text-fill-color:#ffffff!important;
     font-family:'Inter',sans-serif!important;
     font-weight:600!important;
-    letter-spacing:0.3px!important;
-    border-radius:8px!important;
-    box-shadow:{'0 2px 12px rgba(22,163,74,0.35)' if dark else '0 2px 10px rgba(21,128,61,0.30)'}!important;
+    font-size:0.95rem!important;
+    letter-spacing:0.4px!important;
+    border-radius:10px!important;
+    padding:0.65rem 1rem!important;
+    box-shadow:0 3px 14px rgba(22,163,74,0.35)!important;
     transition:all .18s ease!important;
+    margin-top:0.4rem!important;
 }}
 .stFormSubmitButton>button *{{
     color:#ffffff!important;
     -webkit-text-fill-color:#ffffff!important;
 }}
 .stFormSubmitButton>button:hover{{
-    background:{'linear-gradient(135deg,#22c55e 0%,#16a34a 100%)' if dark else 'linear-gradient(135deg,#16a34a 0%,#15803d 100%)'}!important;
-    border-color:{'#22c55e' if dark else '#16a34a'}!important;
-    box-shadow:{'0 4px 20px rgba(34,197,94,0.45)' if dark else '0 4px 16px rgba(22,163,74,0.40)'}!important;
+    background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%)!important;
+    border-color:#22c55e!important;
+    box-shadow:0 5px 22px rgba(34,197,94,0.45)!important;
     transform:translateY(-1px)!important;
 }}
 .stFormSubmitButton>button:active{{
-    transform:scale(.98) translateY(0)!important;
-    box-shadow:{'0 1px 6px rgba(22,163,74,0.30)' if dark else '0 1px 4px rgba(21,128,61,0.25)'}!important;
+    transform:scale(.98)!important;
+    box-shadow:0 2px 8px rgba(22,163,74,0.30)!important;
 }}
 
 /* ── FORM ───────────────────────────────────────────── */
@@ -909,6 +917,26 @@ textarea {{
     background:transparent!important;
     border:none!important;box-shadow:none!important;
     padding:0!important;gap:0!important;
+}}
+
+/* ── FOCUS GLOBAL — quitar amarillo, todo verde ─────── */
+*:focus{{outline:none!important}}
+*:focus-visible{{
+    outline:2px solid {c['green']}!important;
+    outline-offset:2px!important;
+    box-shadow:none!important;
+}}
+/* Inputs Base Web — foco verde */
+[data-baseweb="input"]:focus-within,
+[data-baseweb="base-input"]:focus-within,
+[data-baseweb="textarea"]:focus-within {{
+    border-color:{c['green']}!important;
+    box-shadow:0 0 0 3px rgba(34,197,94,0.15)!important;
+}}
+/* Selectbox focus */
+[data-baseweb="select"]:focus-within > div {{
+    border-color:{c['green']}!important;
+    box-shadow:0 0 0 3px rgba(34,197,94,0.15)!important;
 }}
 
 /* ── SCROLLBAR ──────────────────────────────────────── */
