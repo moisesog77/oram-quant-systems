@@ -272,22 +272,25 @@ section[data-testid="stSidebar"] div{{color:{c['text']}!important}}
     -webkit-font-smoothing:antialiased;
     text-rendering:geometricPrecision;
 }}
-.oram-logo .lo{{
-    color:{c['logo_O']};
-    text-shadow:{c['logo_glow_O']};
-    -webkit-text-stroke:0.4px {c['logo_O']};
+/* Logo colores — especificidad máxima para ganar al section div rule */
+section[data-testid="stSidebar"] .oram-logo .lo{{
+    color:{c['logo_O']}!important;
+    text-shadow:{c['logo_glow_O']}!important;
+    -webkit-text-stroke:0.4px {c['logo_O']}!important;
 }}
-.oram-logo .lr{{
-    color:{c['logo_R']};
-    text-shadow:{c['logo_glow_R']};
-    -webkit-text-stroke:0.4px {c['logo_R']};
+section[data-testid="stSidebar"] .oram-logo .lr{{
+    color:{c['logo_R']}!important;
+    text-shadow:{c['logo_glow_R']}!important;
+    -webkit-text-stroke:0.4px {c['logo_R']}!important;
 }}
-.oram-logo .la{{
-    color:{c['logo_A']};
-    text-shadow:{c['logo_glow_A']};
-    -webkit-text-stroke:0.4px {c['logo_A']};
+section[data-testid="stSidebar"] .oram-logo .la{{
+    color:{c['logo_A']}!important;
+    text-shadow:{c['logo_glow_A']}!important;
+    -webkit-text-stroke:0.4px {c['logo_A']}!important;
 }}
-.oram-logo .lm{{color:{c['text_strong']}}}
+section[data-testid="stSidebar"] .oram-logo .lm{{
+    color:{c['text_strong']}!important;
+}}
 .oram-tagline{{
     font-family:'JetBrains Mono',monospace;
     font-size:0.57rem;color:{c['text_muted']};
@@ -535,17 +538,16 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     pointer-events:none!important;display:block!important;
 }}
 /* ══════════════════════════════════════════════════════
-   RECUADRO FANTASMA de validación del number_input
+   RECUADRO FANTASMA — el elemento real es un <input>
+   que Streamlit inyecta como hermano del contenedor
+   del number_input cuando el campo tiene foco.
    
-   Cuando el usuario hace clic en el input para editar,
-   Streamlit muestra un div flotante de validación debajo
-   del campo. Puede aparecer como:
-   a) [data-testid="InputInstructions"]  (hint "Press Enter")
-   b) div hijo del stNumberInput sin testid propio
-   c) elemento con clase st-emotion-cache generado en runtime
+   Estructura DOM real cuando está activo:
+     [data-testid="stNumberInput"]
+       div (el contenedor con borde — primer hijo)
+       input  ← EL FANTASMA (hermano del div, no hijo)
    
-   Solución: ocultar TODOS los elementos hermanos del div
-   con borde que no sean el input ni los botones +/-.
+   También puede ser [data-testid="InputInstructions"].
    ══════════════════════════════════════════════════════ */
 [data-testid="InputInstructions"]{{
     display:none!important;
@@ -555,14 +557,31 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     padding:0!important;
     overflow:hidden!important;
 }}
-/* El div de validación de number_input: aparece como segundo
-   div hijo del stNumberInput (después del div con borde) */
-[data-testid="stNumberInput"] > div:not(:first-child):not([data-testid]){{
+/* El input fantasma — hermano directo del stNumberInput,
+   distinto del input real que vive DENTRO del div con borde */
+[data-testid="stNumberInput"] > input{{
     display:none!important;
+    visibility:hidden!important;
+    position:absolute!important;
     height:0!important;
+    width:0!important;
+    opacity:0!important;
+    pointer-events:none!important;
     margin:0!important;
     padding:0!important;
-    overflow:hidden!important;
+    border:none!important;
+}}
+/* Por si viene dentro de un form — misma lógica */
+[data-testid="stForm"] [data-testid="stNumberInput"] > input{{
+    display:none!important;
+    visibility:hidden!important;
+    position:absolute!important;
+    height:0!important;
+    width:0!important;
+    opacity:0!important;
+    pointer-events:none!important;
+    margin:0!important;
+    border:none!important;
 }}
 /* Sombra sutil en los botones +/- para que destaquen */
 [data-testid="stNumberInput-StepDown"]{{
