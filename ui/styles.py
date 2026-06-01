@@ -44,6 +44,13 @@ DARK = {
     "sb_logout_bg":  "rgba(239,68,68,0.10)",
     "sb_logout_txt": "#f87171",
     "sb_logout_bdr": "rgba(239,68,68,0.30)",
+    # Sidebar logo — dark: vibrante con glow
+    "logo_O": "#e8b830",
+    "logo_R": "#4aadff",
+    "logo_A": "#00dfc0",
+    "logo_glow_O": "0 0 16px rgba(232,184,48,0.70),0 0 36px rgba(232,184,48,0.28)",
+    "logo_glow_R": "0 0 16px rgba(74,173,255,0.70),0 0 36px rgba(74,173,255,0.28)",
+    "logo_glow_A": "0 0 16px rgba(0,223,192,0.70),0 0 36px rgba(0,223,192,0.28)",
 }
 
 LIGHT = {
@@ -78,6 +85,13 @@ LIGHT = {
     "sb_logout_bg":  "rgba(239,68,68,0.07)",
     "sb_logout_txt": "#dc2626",
     "sb_logout_bdr": "rgba(220,38,38,0.25)",
+    # Sidebar logo — light: saturado y denso, sin glow artificial
+    "logo_O": "#a07a00",
+    "logo_R": "#1565c0",
+    "logo_A": "#007a6a",
+    "logo_glow_O": "0 1px 0 rgba(160,122,0,0.18)",
+    "logo_glow_R": "0 1px 0 rgba(21,101,192,0.18)",
+    "logo_glow_A": "0 1px 0 rgba(0,122,106,0.18)",
 }
 
 def get_theme() -> str:
@@ -254,11 +268,25 @@ section[data-testid="stSidebar"] div{{color:{c['text']}!important}}
 .oram-logo{{
     font-family:'Space Grotesk',sans-serif;
     font-size:1.9rem;font-weight:800;
-    letter-spacing:-1px;line-height:1;
+    letter-spacing:-1.5px;line-height:1;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:geometricPrecision;
 }}
-.oram-logo .lo{{color:{LOGO_GOLD}}}
-.oram-logo .lr{{color:{LOGO_BLUE}}}
-.oram-logo .la{{color:{LOGO_TEAL}}}
+.oram-logo .lo{{
+    color:{c['logo_O']};
+    text-shadow:{c['logo_glow_O']};
+    -webkit-text-stroke:0.4px {c['logo_O']};
+}}
+.oram-logo .lr{{
+    color:{c['logo_R']};
+    text-shadow:{c['logo_glow_R']};
+    -webkit-text-stroke:0.4px {c['logo_R']};
+}}
+.oram-logo .la{{
+    color:{c['logo_A']};
+    text-shadow:{c['logo_glow_A']};
+    -webkit-text-stroke:0.4px {c['logo_A']};
+}}
 .oram-logo .lm{{color:{c['text_strong']}}}
 .oram-tagline{{
     font-family:'JetBrains Mono',monospace;
@@ -505,6 +533,49 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     stroke:#5cb85c!important;
     stroke-width:2.2!important;
     pointer-events:none!important;display:block!important;
+}}
+/* ══════════════════════════════════════════════════════
+   RECUADRO FANTASMA de validación del number_input
+   
+   Cuando el usuario hace clic en el input para editar,
+   Streamlit muestra un div flotante de validación debajo
+   del campo. Puede aparecer como:
+   a) [data-testid="InputInstructions"]  (hint "Press Enter")
+   b) div hijo del stNumberInput sin testid propio
+   c) elemento con clase st-emotion-cache generado en runtime
+   
+   Solución: ocultar TODOS los elementos hermanos del div
+   con borde que no sean el input ni los botones +/-.
+   ══════════════════════════════════════════════════════ */
+[data-testid="InputInstructions"]{{
+    display:none!important;
+    visibility:hidden!important;
+    height:0!important;
+    margin:0!important;
+    padding:0!important;
+    overflow:hidden!important;
+}}
+/* El div de validación de number_input: aparece como segundo
+   div hijo del stNumberInput (después del div con borde) */
+[data-testid="stNumberInput"] > div:not(:first-child):not([data-testid]){{
+    display:none!important;
+    height:0!important;
+    margin:0!important;
+    padding:0!important;
+    overflow:hidden!important;
+}}
+/* Sombra sutil en los botones +/- para que destaquen */
+[data-testid="stNumberInput-StepDown"]{{
+    box-shadow:inset 1px 0 0 rgba(217,83,79,0.20)!important;
+}}
+[data-testid="stNumberInput-StepUp"]{{
+    box-shadow:inset 1px 0 0 rgba(92,184,92,0.20)!important;
+}}
+[data-testid="stNumberInput-StepDown"]:hover{{
+    box-shadow:0 0 8px rgba(217,83,79,0.22),inset 1px 0 0 rgba(217,83,79,0.30)!important;
+}}
+[data-testid="stNumberInput-StepUp"]:hover{{
+    box-shadow:0 0 8px rgba(92,184,92,0.22),inset 1px 0 0 rgba(92,184,92,0.30)!important;
 }}
 /* Date input — sin doble borde */
 [data-testid="stDateInput"]>div{{
