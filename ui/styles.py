@@ -150,11 +150,12 @@ html,body,[class*="css"]{{
     -webkit-font-smoothing:antialiased;
 }}
 .main,.block-container{{
-    background-color:{c['bg']}!important;
+    background-color:transparent!important;
     padding-top:1.2rem!important;
     color:{c['text']}!important;
 }}
 .stApp,[data-testid="stAppViewContainer"]{{background-color:{c['bg']}!important}}
+[data-testid="stMain"],[data-testid="stMainBlockContainer"]{{background-color:transparent!important}}
 [data-testid="stBottom"],[data-testid="stBottom"]>div{{background:{c['bg']}!important}}
 
 /* ── SIDEBAR TOGGLE BUTTON — visible en ambos temas ──────── */

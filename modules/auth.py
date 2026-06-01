@@ -29,10 +29,22 @@ def render_auth():
 
     st.markdown(f"""
 <style>
-/* ── FONDO ── */
-.main,.stApp,[data-testid="stAppViewContainer"],.block-container {{
+/* ── FONDO — degradado completo sin línea de corte ── */
+html, body, .stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewContainer"] > section,
+[data-testid="stAppViewContainer"] > section > div,
+.main, .block-container,
+[data-testid="stMain"],
+[data-testid="stMainBlockContainer"] {{
     background:{bg}!important;
+    background-image:{bg}!important;
     padding:0!important;max-width:100%!important;
+}}
+/* Forzar que NINGÚN contenedor hijo rompa el degradado con color sólido */
+[data-testid="stAppViewContainer"] > *,
+[data-testid="stAppViewContainer"] > * > * {{
+    background:transparent!important;
 }}
 
 /* ── TABS ── */
@@ -86,7 +98,9 @@ def render_auth():
     box-shadow:none!important;padding:0!important;margin:0!important;
 }}
 /* CONTENEDOR CON BORDE — 4 esquinas perfectas */
-.stTextInput > div > div {{
+.stTextInput > div > div,
+.stTextInput [data-testid="stTextInputRootElement"],
+[data-testid="stTextInputRootElement"] {{
     background:{input_bg}!important;
     border:1.5px solid {input_bdr}!important;
     border-radius:10px!important;
@@ -97,7 +111,9 @@ def render_auth():
     min-height:44px!important;
     transition:border-color .15s,box-shadow .15s!important;
 }}
-.stTextInput > div > div:focus-within {{
+.stTextInput > div > div:focus-within,
+.stTextInput [data-testid="stTextInputRootElement"]:focus-within,
+[data-testid="stTextInputRootElement"]:focus-within {{
     border-color:{focus_clr}!important;
     box-shadow:0 0 0 3px {focus_glow}!important;
 }}
@@ -123,7 +139,7 @@ def render_auth():
     color:{input_ph}!important;-webkit-text-fill-color:{input_ph}!important;
     opacity:1!important;
 }}
-/* Botón ojo — sin nada */
+/* Botón ojo — limpio y centrado */
 .stTextInput button,
 [data-testid="stTextInputRootElement"] button {{
     all:unset!important;
@@ -132,12 +148,24 @@ def render_auth():
     width:42px!important;height:44px!important;
     flex-shrink:0!important;cursor:pointer!important;
     transition:opacity .15s!important;
+    background:transparent!important;
+    border:none!important;
+    padding:0 10px!important;
 }}
-.stTextInput button svg {{
-    width:17px!important;height:17px!important;
-    fill:{eye_col}!important;
+.stTextInput button svg,
+[data-testid="stTextInputRootElement"] button svg {{
+    width:18px!important;height:18px!important;
+    color:{eye_col}!important;
+    fill:none!important;
+    stroke:{eye_col}!important;
+    stroke-width:1.8!important;
+    pointer-events:none!important;
 }}
-.stTextInput button:hover svg {{ fill:{input_text}!important; }}
+.stTextInput button:hover svg,
+[data-testid="stTextInputRootElement"] button:hover svg {{
+    stroke:{input_text}!important;
+    color:{input_text}!important;
+}}
 
 /* ── NUMBER INPUT ── */
 [data-testid="stNumberInput"] > div {{
