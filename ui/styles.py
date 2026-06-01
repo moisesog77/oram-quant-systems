@@ -244,15 +244,6 @@ section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span,
 section[data-testid="stSidebar"] div{{color:{c['text']}!important}}
-/* Sidebar buttons — base shape/font; los botones sb_theme y sb_logout
-   tienen sus propios estilos en app.py y se excluyen con :not() */
-section[data-testid="stSidebar"] .stButton>button:not([data-testid="stBaseButton-secondary"]){{
-    border-radius:999px!important;
-    font-family:'Inter',sans-serif!important;
-    font-size:0.82rem!important;font-weight:500!important;
-    transition:all .18s ease!important;
-    white-space:nowrap!important;
-}}
 
 /* ── LOGO CSS ───────────────────────────────────────── */
 .oram-logo-wrap{{
@@ -588,15 +579,108 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     color:{c['text']}!important;
     -webkit-text-fill-color:{c['text']}!important;
 }}
-.stButton>button:hover{{
+/* Hover amarillo — SOLO para botones fuera del sidebar */
+:not(section[data-testid="stSidebar"]) .stButton>button:hover{{
     border-color:{c['accent']}!important;
     color:{c['accent']}!important;
     -webkit-text-fill-color:{c['accent']}!important;
     background:{c['glow']}!important;
 }}
-/* Sidebar pill buttons — estilos via clases .oram-btn-theme / .oram-btn-logout
-   inyectadas por JavaScript en app.py (MutationObserver por texto del botón).
-   No usar selectores data-testid aquí porque stButton-KEY no existe en el DOM. */
+/* ══════════════════════════════════════════════════════════
+   SIDEBAR PILL BUTTONS — Tema y Salir
+   
+   Streamlit genera st.button() como:
+     <div data-testid="stHorizontalBlock">
+       <div>  ← col_t (primer hijo)
+         <button data-testid="stBaseButton-secondary">☀️ Claro</button>
+       </div>
+       <div>  ← col_s (segundo hijo)
+         <button data-testid="stBaseButton-secondary">🚪 Salir</button>
+       </div>
+     </div>
+   
+   Selector estructural: primer/último hijo del stHorizontalBlock
+   que está dentro del sidebar — no depende de ningún data-testid
+   ni key inventado. Es la posición real en el DOM.
+   ══════════════════════════════════════════════════════════ */
+
+/* BASE — forma pill compartida para ambos botones del sidebar */
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div [data-testid="stBaseButton-secondary"] {{
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-height: 38px !important;
+    box-sizing: border-box !important;
+    border-radius: 999px !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.2px !important;
+    line-height: 1 !important;
+    padding: 0.4rem 1.1rem !important;
+    cursor: pointer !important;
+    transition: all .18s ease !important;
+    white-space: nowrap !important;
+}}
+
+/* TEMA — primer botón (col izquierda) — glass pill */
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:first-child [data-testid="stBaseButton-secondary"] {{
+    background: {c['sb_theme_bg']} !important;
+    color: {c['sb_theme_txt']} !important;
+    -webkit-text-fill-color: {c['sb_theme_txt']} !important;
+    border: 1px solid {c['sb_theme_bdr']} !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.07) !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:first-child [data-testid="stBaseButton-secondary"]:hover {{
+    box-shadow: 0 6px 22px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.12) !important;
+    transform: translateY(-1px) !important;
+    opacity: 0.92 !important;
+    border-color: {c['sb_theme_bdr']} !important;
+    color: {c['sb_theme_txt']} !important;
+    -webkit-text-fill-color: {c['sb_theme_txt']} !important;
+    background: {c['sb_theme_bg']} !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:first-child [data-testid="stBaseButton-secondary"]:active {{
+    transform: scale(0.97) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18) !important;
+    opacity: 1 !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:first-child [data-testid="stBaseButton-secondary"] *,
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:first-child [data-testid="stBaseButton-secondary"] p {{
+    color: {c['sb_theme_txt']} !important;
+    -webkit-text-fill-color: {c['sb_theme_txt']} !important;
+}}
+
+/* SALIR — segundo botón (col derecha) — red pill */
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"] {{
+    background: {c['sb_logout_bg']} !important;
+    color: {c['sb_logout_txt']} !important;
+    -webkit-text-fill-color: {c['sb_logout_txt']} !important;
+    border: 1px solid {c['sb_logout_bdr']} !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    box-shadow: 0 2px 10px rgba(239,68,68,0.12), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"]:hover {{
+    background: rgba(239,68,68,0.22) !important;
+    border-color: rgba(239,68,68,0.50) !important;
+    box-shadow: 0 6px 22px rgba(239,68,68,0.32) !important;
+    transform: translateY(-1px) !important;
+    color: {c['sb_logout_txt']} !important;
+    -webkit-text-fill-color: {c['sb_logout_txt']} !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"]:active {{
+    transform: scale(0.97) !important;
+    box-shadow: 0 2px 8px rgba(239,68,68,0.20) !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"] *,
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"] p {{
+    color: {c['sb_logout_txt']} !important;
+    -webkit-text-fill-color: {c['sb_logout_txt']} !important;
+}}
 .stButton>button:active{{transform:scale(.98)!important}}
 .stFormSubmitButton>button{{
     background:linear-gradient(135deg,#16a34a 0%,#14743d 100%)!important;
