@@ -589,19 +589,6 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     margin:0!important;
     border:none!important;
 }}
-/* Sombra sutil en los botones +/- para que destaquen */
-[data-testid="stNumberInput-StepDown"]{{
-    box-shadow:inset 1px 0 0 rgba(217,83,79,0.20)!important;
-}}
-[data-testid="stNumberInput-StepUp"]{{
-    box-shadow:inset 1px 0 0 rgba(92,184,92,0.20)!important;
-}}
-[data-testid="stNumberInput-StepDown"]:hover{{
-    box-shadow:0 0 8px rgba(217,83,79,0.22),inset 1px 0 0 rgba(217,83,79,0.30)!important;
-}}
-[data-testid="stNumberInput-StepUp"]:hover{{
-    box-shadow:0 0 8px rgba(92,184,92,0.22),inset 1px 0 0 rgba(92,184,92,0.30)!important;
-}}
 /* Date input — sin doble borde */
 [data-testid="stDateInput"]>div{{
     background:{c['input_bg']}!important;
@@ -960,8 +947,8 @@ pre,[data-testid="stCode"]>div{{
     box-shadow: none !important;
     outline: none !important;
 }}
-/* Number input */
-[data-testid="stNumberInput"] * {{ background-color: transparent !important; }}
+/* Number input — transparente general EXCEPTO los botones ± que tienen color propio */
+[data-testid="stNumberInput"] *:not([data-testid="stNumberInput-StepDown"]):not([data-testid="stNumberInput-StepUp"]) {{ background-color: transparent !important; }}
 [data-testid="stNumberInput"] > div {{ background-color: {c['input_bg']} !important; }}
 /* Select / Multiselect — DROPDOWN FONDO CLARO */
 [data-baseweb="select"] > div {{
