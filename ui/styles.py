@@ -942,9 +942,8 @@ pre,[data-testid="stCode"]>div{{
     outline: none !important;
 }}
 /* Number input — transparente general EXCEPTO botones ± y su wrapper */
-[data-testid="stNumberInput"] *:not([data-testid="stNumberInput-StepDown"]):not([data-testid="stNumberInput-StepUp"]):not([data-testid="stNumberInput"]>div>div:last-child) {{ background-color: transparent !important; }}
+[data-testid="stNumberInput"] *:not([data-testid="stNumberInput-StepDown"]):not([data-testid="stNumberInput-StepUp"]) {{ background-color: transparent !important; }}
 [data-testid="stNumberInput"] > div {{ background-color: {c['input_bg']} !important; }}
-[data-testid="stNumberInput"] > div > div:last-child {{ background-color: {c['eye_bg']} !important; }}
 /* Select / Multiselect — DROPDOWN FONDO CLARO */
 [data-baseweb="select"] > div {{
     background-color: {c['input_bg']} !important;
@@ -1169,6 +1168,9 @@ textarea {{
 ::-webkit-scrollbar-track{{background:{c['bg']}}}
 ::-webkit-scrollbar-thumb{{background:{c['border2']};border-radius:2px}}
 ::-webkit-scrollbar-thumb:hover{{background:{c['accent']}}}
+/* ═══ FORZADO FINAL — wrapper +/- igual que zona del ojo ═══ */
+[data-testid="stNumberInput"]>div>div:last-child,
+[data-testid="stNumberInput"]>div>div:last-child *:not([data-testid="stNumberInput-StepDown"]):not([data-testid="stNumberInput-StepUp"]) {{ background-color: {c['eye_bg']} !important; }}
 </style>
 """, unsafe_allow_html=True)
 
