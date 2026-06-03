@@ -33,7 +33,7 @@ DARK = {
     "grid":        "#121e2e",
     "glow":        "rgba(201,162,39,0.10)",
     "btn_bg":      "transparent",
-    "eye_bg":      "#080c12",
+    "eye_bg":      "#060810",
     "input_bg":    "#0c1219",
     "sb_bg":       "linear-gradient(180deg,#080d14 0%,#060a10 100%)",
     "nav_hover":   "#121e2e",
@@ -75,7 +75,7 @@ LIGHT = {
     "grid":        "#e0e9f2",
     "glow":        "rgba(154,117,16,0.08)",
     "btn_bg":      "#ffffff",
-    "eye_bg":      "#e8edf3",
+    "eye_bg":      "#d0d7e2",
     "input_bg":    "#ffffff",
     "sb_bg":       "#ffffff",
     "nav_hover":   "#edf3fa",
@@ -1169,8 +1169,9 @@ textarea {{
 ::-webkit-scrollbar-thumb{{background:{c['border2']};border-radius:2px}}
 ::-webkit-scrollbar-thumb:hover{{background:{c['accent']}}}
 /* ═══ FORZADO FINAL — wrapper +/- igual que zona del ojo ═══ */
-[data-testid="stNumberInput"]>div>div:last-child,
-[data-testid="stNumberInput"]>div>div:last-child *:not([data-testid="stNumberInput-StepDown"]):not([data-testid="stNumberInput-StepUp"]) {{ background-color: {c['eye_bg']} !important; }}
+[data-testid="stNumberInput"]>div>div:last-child {{ background-color: {c['eye_bg']} !important; }}
+[data-testid="stNumberInput-StepDown"] {{ background-color: {c['eye_bg']} !important; }}
+[data-testid="stNumberInput-StepUp"] {{ background-color: {c['eye_bg']} !important; }}
 </style>
 """, unsafe_allow_html=True)
 
