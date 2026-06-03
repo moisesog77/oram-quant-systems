@@ -507,15 +507,16 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     border:none!important;
     border-left:1px solid {c['border']}!important;
     border-radius:0!important;
+    background-color:{c['border']}!important;
     transition:background .15s,opacity .15s!important;
 }}
 /* Botón — (StepDown) → rojo premium */
 [data-testid="stNumberInput-StepDown"]{{
-    background:rgba(217,83,79,0.12)!important;
-    box-shadow:inset 2px 0 0 rgba(217,83,79,0.25)!important;
+    background:{'rgba(30,18,18,0.72)' if dark else 'rgba(220,200,200,0.55)'}!important;
+    box-shadow:inset 2px 0 0 rgba(217,83,79,0.35)!important;
 }}
 [data-testid="stNumberInput-StepDown"]:hover{{
-    background:rgba(217,83,79,0.28)!important;
+    background:rgba(217,83,79,0.32)!important;
     box-shadow:inset 2px 0 0 rgba(217,83,79,0.5),0 0 10px rgba(217,83,79,0.20)!important;
 }}
 [data-testid="stNumberInput-StepDown"] svg{{
@@ -528,11 +529,11 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 }}
 /* Botón + (StepUp) → verde premium */
 [data-testid="stNumberInput-StepUp"]{{
-    background:rgba(92,184,92,0.12)!important;
-    box-shadow:inset 2px 0 0 rgba(92,184,92,0.25)!important;
+    background:{'rgba(18,30,18,0.72)' if dark else 'rgba(200,220,200,0.55)'}!important;
+    box-shadow:inset 2px 0 0 rgba(92,184,92,0.35)!important;
 }}
 [data-testid="stNumberInput-StepUp"]:hover{{
-    background:rgba(92,184,92,0.28)!important;
+    background:rgba(92,184,92,0.32)!important;
     box-shadow:inset 2px 0 0 rgba(92,184,92,0.5),0 0 10px rgba(92,184,92,0.20)!important;
 }}
 [data-testid="stNumberInput-StepUp"] svg{{
