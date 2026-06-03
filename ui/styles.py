@@ -502,14 +502,18 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 /* Botones +/- — transparentes sobre el fondo del wrapper */
 [data-testid="stNumberInput-StepDown"],
 [data-testid="stNumberInput-StepUp"]{{
-    all:unset!important;box-sizing:border-box!important;
+    appearance:none!important;-webkit-appearance:none!important;
+    box-sizing:border-box!important;
     display:flex!important;align-items:center!important;
     justify-content:center!important;align-self:stretch!important;
     width:36px!important;min-width:36px!important;
     height:100%!important;min-height:42px!important;
     flex-shrink:0!important;cursor:pointer!important;
-    border:none!important;
-    border-radius:0!important;
+    border:none!important;outline:none!important;
+    border-radius:0!important;padding:0!important;margin:0!important;
+    font:inherit!important;color:inherit!important;
+    text-decoration:none!important;
+    background:{c['eye_bg']}!important;
     transition:background .15s,opacity .15s!important;
 }}
 /* Botón — (StepDown) → solo el ícono rojo, sin fondo propio */
