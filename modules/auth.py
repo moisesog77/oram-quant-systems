@@ -153,6 +153,8 @@ def render_auth():
     focus_glow  = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
     shadow      = "0 8px 40px rgba(0,0,0,0.28)" if dark else "0 4px 24px rgba(0,0,0,0.09)"
     eye_col     = "#64748b"  if dark else "#64748b"
+    step_down_bg = "#1c0b0b" if dark else "#f7efef"
+    step_up_bg   = "#0b1c0b" if dark else "#eff7ef"
     tbtn_bg     = "rgba(12,18,25,0.88)"   if dark else "rgba(255,255,255,0.94)"
     tbtn_txt    = "#c8d8ea"               if dark else "#2a3f54"
     tbtn_bdr    = "rgba(255,255,255,0.12)" if dark else "rgba(0,0,0,0.09)"
@@ -284,17 +286,14 @@ html, body {{
 }}
 
 /* ── NUMBER INPUT ── */
-[data-testid="stNumberInput"],
-[data-testid="stNumberInput"] > div,
-[data-testid="stNumberInput"] > div > div,
-[data-testid="stNumberInput"] > div > div > div {{
-    background: transparent !important; border: none !important;
-    box-shadow: none !important; outline: none !important;
+[data-testid="stNumberInput"] {{
+    background: transparent !important;
+    border: none !important; box-shadow: none !important;
 }}
-/* ★ CRÍTICO: usar :nth-child(2) NO :last-child
-   El fantasma tiene position:absolute y sigue siendo el último
-   hijo en el DOM, por lo que :last-child apuntaría al fantasma.
-   El campo real SIEMPRE es el segundo hijo. */
+[data-testid="stNumberInput"] > div:nth-child(1) {{
+    background: transparent !important;
+    border: none !important; box-shadow: none !important;
+}}
 [data-testid="stNumberInput"] > div:nth-child(2) {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
@@ -323,7 +322,6 @@ html, body {{
 [data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
     -webkit-appearance: none !important; margin: 0 !important;
 }}
-/* Wrapper interno de los botones ± — último div DENTRO del nth-child(2) */
 [data-testid="stNumberInput"] > div:nth-child(2) > div:last-child {{
     display: flex !important; flex-direction: row !important;
     align-items: center !important; justify-content: center !important;
@@ -332,55 +330,52 @@ html, body {{
     background: transparent !important; border: none !important;
     box-shadow: none !important;
 }}
-/* Botón − rojo premium */
 [data-testid="stNumberInput-StepDown"] {{
-    all: unset !important; box-sizing: border-box !important;
+    all: unset !important;
+    box-sizing: border-box !important;
     display: flex !important; align-items: center !important;
     justify-content: center !important; align-self: stretch !important;
     width: 36px !important; min-width: 36px !important;
     height: 100% !important; min-height: 42px !important;
     flex-shrink: 0 !important; cursor: pointer !important;
     border-left: 1px solid {input_bdr} !important;
-    background: rgba(217,83,79,0.13) !important;
-    box-shadow: inset 2px 0 0 rgba(217,83,79,0.25) !important;
-    transition: background .15s, box-shadow .15s !important;
+    background: {step_down_bg} !important;
+    position: relative !important;
+    transition: background .15s !important;
 }}
 [data-testid="stNumberInput-StepDown"]:hover {{
     background: rgba(217,83,79,0.28) !important;
-    box-shadow: inset 2px 0 0 rgba(217,83,79,0.5), 0 0 10px rgba(217,83,79,0.20) !important;
 }}
 [data-testid="stNumberInput-StepDown"] svg {{
     width: 14px !important; height: 14px !important;
     fill: none !important; stroke: #e05c58 !important;
     stroke-width: 2.4 !important; pointer-events: none !important;
     display: block !important; flex-shrink: 0 !important;
-    filter: drop-shadow(0 0 3px rgba(217,83,79,0.6)) !important;
+    filter: drop-shadow(0 0 4px rgba(217,83,79,0.9)) !important;
 }}
-/* Botón + verde premium */
 [data-testid="stNumberInput-StepUp"] {{
-    all: unset !important; box-sizing: border-box !important;
+    all: unset !important;
+    box-sizing: border-box !important;
     display: flex !important; align-items: center !important;
     justify-content: center !important; align-self: stretch !important;
     width: 36px !important; min-width: 36px !important;
     height: 100% !important; min-height: 42px !important;
     flex-shrink: 0 !important; cursor: pointer !important;
     border-left: 1px solid {input_bdr} !important;
-    background: rgba(92,184,92,0.13) !important;
-    box-shadow: inset 2px 0 0 rgba(92,184,92,0.25) !important;
-    transition: background .15s, box-shadow .15s !important;
+    background: {step_up_bg} !important;
+    position: relative !important;
+    transition: background .15s !important;
 }}
 [data-testid="stNumberInput-StepUp"]:hover {{
     background: rgba(92,184,92,0.28) !important;
-    box-shadow: inset 2px 0 0 rgba(92,184,92,0.5), 0 0 10px rgba(92,184,92,0.20) !important;
 }}
 [data-testid="stNumberInput-StepUp"] svg {{
     width: 14px !important; height: 14px !important;
     fill: none !important; stroke: #4eb84e !important;
     stroke-width: 2.4 !important; pointer-events: none !important;
     display: block !important; flex-shrink: 0 !important;
-    filter: drop-shadow(0 0 3px rgba(92,184,92,0.6)) !important;
+    filter: drop-shadow(0 0 4px rgba(92,184,92,0.9)) !important;
 }}
-
 /* ── BOTÓN SUBMIT VERDE ── */
 .stFormSubmitButton > button {{
     background: linear-gradient(135deg,#16a34a 0%,#14743d 100%) !important;
