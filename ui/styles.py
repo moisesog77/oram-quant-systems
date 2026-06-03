@@ -510,7 +510,6 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     flex-shrink:0!important;cursor:pointer!important;
     border:none!important;
     border-radius:0!important;
-    background:transparent!important;
     transition:background .15s,opacity .15s!important;
 }}
 /* Botón — (StepDown) → solo el ícono rojo, sin fondo propio */
@@ -1169,9 +1168,9 @@ textarea {{
 ::-webkit-scrollbar-thumb{{background:{c['border2']};border-radius:2px}}
 ::-webkit-scrollbar-thumb:hover{{background:{c['accent']}}}
 /* ═══ FORZADO FINAL — wrapper +/- igual que zona del ojo ═══ */
-[data-testid="stNumberInput"]>div>div:last-child {{ background-color: {c['eye_bg']} !important; }}
-[data-testid="stNumberInput-StepDown"] {{ background-color: {c['eye_bg']} !important; }}
-[data-testid="stNumberInput-StepUp"] {{ background-color: {c['eye_bg']} !important; }}
+[data-testid="stNumberInput"]>div>div:last-child {{ background: {c['eye_bg']} !important; }}
+[data-testid="stNumberInput-StepDown"] {{ background: {c['eye_bg']} !important; }}
+[data-testid="stNumberInput-StepUp"] {{ background: {c['eye_bg']} !important; }}
 </style>
 """, unsafe_allow_html=True)
 
