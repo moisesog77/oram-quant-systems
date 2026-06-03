@@ -941,9 +941,10 @@ pre,[data-testid="stCode"]>div{{
     box-shadow: none !important;
     outline: none !important;
 }}
-/* Number input — transparente general EXCEPTO los botones ± que tienen color propio */
-[data-testid="stNumberInput"] *:not([data-testid="stNumberInput-StepDown"]):not([data-testid="stNumberInput-StepUp"]) {{ background-color: transparent !important; }}
+/* Number input — transparente general EXCEPTO botones ± y su wrapper */
+[data-testid="stNumberInput"] *:not([data-testid="stNumberInput-StepDown"]):not([data-testid="stNumberInput-StepUp"]):not([data-testid="stNumberInput"]>div>div:last-child) {{ background-color: transparent !important; }}
 [data-testid="stNumberInput"] > div {{ background-color: {c['input_bg']} !important; }}
+[data-testid="stNumberInput"] > div > div:last-child {{ background-color: {c['eye_bg']} !important; }}
 /* Select / Multiselect — DROPDOWN FONDO CLARO */
 [data-baseweb="select"] > div {{
     background-color: {c['input_bg']} !important;
