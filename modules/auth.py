@@ -153,8 +153,7 @@ def render_auth():
     focus_glow  = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
     shadow      = "0 8px 40px rgba(0,0,0,0.28)" if dark else "0 4px 24px rgba(0,0,0,0.09)"
     eye_col     = "#64748b"  if dark else "#64748b"
-    step_down_bg = "#1c0b0b" if dark else "#f7efef"
-    step_up_bg   = "#0b1c0b" if dark else "#eff7ef"
+
     tbtn_bg     = "rgba(12,18,25,0.88)"   if dark else "rgba(255,255,255,0.94)"
     tbtn_txt    = "#c8d8ea"               if dark else "#2a3f54"
     tbtn_bdr    = "rgba(255,255,255,0.12)" if dark else "rgba(0,0,0,0.09)"
@@ -335,46 +334,46 @@ html, body {{
     box-sizing: border-box !important;
     display: flex !important; align-items: center !important;
     justify-content: center !important; align-self: stretch !important;
-    width: 36px !important; min-width: 36px !important;
-    height: 100% !important; min-height: 42px !important;
+    width: 44px !important; min-width: 44px !important;
+    height: 100% !important; min-height: 46px !important;
     flex-shrink: 0 !important; cursor: pointer !important;
     border-left: 1px solid {input_bdr} !important;
-    background: {step_down_bg} !important;
-    position: relative !important;
-    transition: background .15s !important;
+    background: transparent !important;
+    padding: 0 !important; margin: 0 !important;
+    opacity: 0.55 !important;
+    transition: opacity .15s !important;
 }}
 [data-testid="stNumberInput-StepDown"]:hover {{
-    background: rgba(217,83,79,0.28) !important;
+    opacity: 1 !important;
 }}
 [data-testid="stNumberInput-StepDown"] svg {{
-    width: 14px !important; height: 14px !important;
-    fill: none !important; stroke: #e05c58 !important;
-    stroke-width: 2.4 !important; pointer-events: none !important;
+    width: 17px !important; height: 17px !important;
+    fill: none !important; stroke: {eye_col} !important;
+    stroke-width: 1.8 !important; pointer-events: none !important;
     display: block !important; flex-shrink: 0 !important;
-    filter: drop-shadow(0 0 4px rgba(217,83,79,0.9)) !important;
 }}
 [data-testid="stNumberInput-StepUp"] {{
     all: unset !important;
     box-sizing: border-box !important;
     display: flex !important; align-items: center !important;
     justify-content: center !important; align-self: stretch !important;
-    width: 36px !important; min-width: 36px !important;
-    height: 100% !important; min-height: 42px !important;
+    width: 44px !important; min-width: 44px !important;
+    height: 100% !important; min-height: 46px !important;
     flex-shrink: 0 !important; cursor: pointer !important;
     border-left: 1px solid {input_bdr} !important;
-    background: {step_up_bg} !important;
-    position: relative !important;
-    transition: background .15s !important;
+    background: transparent !important;
+    padding: 0 !important; margin: 0 !important;
+    opacity: 0.55 !important;
+    transition: opacity .15s !important;
 }}
 [data-testid="stNumberInput-StepUp"]:hover {{
-    background: rgba(92,184,92,0.28) !important;
+    opacity: 1 !important;
 }}
 [data-testid="stNumberInput-StepUp"] svg {{
-    width: 14px !important; height: 14px !important;
-    fill: none !important; stroke: #4eb84e !important;
-    stroke-width: 2.4 !important; pointer-events: none !important;
+    width: 17px !important; height: 17px !important;
+    fill: none !important; stroke: {eye_col} !important;
+    stroke-width: 1.8 !important; pointer-events: none !important;
     display: block !important; flex-shrink: 0 !important;
-    filter: drop-shadow(0 0 4px rgba(92,184,92,0.9)) !important;
 }}
 /* ── BOTÓN SUBMIT VERDE ── */
 .stFormSubmitButton > button {{
