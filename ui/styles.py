@@ -33,6 +33,7 @@ DARK = {
     "grid":        "#121e2e",
     "glow":        "rgba(201,162,39,0.10)",
     "btn_bg":      "transparent",
+    "eye_bg":      "#080c12",
     "input_bg":    "#0c1219",
     "sb_bg":       "linear-gradient(180deg,#080d14 0%,#060a10 100%)",
     "nav_hover":   "#121e2e",
@@ -74,6 +75,7 @@ LIGHT = {
     "grid":        "#e0e9f2",
     "glow":        "rgba(154,117,16,0.08)",
     "btn_bg":      "#ffffff",
+    "eye_bg":      "#e8edf3",
     "input_bg":    "#ffffff",
     "sb_bg":       "#ffffff",
     "nav_hover":   "#edf3fa",
@@ -488,12 +490,12 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 [data-testid="stNumberInput"] input::-webkit-inner-spin-button{{
     -webkit-appearance:none!important;margin:0!important;
 }}
-/* Wrapper de los botones +/- — fondo más oscuro igual al área del ojo */
+/* Wrapper de los botones +/- — mismo fondo oscuro que el área del ojo */
 [data-testid="stNumberInput"]>div>div:last-child{{
     display:flex!important;flex-direction:row!important;
     align-items:center!important;align-self:stretch!important;
     height:100%!important;gap:0!important;padding:0!important;
-    background:{c['bg_card2']}!important;
+    background:{c['eye_bg']}!important;
     border-left:1px solid {c['border']}!important;
     border-top:none!important;border-right:none!important;border-bottom:none!important;
 }}
