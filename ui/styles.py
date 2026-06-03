@@ -490,55 +490,44 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 [data-testid="stNumberInput"] input::-webkit-inner-spin-button{{
     -webkit-appearance:none!important;margin:0!important;
 }}
-/* Wrapper de los botones +/- — mismo fondo oscuro que el área del ojo */
+/* Wrapper de los botones +/- — sin fondo propio */
 [data-testid="stNumberInput"]>div>div:last-child{{
     display:flex!important;flex-direction:row!important;
     align-items:center!important;align-self:stretch!important;
     height:100%!important;gap:0!important;padding:0!important;
-    background:{c['eye_bg']}!important;
-    border-left:1px solid {c['border']}!important;
-    border-top:none!important;border-right:none!important;border-bottom:none!important;
+    background:transparent!important;
+    border:none!important;
 }}
-/* Botones +/- — transparentes sobre el fondo del wrapper */
+/* Botones +/- — idénticos al botón ojo */
 [data-testid="stNumberInput-StepDown"],
 [data-testid="stNumberInput-StepUp"]{{
-    appearance:none!important;-webkit-appearance:none!important;
+    all:unset!important;
     box-sizing:border-box!important;
     display:flex!important;align-items:center!important;
     justify-content:center!important;align-self:stretch!important;
-    width:36px!important;min-width:36px!important;
-    height:100%!important;min-height:42px!important;
+    width:44px!important;min-width:44px!important;
+    height:100%!important;min-height:46px!important;
     flex-shrink:0!important;cursor:pointer!important;
-    border:none!important;outline:none!important;
-    border-radius:0!important;padding:0!important;margin:0!important;
-    font:inherit!important;color:inherit!important;
-    text-decoration:none!important;
-    background:{c['eye_bg']}!important;
-    transition:background .15s,opacity .15s!important;
+    border-left:1px solid {c['border']}!important;
+    background:transparent!important;
+    padding:0!important;margin:0!important;
+    opacity:0.55!important;
+    transition:opacity .15s!important;
 }}
-/* Botón — (StepDown) → solo el ícono rojo, sin fondo propio */
-[data-testid="stNumberInput-StepDown"]:hover{{
-    background:rgba(217,83,79,0.18)!important;
-}}
-[data-testid="stNumberInput-StepDown"] svg{{
-    width:14px!important;height:14px!important;
-    fill:none!important;
-    stroke:#e05c58!important;
-    stroke-width:2.4!important;
-    pointer-events:none!important;display:block!important;
-    filter:drop-shadow(0 0 3px rgba(217,83,79,0.6))!important;
-}}
-/* Botón + (StepUp) → solo el ícono verde, sin fondo propio */
+[data-testid="stNumberInput-StepDown"]:hover,
 [data-testid="stNumberInput-StepUp"]:hover{{
-    background:rgba(92,184,92,0.18)!important;
+    opacity:1!important;
+    background:transparent!important;
 }}
+[data-testid="stNumberInput-StepDown"] svg,
 [data-testid="stNumberInput-StepUp"] svg{{
-    width:14px!important;height:14px!important;
+    width:17px!important;height:17px!important;
     fill:none!important;
-    stroke:#4eb84e!important;
-    stroke-width:2.4!important;
+    stroke:{c['text_muted']}!important;
+    stroke-width:1.8!important;
     pointer-events:none!important;display:block!important;
-    filter:drop-shadow(0 0 3px rgba(92,184,92,0.6))!important;
+    flex-shrink:0!important;
+    filter:none!important;
 }}
 /* ══════════════════════════════════════════════════════
    RECUADRO FANTASMA — el elemento real es un <input>
@@ -944,8 +933,8 @@ pre,[data-testid="stCode"]>div{{
     box-shadow: none !important;
     outline: none !important;
 }}
-/* Number input — transparente general EXCEPTO botones ± y su wrapper */
-[data-testid="stNumberInput"] *:not([data-testid="stNumberInput-StepDown"]):not([data-testid="stNumberInput-StepUp"]) {{ background-color: transparent !important; }}
+/* Number input — transparente general incluyendo botones ± */
+[data-testid="stNumberInput"] * {{ background-color: transparent !important; }}
 [data-testid="stNumberInput"] > div {{ background-color: {c['input_bg']} !important; }}
 /* Select / Multiselect — DROPDOWN FONDO CLARO */
 [data-baseweb="select"] > div {{
@@ -1171,10 +1160,14 @@ textarea {{
 ::-webkit-scrollbar-track{{background:{c['bg']}}}
 ::-webkit-scrollbar-thumb{{background:{c['border2']};border-radius:2px}}
 ::-webkit-scrollbar-thumb:hover{{background:{c['accent']}}}
-/* ═══ FORZADO FINAL — wrapper +/- igual que zona del ojo ═══ */
-[data-testid="stNumberInput"]>div>div:last-child {{ background: {c['eye_bg']} !important; }}
-[data-testid="stNumberInput-StepDown"] {{ background: {c['eye_bg']} !important; }}
-[data-testid="stNumberInput-StepUp"] {{ background: {c['eye_bg']} !important; }}
+/* ═══ FORZADO FINAL — wrapper +/- transparente, igual que zona del ojo ═══ */
+[data-testid="stNumberInput"]>div>div:last-child {{ background: transparent !important; }}
+[data-testid="stNumberInput-StepDown"] {{ background: transparent !important; opacity: 0.55 !important; }}
+[data-testid="stNumberInput-StepUp"] {{ background: transparent !important; opacity: 0.55 !important; }}
+[data-testid="stNumberInput-StepDown"]:hover {{ background: transparent !important; opacity: 1 !important; }}
+[data-testid="stNumberInput-StepUp"]:hover {{ background: transparent !important; opacity: 1 !important; }}
+[data-testid="stNumberInput-StepDown"] svg {{ stroke: {c['text_muted']} !important; filter: none !important; width: 17px !important; height: 17px !important; stroke-width: 1.8 !important; }}
+[data-testid="stNumberInput-StepUp"] svg {{ stroke: {c['text_muted']} !important; filter: none !important; width: 17px !important; height: 17px !important; stroke-width: 1.8 !important; }}
 </style>
 """, unsafe_allow_html=True)
 
