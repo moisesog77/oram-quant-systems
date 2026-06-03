@@ -488,14 +488,16 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 [data-testid="stNumberInput"] input::-webkit-inner-spin-button{{
     -webkit-appearance:none!important;margin:0!important;
 }}
-/* Wrapper flex de los botones +/- */
+/* Wrapper de los botones +/- — fondo más oscuro igual al área del ojo */
 [data-testid="stNumberInput"]>div>div:last-child{{
     display:flex!important;flex-direction:row!important;
     align-items:center!important;align-self:stretch!important;
     height:100%!important;gap:0!important;padding:0!important;
-    background:transparent!important;border:none!important;
+    background:{c['bg_card2']}!important;
+    border-left:1px solid {c['border']}!important;
+    border-top:none!important;border-right:none!important;border-bottom:none!important;
 }}
-/* Botones +/- — mismo fondo transparente que el botón ojo */
+/* Botones +/- — transparentes sobre el fondo del wrapper */
 [data-testid="stNumberInput-StepDown"],
 [data-testid="stNumberInput-StepUp"]{{
     all:unset!important;box-sizing:border-box!important;
@@ -505,7 +507,6 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     height:100%!important;min-height:42px!important;
     flex-shrink:0!important;cursor:pointer!important;
     border:none!important;
-    border-left:1px solid {c['border']}!important;
     border-radius:0!important;
     background:transparent!important;
     transition:background .15s,opacity .15s!important;
