@@ -33,6 +33,7 @@ DARK = {
     "grid":        "#121e2e",
     "glow":        "rgba(201,162,39,0.10)",
     "btn_bg":      "transparent",
+    "eye_bg":      "#060810",
     "input_bg":    "#0c1219",
     "sb_bg":       "linear-gradient(180deg,#080d14 0%,#060a10 100%)",
     "nav_hover":   "#121e2e",
@@ -74,6 +75,7 @@ LIGHT = {
     "grid":        "#e0e9f2",
     "glow":        "rgba(154,117,16,0.08)",
     "btn_bg":      "#ffffff",
+    "eye_bg":      "#d0d7e2",
     "input_bg":    "#ffffff",
     "sb_bg":       "#ffffff",
     "nav_hover":   "#edf3fa",
@@ -488,14 +490,16 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 [data-testid="stNumberInput"] input::-webkit-inner-spin-button{{
     -webkit-appearance:none!important;margin:0!important;
 }}
-/* Wrapper flex de los botones +/- */
+/* Wrapper de los botones +/- — mismo fondo oscuro que el área del ojo */
 [data-testid="stNumberInput"]>div>div:last-child{{
     display:flex!important;flex-direction:row!important;
     align-items:center!important;align-self:stretch!important;
     height:100%!important;gap:0!important;padding:0!important;
-    background:transparent!important;border:none!important;
+    background:{c['eye_bg']}!important;
+    border-left:1px solid {c['border']}!important;
+    border-top:none!important;border-right:none!important;border-bottom:none!important;
 }}
-/* Botones +/- — estilo premium con colores semánticos */
+/* Botones +/- — transparentes sobre el fondo del wrapper */
 [data-testid="stNumberInput-StepDown"],
 [data-testid="stNumberInput-StepUp"]{{
     all:unset!important;box-sizing:border-box!important;
@@ -505,18 +509,13 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     height:100%!important;min-height:42px!important;
     flex-shrink:0!important;cursor:pointer!important;
     border:none!important;
-    border-left:1px solid {c['border']}!important;
     border-radius:0!important;
+    background:transparent!important;
     transition:background .15s,opacity .15s!important;
 }}
-/* Botón — (StepDown) → rojo premium */
-[data-testid="stNumberInput-StepDown"]{{
-    background:rgba(217,83,79,0.12)!important;
-    box-shadow:inset 2px 0 0 rgba(217,83,79,0.25)!important;
-}}
+/* Botón — (StepDown) → solo el ícono rojo, sin fondo propio */
 [data-testid="stNumberInput-StepDown"]:hover{{
-    background:rgba(217,83,79,0.28)!important;
-    box-shadow:inset 2px 0 0 rgba(217,83,79,0.5),0 0 10px rgba(217,83,79,0.20)!important;
+    background:rgba(217,83,79,0.18)!important;
 }}
 [data-testid="stNumberInput-StepDown"] svg{{
     width:14px!important;height:14px!important;
@@ -526,14 +525,9 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     pointer-events:none!important;display:block!important;
     filter:drop-shadow(0 0 3px rgba(217,83,79,0.6))!important;
 }}
-/* Botón + (StepUp) → verde premium */
-[data-testid="stNumberInput-StepUp"]{{
-    background:rgba(92,184,92,0.12)!important;
-    box-shadow:inset 2px 0 0 rgba(92,184,92,0.25)!important;
-}}
+/* Botón + (StepUp) → solo el ícono verde, sin fondo propio */
 [data-testid="stNumberInput-StepUp"]:hover{{
-    background:rgba(92,184,92,0.28)!important;
-    box-shadow:inset 2px 0 0 rgba(92,184,92,0.5),0 0 10px rgba(92,184,92,0.20)!important;
+    background:rgba(92,184,92,0.18)!important;
 }}
 [data-testid="stNumberInput-StepUp"] svg{{
     width:14px!important;height:14px!important;
@@ -947,7 +941,7 @@ pre,[data-testid="stCode"]>div{{
     box-shadow: none !important;
     outline: none !important;
 }}
-/* Number input — transparente general EXCEPTO los botones ± que tienen color propio */
+/* Number input — transparente general EXCEPTO botones ± y su wrapper */
 [data-testid="stNumberInput"] *:not([data-testid="stNumberInput-StepDown"]):not([data-testid="stNumberInput-StepUp"]) {{ background-color: transparent !important; }}
 [data-testid="stNumberInput"] > div {{ background-color: {c['input_bg']} !important; }}
 /* Select / Multiselect — DROPDOWN FONDO CLARO */
@@ -1174,6 +1168,10 @@ textarea {{
 ::-webkit-scrollbar-track{{background:{c['bg']}}}
 ::-webkit-scrollbar-thumb{{background:{c['border2']};border-radius:2px}}
 ::-webkit-scrollbar-thumb:hover{{background:{c['accent']}}}
+/* ═══ FORZADO FINAL — wrapper +/- igual que zona del ojo ═══ */
+[data-testid="stNumberInput"]>div>div:last-child {{ background-color: {c['eye_bg']} !important; }}
+[data-testid="stNumberInput-StepDown"] {{ background-color: {c['eye_bg']} !important; }}
+[data-testid="stNumberInput-StepUp"] {{ background-color: {c['eye_bg']} !important; }}
 </style>
 """, unsafe_allow_html=True)
 
