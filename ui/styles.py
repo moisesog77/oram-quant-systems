@@ -523,7 +523,7 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 [data-testid="stNumberInput-StepUp"] svg{{
     width:17px!important;height:17px!important;
     fill:none!important;
-    stroke:{c['text_muted']}!important;
+    stroke:#64748b!important;
     stroke-width:1.8!important;
     pointer-events:none!important;display:block!important;
     flex-shrink:0!important;
@@ -1166,8 +1166,8 @@ textarea {{
 [data-testid="stNumberInput-StepUp"] {{ background: transparent !important; opacity: 0.55 !important; }}
 [data-testid="stNumberInput-StepDown"]:hover {{ background: transparent !important; opacity: 1 !important; }}
 [data-testid="stNumberInput-StepUp"]:hover {{ background: transparent !important; opacity: 1 !important; }}
-[data-testid="stNumberInput-StepDown"] svg {{ stroke: {c['text_muted']} !important; filter: none !important; width: 17px !important; height: 17px !important; stroke-width: 1.8 !important; }}
-[data-testid="stNumberInput-StepUp"] svg {{ stroke: {c['text_muted']} !important; filter: none !important; width: 17px !important; height: 17px !important; stroke-width: 1.8 !important; }}
+[data-testid="stNumberInput-StepDown"] svg {{ stroke: #64748b !important; filter: none !important; width: 17px !important; height: 17px !important; stroke-width: 1.8 !important; }}
+[data-testid="stNumberInput-StepUp"] svg {{ stroke: #64748b !important; filter: none !important; width: 17px !important; height: 17px !important; stroke-width: 1.8 !important; }}
 </style>
 """, unsafe_allow_html=True)
 
