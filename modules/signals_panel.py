@@ -54,7 +54,7 @@ def render_signals_panel():
     with col3:
         umbral = st.slider("Confianza mín. %", 0, 90, 50, key="sp_umb")
     with col4:
-        st.markdown("&nbsp;")
+        st.markdown('<div style="height:1.72rem"></div>', unsafe_allow_html=True)
         escanear = st.button("⚡ Escanear", width='stretch', key="sp_scan")
 
     # Construir lista de activos
