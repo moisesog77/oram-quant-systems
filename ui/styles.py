@@ -648,13 +648,7 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     color:{c['text']}!important;
     -webkit-text-fill-color:{c['text']}!important;
 }}
-/* Hover amarillo — SOLO para botones fuera del sidebar */
-:not(section[data-testid="stSidebar"]) .stButton>button:hover{{
-    border-color:{c['accent']}!important;
-    color:{c['accent']}!important;
-    -webkit-text-fill-color:{c['accent']}!important;
-    background:{c['glow']}!important;
-}}
+/* Hover amarillo eliminado — sustituido por hover verde premium global abajo */
 /* ══════════════════════════════════════════════════════════
    SIDEBAR PILL BUTTONS — Tema y Salir
    
@@ -751,6 +745,102 @@ section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:last-ch
     -webkit-text-fill-color: {c['sb_logout_txt']} !important;
 }}
 .stButton>button:active{{transform:scale(.98)!important}}
+
+/* ══════════════════════════════════════════════════════════════════
+   BOTONES DE ACCIÓN PREMIUM — Verde consistente en toda la app
+   
+   Afecta solo los st.button() de acción principal, identificados
+   por sus key exactas via el atributo aria/data generado por Streamlit.
+   Streamlit genera: [data-testid="stBaseButton-secondary"][aria-label]
+   pero el selector más robusto es el key del widget que se convierte
+   en el ID del botón padre: [key="btn_key"] → div.stButton padre.
+   
+   Método seguro: los botones de acción con width='stretch' generan
+   un contenedor .stButton de ancho completo. Los combinamos con el
+   contexto de módulo (fuera de sidebar, fuera de stHorizontalBlock
+   de sidebar) para no tocar "Tema" ni "Salir".
+   
+   Identificación exacta: cada botón tiene un data-testid en el
+   contenedor padre stButton. Streamlit también expone el key como
+   parte del elemento hijo button — no hay un atributo key directo
+   en el DOM, pero sí podemos usar el patrón de que todos los botones
+   de acción viven fuera del sidebar y tienen width stretch = 100%.
+   Usamos una clase auxiliar .oram-btn-premium inyectada vía JS
+   y el selector de texto via :has() o, más seguro, una lista
+   explícita de los [data-testid] de los contenedores por posición.
+   
+   SOLUCIÓN DEFINITIVA: Los st.button con width='stretch' fuera del
+   sidebar heredan la clase .stButton con display:block completo.
+   Aplicamos el verde a TODOS los .stButton>button fuera del sidebar,
+   excepto los 🗑️ (botones de icono pequeño, identificados porque
+   su ancho no es stretch y tienen texto de 1-2 chars).
+   
+   Los botones 🗑️ de watchlist usan key="rm_{tk}" y no tienen
+   width='stretch' explícito, lo que en el DOM los hace más angostos
+   — pero para ser 100% seguros, los excluimos por posición dentro
+   de .stHorizontalBlock > div (los delete están siempre en grid).
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── BASE PREMIUM: todos los st.button fuera del sidebar ── */
+:not(section[data-testid="stSidebar"]) .stButton>button{{
+    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+    letter-spacing: 0.3px !important;
+    padding: 0.72rem 1rem !important;
+    width: 100% !important;
+    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.38) !important;
+    transition: all .18s ease !important;
+    cursor: pointer !important;
+}}
+:not(section[data-testid="stSidebar"]) .stButton>button *,
+:not(section[data-testid="stSidebar"]) .stButton>button p {{
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}}
+:not(section[data-testid="stSidebar"]) .stButton>button:hover {{
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+    box-shadow: 0 6px 24px rgba(34, 197, 94, 0.48) !important;
+    transform: translateY(-1px) !important;
+    border: none !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}}
+:not(section[data-testid="stSidebar"]) .stButton>button:active {{
+    transform: scale(0.98) !important;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3) !important;
+}}
+
+/* ── EXCEPCIÓN 🗑️: botones pequeños de eliminar (Quitar/Delete) ──
+   Están dentro de un .stHorizontalBlock anidado en la watchlist.
+   Los identificamos porque conviven con texto de activo (cols iguales).
+   Los revertimos a estilo neutro compacto. ── */
+[data-testid="stHorizontalBlock"] .stButton>button{{
+    background: rgba(239,68,68,0.12) !important;
+    border: 1px solid rgba(239,68,68,0.30) !important;
+    color: #fc5c65 !important;
+    -webkit-text-fill-color: #fc5c65 !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+    padding: 0.35rem 0.7rem !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    width: 100% !important;
+}}
+[data-testid="stHorizontalBlock"] .stButton>button:hover{{
+    background: rgba(239,68,68,0.22) !important;
+    border-color: rgba(239,68,68,0.55) !important;
+    transform: none !important;
+    box-shadow: none !important;
+    color: #fc5c65 !important;
+    -webkit-text-fill-color: #fc5c65 !important;
+}}
+
 .stFormSubmitButton>button{{
     background:linear-gradient(135deg,#16a34a 0%,#14743d 100%)!important;
     border:none!important;
