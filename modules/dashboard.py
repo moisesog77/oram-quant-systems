@@ -106,6 +106,71 @@ def render_dashboard():
     opacity: 1 !important;
     background: rgba(34,197,94,0.08) !important;
 }}
+
+/* ═══════════════════════════════════════════════════════════════
+   RECUADRO FANTASMA — Dashboard / stExpander
+   
+   Al editar manualmente el number_input, Streamlit inyecta un
+   elemento extra (input hermano o div) debajo del campo.
+   
+   Estructura DOM real dentro del expander:
+     [data-testid="stNumberInput"]
+       div (1°) — label wrapper
+       div (2°) — campo real + botones ±  ← MANTENER
+       input / div (3°+) — EL FANTASMA    ← OCULTAR
+
+   Estrategia de cobertura total:
+     1. > *:nth-child(n+3)   → cualquier 3° hijo en adelante
+     2. > input              → si el fantasma es un <input> directo
+     3. > div:last-child:not(:nth-child(2)) → si es un <div> final
+     4. InputInstructions    → hint "Press Enter to apply"
+     5. margin/gap a 0       → sin hueco vacío entre input y botón
+   ═══════════════════════════════════════════════════════════════ */
+
+/* — Elemento fantasma — */
+[data-testid="stExpander"] [data-testid="stNumberInput"] > input,
+[data-testid="stExpander"] [data-testid="stNumberInput"] > input:last-child,
+[data-testid="stExpander"] [data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
+[data-testid="stExpander"] [data-testid="stNumberInput"] > *:nth-child(n+3) {{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    opacity: 0 !important;
+    position: absolute !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+}}
+
+/* — InputInstructions: hint "Press Enter to apply" — */
+[data-testid="stExpander"] [data-testid="InputInstructions"],
+[data-testid="stExpander"] [data-testid="InputInstructions"] *,
+[data-testid="stExpander"] div[class*="instructions"],
+[data-testid="stExpander"] p[class*="instructions"],
+[data-testid="stExpander"] small[class*="instructions"] {{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}}
+
+/* — Sin hueco residual: eliminar gap entre input y botón — */
+[data-testid="stExpander"] [data-testid="stNumberInput"] {{
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}}
+[data-testid="stExpander"] [data-testid="stVerticalBlock"] {{
+    gap: 0.5rem !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
