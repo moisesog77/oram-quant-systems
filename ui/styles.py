@@ -775,7 +775,7 @@ section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:last-ch
    excepto los 🗑️ (botones de icono pequeño, identificados porque
    su ancho no es stretch y tienen texto de 1-2 chars).
    
-   Los botones 🗑️ de watchlist usan key="rm_{tk}" y no tienen
+   Los botones 🗑️ de watchlist usan key="rm_{{tk}}" y no tienen
    width='stretch' explícito, lo que en el DOM los hace más angostos
    — pero para ser 100% seguros, los excluimos por posición dentro
    de .stHorizontalBlock > div (los delete están siempre en grid).
