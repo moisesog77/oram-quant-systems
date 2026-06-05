@@ -1,6 +1,7 @@
 """
 ui/styles.py — ORAM Quant Systems — Premium Design System FINAL
 """
+import time
 import streamlit as st
 
 APP_NAME    = "ORAM Quant Systems"
@@ -1258,6 +1259,127 @@ textarea {{
 [data-testid="stNumberInput-StepUp"]:hover {{ background: transparent !important; opacity: 1 !important; }}
 [data-testid="stNumberInput-StepDown"] svg {{ stroke: #64748b !important; filter: none !important; width: 17px !important; height: 17px !important; stroke-width: 1.8 !important; }}
 [data-testid="stNumberInput-StepUp"] svg {{ stroke: #64748b !important; filter: none !important; width: 17px !important; height: 17px !important; stroke-width: 1.8 !important; }}
+
+/* ══════════════════════════════════════════════════════════════
+   SISTEMA DE NOTIFICACIONES PREMIUM — Toast + Banners
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── st.toast — burbuja flotante esquina inferior derecha ── */
+[data-testid="stToast"] {{
+    border-radius: 12px !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border-left: 4px solid transparent !important;
+    padding: 0.85rem 1.1rem !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.88rem !important;
+    font-weight: 500 !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.18) !important;
+    min-width: 280px !important;
+    max-width: 360px !important;
+    animation: oram-toast-in 0.28s cubic-bezier(0.34,1.56,0.64,1) !important;
+}}
+@keyframes oram-toast-in {{
+    from {{ opacity: 0; transform: translateY(14px) scale(0.95); }}
+    to   {{ opacity: 1; transform: translateY(0)    scale(1);    }}
+}}
+/* Toast icono */
+[data-testid="stToast"] [data-testid="stMarkdownContainer"] p {{
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.88rem !important;
+    margin: 0 !important; line-height: 1.45 !important;
+    color: {c['text_strong']} !important;
+}}
+/* Toast botón X de cierre */
+[data-testid="stToast"] button {{
+    opacity: 0.5 !important; transition: opacity .15s !important;
+    background: transparent !important; border: none !important;
+}}
+[data-testid="stToast"] button:hover {{ opacity: 1 !important; }}
+
+/* ── Banners inline — st.success / error / warning / info ── */
+/* SUCCESS */
+[data-testid="stAlert"][kind="success"],
+div[data-testid="stAlert"].st-success,
+.element-container:has([data-testid="stAlert"][kind="success"]) {{
+    background: {'rgba(22,163,74,0.12)' if dark else 'rgba(22,163,74,0.08)'} !important;
+    border: 1px solid {'rgba(34,197,94,0.35)' if dark else 'rgba(22,163,74,0.3)'} !important;
+    border-left: 4px solid #22c55e !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 12px rgba(34,197,94,0.12) !important;
+    animation: oram-banner-in 0.22s ease !important;
+}}
+[data-testid="stAlert"][kind="success"] p,
+[data-testid="stAlert"][kind="success"] [data-testid="stMarkdownContainer"] p {{
+    color: {'#4ade80' if dark else '#15803d'} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 0.88rem !important;
+}}
+[data-testid="stAlert"][kind="success"] svg {{
+    color: #22c55e !important; fill: #22c55e !important;
+}}
+/* ERROR */
+[data-testid="stAlert"][kind="error"],
+div[data-testid="stAlert"].st-error {{
+    background: {'rgba(239,68,68,0.12)' if dark else 'rgba(200,30,30,0.07)'} !important;
+    border: 1px solid {'rgba(239,68,68,0.35)' if dark else 'rgba(200,30,30,0.28)'} !important;
+    border-left: 4px solid #ef4444 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 12px rgba(239,68,68,0.10) !important;
+    animation: oram-banner-in 0.22s ease !important;
+}}
+[data-testid="stAlert"][kind="error"] p,
+[data-testid="stAlert"][kind="error"] [data-testid="stMarkdownContainer"] p {{
+    color: {'#f87171' if dark else '#c81e1e'} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 500 !important; font-size: 0.88rem !important;
+}}
+[data-testid="stAlert"][kind="error"] svg {{
+    color: #ef4444 !important; fill: #ef4444 !important;
+}}
+/* WARNING */
+[data-testid="stAlert"][kind="warning"],
+div[data-testid="stAlert"].st-warning {{
+    background: {'rgba(201,162,39,0.12)' if dark else 'rgba(154,117,16,0.08)'} !important;
+    border: 1px solid {'rgba(201,162,39,0.35)' if dark else 'rgba(154,117,16,0.28)'} !important;
+    border-left: 4px solid #c9a227 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 12px rgba(201,162,39,0.10) !important;
+    animation: oram-banner-in 0.22s ease !important;
+}}
+[data-testid="stAlert"][kind="warning"] p,
+[data-testid="stAlert"][kind="warning"] [data-testid="stMarkdownContainer"] p {{
+    color: {'#f1c232' if dark else '#9a7510'} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 500 !important; font-size: 0.88rem !important;
+}}
+[data-testid="stAlert"][kind="warning"] svg {{
+    color: #c9a227 !important; fill: #c9a227 !important;
+}}
+/* INFO */
+[data-testid="stAlert"][kind="info"],
+div[data-testid="stAlert"].st-info {{
+    background: {'rgba(61,155,233,0.10)' if dark else 'rgba(22,96,168,0.07)'} !important;
+    border: 1px solid {'rgba(61,155,233,0.28)' if dark else 'rgba(22,96,168,0.22)'} !important;
+    border-left: 4px solid #3d9be9 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 12px rgba(61,155,233,0.08) !important;
+    animation: oram-banner-in 0.22s ease !important;
+}}
+[data-testid="stAlert"][kind="info"] p,
+[data-testid="stAlert"][kind="info"] [data-testid="stMarkdownContainer"] p {{
+    color: {'#7dd3fc' if dark else '#1660a8'} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 500 !important; font-size: 0.88rem !important;
+}}
+[data-testid="stAlert"][kind="info"] svg {{
+    color: #3d9be9 !important; fill: #3d9be9 !important;
+}}
+@keyframes oram-banner-in {{
+    from {{ opacity: 0; transform: translateY(-6px); }}
+    to   {{ opacity: 1; transform: translateY(0);    }}
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1326,3 +1448,155 @@ def signal_box(tipo: str, descripcion: str, confianza: float = 0) -> str:
         f'Confianza: <span style="color:{color};font-weight:700">{confianza:.0f}%</span>'
         f'</div></div>'
     )
+
+
+def oram_notify(kind: str, message: str, toast: bool = True, banner: bool = False) -> None:
+    """
+    Sistema de notificaciones premium ORAM.
+    
+    kind    : 'success' | 'error' | 'warning' | 'info'
+    message : Texto del mensaje (soporta markdown)
+    toast   : Muestra burbuja flotante (esquina inf-derecha) — default True
+    banner  : Muestra banner inline además del toast — default False
+    """
+    icons = {'success': '✅', 'error': '❌', 'warning': '⚠️', 'info': '💡'}
+    icon = icons.get(kind, '🔔')
+    if toast:
+        st.toast(message, icon=icon)
+    if banner:
+        fn = {'success': st.success, 'error': st.error,
+              'warning': st.warning, 'info': st.info}.get(kind, st.info)
+        fn(message)
+
+
+def oram_bienvenida(
+    titulo: str,
+    subtitulo: str,
+    spinner_label: str = "Aplicando cambios\u2026",
+    delay: float = 2.2,
+) -> None:
+    """
+    Overlay de confirmación premium — idéntico al que aparece al crear cuenta.
+
+    Muestra una tarjeta centrada con:
+      • Anillo animado con checkmark verde (pulse infinito)
+      • Logo ORAM coloreado
+      • Título y subtítulo personalizables
+      • Spinner animado mientras espera
+
+    Llama st.rerun() automáticamente tras delay segundos.
+
+    Uso:
+        oram_bienvenida(
+            titulo    = "💾 Capital actualizado",
+            subtitulo = "Tu capital inicial ha sido guardado correctamente.",
+        )
+        oram_bienvenida(
+            titulo        = "✅ Trade guardado",
+            subtitulo     = "EURUSD LONG registrado en tu diario.",
+            spinner_label = "Actualizando historial…",
+            delay         = 2.0,
+        )
+    """
+    t    = get_theme()
+    dark = t == "dark"
+
+    overlay_bg  = "rgba(6,9,15,0.92)"   if dark else "rgba(238,242,247,0.94)"
+    card_bg     = "#0c1219"             if dark else "#ffffff"
+    card_border = "#1b2a40"             if dark else "#dde5ef"
+    text_main   = "#edf4ff"             if dark else "#0b1824"
+    text_muted  = "#637a94"             if dark else "#7a8fa0"
+
+    st.markdown(f"""
+<style>
+@keyframes oram-fadein {{
+    from {{ opacity: 0; transform: translateY(14px) scale(0.97); }}
+    to   {{ opacity: 1; transform: translateY(0)   scale(1);    }}
+}}
+@keyframes oram-pulse {{
+    0%,100% {{ box-shadow: 0 0 0 0    rgba(34,197,94,0.40); }}
+    50%      {{ box-shadow: 0 0 0 18px rgba(34,197,94,0);   }}
+}}
+@keyframes oram-spin {{
+    to {{ transform: rotate(360deg); }}
+}}
+#oram-welcome-overlay {{
+    position: fixed; inset: 0;
+    background: {overlay_bg};
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    z-index: 99999;
+    display: flex; align-items: center; justify-content: center;
+}}
+#oram-welcome-card {{
+    background: {card_bg};
+    border: 1px solid {card_border};
+    border-radius: 20px;
+    padding: 2.8rem 3rem 2.4rem;
+    text-align: center; max-width: 400px; width: 90%;
+    animation: oram-fadein 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+}}
+.oram-check-ring {{
+    width: 64px; height: 64px; border-radius: 50%;
+    background: rgba(34,197,94,0.12); border: 2px solid #22c55e;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.4rem;
+    animation: oram-pulse 1.6s ease-in-out infinite;
+}}
+.oram-check-ring svg {{
+    width: 30px; height: 30px;
+    stroke: #22c55e; fill: none;
+    stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+}}
+.oram-welcome-logo {{
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.1rem; font-weight: 800;
+    letter-spacing: -1px; margin-bottom: 0.15rem;
+}}
+.oram-welcome-title {{
+    font-family: 'Inter', sans-serif;
+    font-size: 1.15rem; font-weight: 700;
+    color: {text_main}; margin-bottom: 0.5rem;
+}}
+.oram-welcome-sub {{
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem; color: {text_muted};
+    margin-bottom: 1.6rem; line-height: 1.5;
+}}
+.oram-spinner-row {{
+    display: flex; align-items: center;
+    justify-content: center; gap: 0.55rem;
+}}
+.oram-spinner {{
+    width: 16px; height: 16px;
+    border: 2px solid rgba(34,197,94,0.25);
+    border-top-color: #22c55e; border-radius: 50%;
+    animation: oram-spin 0.75s linear infinite; flex-shrink: 0;
+}}
+.oram-spinner-label {{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; letter-spacing: 1.5px;
+    text-transform: uppercase; color: {text_muted};
+}}
+</style>
+<div id="oram-welcome-overlay">
+  <div id="oram-welcome-card">
+    <div class="oram-check-ring">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="oram-welcome-logo">
+      <span style="color:{LOGO_GOLD}">O</span><span style="color:{LOGO_BLUE}">R</span><span style="color:{LOGO_TEAL}">A</span><span style="color:{text_main}">M</span>
+      <span style="color:{text_muted};font-weight:500;font-size:0.85rem;letter-spacing:0px"> Quant Systems</span>
+    </div>
+    <div class="oram-welcome-title">{titulo}</div>
+    <div class="oram-welcome-sub">{subtitulo}</div>
+    <div class="oram-spinner-row">
+      <div class="oram-spinner"></div>
+      <span class="oram-spinner-label">{spinner_label}</span>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    time.sleep(delay)
+    st.rerun()

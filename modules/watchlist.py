@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from database.db import obtener_watchlist, agregar_watchlist, eliminar_watchlist
 from utils.market_data import ACTIVOS_DEFAULT, obtener_datos
 from utils.smc_engine import analisis_completo
-from ui.styles import get_colors, page_header
+from ui.styles import get_colors, page_header, oram_notify, oram_bienvenida
 
 
 def _sparkline(df, c):
@@ -49,10 +49,14 @@ def render_watchlist():
         if st.button("➕ Agregar", width='stretch'):
             ok = agregar_watchlist(user["id"], ticker, alias)
             if ok:
-                st.success(f"✅ {ticker} agregado")
-                st.rerun()
+                oram_bienvenida(
+                    titulo        = "✅ Activo agregado",
+                    subtitulo     = f"<b>{ticker}</b>{' — ' + alias if alias else ''} ha sido añadido a tu watchlist.",
+                    spinner_label = "Actualizando watchlist…",
+                    delay         = 1.8,
+                )
             else:
-                st.warning("Ya está en tu watchlist.")
+                oram_notify("warning", f"⚠️ **{ticker}** ya está en tu watchlist", toast=True)
 
     st.divider()
 
@@ -155,4 +159,9 @@ def render_watchlist():
                 # Botón eliminar
                 if st.button(f"🗑️ Quitar {al}", key=f"rm_{tk}", width='stretch'):
                     eliminar_watchlist(user["id"], tk)
-                    st.rerun()
+                    oram_bienvenida(
+                        titulo        = "🗑️ Activo eliminado",
+                        subtitulo     = f"<b>{al or tk}</b> ha sido eliminado de tu watchlist.",
+                        spinner_label = "Actualizando watchlist…",
+                        delay         = 1.5,
+                    )

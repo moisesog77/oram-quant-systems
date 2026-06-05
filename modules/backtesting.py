@@ -8,7 +8,7 @@ from utils.backtesting import ejecutar_backtest
 from utils.multi_timeframe import MTF_COMBOS
 from utils.market_data import ACTIVOS_DEFAULT
 from database.db import guardar_backtest, obtener_backtests
-from ui.styles import get_colors, page_header
+from ui.styles import get_colors, page_header, oram_notify, oram_bienvenida
 
 
 def render_backtesting():
@@ -54,12 +54,14 @@ def render_backtesting():
                 res = ejecutar_backtest(ticker, tf, riesgo_pct, umbral, capital)
 
             if "error" in res:
-                st.error(f"❌ {res['error']}")
-                st.info("💡 Prueba: umbral más bajo (40-50%), timeframe con más datos (1h/4h/1d), o diferente activo.")
+                oram_notify("error", f"❌ {res['error']}", toast=True, banner=True)
+                oram_notify("info", "💡 Prueba: umbral más bajo (40-50%), timeframe con más datos (1h/4h/1d), o diferente activo.", toast=False, banner=True)
             else:
-                st.success(
-                    f"✅ Backtest completado: {res['total_trades']} operaciones simuladas "
-                    f"de {res.get('señales_analizadas',0)} señales analizadas"
+                oram_notify(
+                    "success",
+                    f"✅ Backtest completado: **{res['total_trades']}** operaciones "
+                    f"de {res.get('señales_analizadas', 0)} señales analizadas",
+                    toast=True, banner=True
                 )
 
                 # ── KPIs ──────────────────────────────────────────────────

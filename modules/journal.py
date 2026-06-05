@@ -8,7 +8,7 @@ from datetime import date
 from database.db import insertar_trade, obtener_trades, eliminar_trade
 from utils.market_data import ACTIVOS_DEFAULT
 from utils.smc_engine import calcular_riesgo
-from ui.styles import get_colors, page_header
+from ui.styles import get_colors, page_header, oram_notify, oram_bienvenida
 
 SETUPS_SMC = [
     "OB Alcista + FVG", "OB Bajista + FVG",
@@ -72,7 +72,7 @@ def render_journal():
 
             if st.form_submit_button("💾 Guardar Trade", width='stretch'):
                 if entrada == 0 or sl == 0 or tp == 0:
-                    st.error("Entrada, SL y TP son obligatorios.")
+                    oram_notify("error", "❌ Entrada, SL y TP son obligatorios.", toast=True, banner=True)
                 else:
                     insertar_trade(user["id"], {
                         "fecha": str(fecha), "activo": activo, "timeframe": tf,
@@ -82,8 +82,12 @@ def render_journal():
                         "tags": [t.strip() for t in tags.split(",") if t.strip()],
                         "estado": estado,
                     })
-                    st.success("✅ Trade guardado.")
-                    st.rerun()
+                    oram_bienvenida(
+                        titulo        = "💾 Trade registrado",
+                        subtitulo     = f"<b>{activo}</b> {direccion} — {setup}<br>RR estimado: {riesgo_usd:.1f} USD en riesgo.",
+                        spinner_label = "Actualizando diario…",
+                        delay         = 2.0,
+                    )
 
     # ── HISTORIAL ──────────────────────────────────────────────────────────
     with tab_historial:
@@ -146,5 +150,9 @@ def render_journal():
                 st.markdown("")
                 if st.button("🗑️ Eliminar", width='stretch'):
                     eliminar_trade(del_id, user["id"])
-                    st.success("Trade eliminado.")
-                    st.rerun()
+                    oram_bienvenida(
+                        titulo        = "🗑️ Trade eliminado",
+                        subtitulo     = f"El trade <b>#{del_id}</b> ha sido eliminado permanentemente de tu historial.",
+                        spinner_label = "Actualizando diario…",
+                        delay         = 1.8,
+                    )

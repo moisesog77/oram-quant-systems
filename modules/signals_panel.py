@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from utils.market_data import ACTIVOS_DEFAULT, obtener_datos
 from utils.smc_engine import analisis_completo
 from utils.economic_calendar import hay_evento_alto_impacto_pronto, obtener_proximos_eventos, impacto_emoji
-from ui.styles import get_colors, page_header
+from ui.styles import get_colors, page_header, oram_notify
 
 TZ_MX = ZoneInfo("America/Mexico_City")
 
@@ -98,6 +98,12 @@ def render_signals_panel():
         prog.empty()
         st.session_state["sp_results"] = resultados
         st.session_state["sp_time"]    = datetime.now(TZ_MX).strftime("%H:%M:%S")
+        # Toast de resumen al completar el escaneo
+        total_act = len([r for r in resultados if r["conf"] >= umbral and r["dir"] != "neutral"])
+        if total_act > 0:
+            oram_notify("success", f"⚡ Escaneo completado — **{total_act}** señal{'es' if total_act != 1 else ''} activa{'s' if total_act != 1 else ''} (≥{umbral}%)", toast=True)
+        else:
+            oram_notify("warning", f"⚡ Escaneo completado — Sin señales con confianza ≥{umbral}%", toast=True)
 
     resultados = st.session_state.get("sp_results", [])
     scan_time  = st.session_state.get("sp_time", "")

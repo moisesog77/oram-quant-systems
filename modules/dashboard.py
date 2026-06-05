@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from database.db import obtener_trades, actualizar_capital
 from utils.ai_engine import calcular_drawdown, calcular_sharpe
-from ui.styles import metric_card, get_colors, page_header
+from ui.styles import metric_card, get_colors, page_header, oram_notify, oram_bienvenida
 
 
 def render_dashboard():
@@ -284,5 +284,9 @@ def render_dashboard():
         if st.button("💾 Actualizar capital", key="btn_actualizar_capital"):
             actualizar_capital(user["id"], new_cap)
             st.session_state.user["capital_inicial"] = new_cap
-            st.success("✅ Capital actualizado.")
-            st.rerun()
+            oram_bienvenida(
+                titulo        = "💾 Capital actualizado",
+                subtitulo     = f"Capital inicial establecido en <b>${new_cap:,.2f}</b>.<br>Tu P&L se recalculará desde este valor.",
+                spinner_label = "Actualizando dashboard…",
+                delay         = 2.0,
+            )

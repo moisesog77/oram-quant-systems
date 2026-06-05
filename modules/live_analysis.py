@@ -12,7 +12,7 @@ from utils.economic_calendar import (hay_evento_alto_impacto_pronto,
                                       obtener_proximos_eventos,
                                       impacto_emoji, impacto_color,
                                       FOREX_FACTORY_URL)
-from ui.styles import signal_box, get_colors, get_plot_layout, page_header, get_theme
+from ui.styles import signal_box, get_colors, get_plot_layout, page_header, get_theme, oram_notify
 
 TIMEFRAME_LABELS = {
     "1m":"1 Min","5m":"5 Min","15m":"15 Min","30m":"30 Min",

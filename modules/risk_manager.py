@@ -4,7 +4,7 @@ modules/risk_manager.py — Calculadora avanzada de riesgo y Kelly Criterion.
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
-from ui.styles import get_colors, page_header
+from ui.styles import get_colors, page_header, oram_notify
 
 def render_risk_manager():
     c = get_colors()
@@ -191,8 +191,8 @@ def render_risk_manager():
             st.plotly_chart(fig, width='stretch')
 
             if prob_ruina > 20:
-                st.error(f"⚠️ Probabilidad de ruina alta ({prob_ruina:.1f}%). Reduce el riesgo por trade o mejora tu edge.")
+                oram_notify("error",   f"⚠️ Probabilidad de ruina alta ({prob_ruina:.1f}%). Reduce el riesgo por trade o mejora tu edge.", toast=True, banner=True)
             elif prob_ruina > 10:
-                st.warning(f"⚠️ Riesgo moderado ({prob_ruina:.1f}%). Considera reducir tamaño de posición.")
+                oram_notify("warning", f"⚠️ Riesgo moderado ({prob_ruina:.1f}%). Considera reducir tamaño de posición.", toast=True, banner=True)
             else:
-                st.success(f"✅ Riesgo de ruina controlado ({prob_ruina:.1f}%). Buena gestión de capital.")
+                oram_notify("success", f"✅ Riesgo de ruina controlado ({prob_ruina:.1f}%). Buena gestión de capital.", toast=True, banner=True)

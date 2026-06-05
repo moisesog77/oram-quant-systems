@@ -5,7 +5,7 @@ import streamlit as st
 import json
 from database.db import obtener_bot_config, actualizar_bot_config, obtener_alertas, crear_alerta, eliminar_alerta, obtener_señales_recientes
 from utils.market_data import ACTIVOS_DEFAULT
-from ui.styles import get_colors, page_header
+from ui.styles import get_colors, page_header, oram_notify, oram_bienvenida
 
 def render_bot_config():
     user = st.session_state.user
@@ -64,8 +64,12 @@ def render_bot_config():
                     tf_monitor=tf_mon,
                     activos_monitor=json.dumps(sel_activos),
                 )
-                st.success("✅ Configuración guardada.")
-                st.rerun()
+                oram_bienvenida(
+                    titulo        = "✅ Configuración guardada",
+                    subtitulo     = f"Bot Telegram configurado correctamente.<br>Umbral: <b>{umbral:.0f}%</b> · Timeframe: <b>{tf_mon}</b>",
+                    spinner_label = "Aplicando configuración…",
+                    delay         = 2.0,
+                )
 
         # Estado actual
         st.divider()
@@ -113,11 +117,16 @@ def render_bot_config():
 
             if st.form_submit_button("🔔 Crear Alerta", width='stretch'):
                 if precio_a == 0:
-                    st.error("El precio no puede ser 0.")
+                    oram_notify("error", "❌ El precio objetivo no puede ser 0.", toast=True, banner=True)
                 else:
                     crear_alerta(user["id"], ticker_a, tipo_a, precio_a, msg_a)
-                    st.success(f"✅ Alerta creada: {ticker_a} {tipo_a} {precio_a:.5f}")
-                    st.rerun()
+                    dir_label = "sube sobre" if tipo_a == "above" else "baja bajo"
+                    oram_bienvenida(
+                        titulo        = "🔔 Alerta creada",
+                        subtitulo     = f"<b>{ticker_a}</b> notificará cuando el precio {dir_label} <b>{precio_a:.5f}</b>.",
+                        spinner_label = "Registrando alerta…",
+                        delay         = 1.8,
+                    )
 
         st.divider()
         alertas = obtener_alertas(user["id"], solo_activas=False)
@@ -143,7 +152,12 @@ def render_bot_config():
                     if not al["disparada"]:
                         if st.button("🗑️", key=f"del_al_{al['id']}"):
                             eliminar_alerta(al["id"], user["id"])
-                            st.rerun()
+                            oram_bienvenida(
+                                titulo        = "🗑️ Alerta eliminada",
+                                subtitulo     = f"La alerta de <b>{al['ticker']}</b> ha sido cancelada.",
+                                spinner_label = "Actualizando alertas…",
+                                delay         = 1.5,
+                            )
 
     # ── HISTORIAL DE SEÑALES ──────────────────────────────────────────────
     with tab_historial:
