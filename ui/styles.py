@@ -225,20 +225,19 @@ html,body{{
 }}
 [data-testid="stBottom"],[data-testid="stBottom"]>div{{background:{c['bg']}!important}}
 
-/* ── SIDEBAR TOGGLE BUTTON — visible en ambos temas ──────── */
-/* Aplica a TODOS los botones de toggle del sidebar sin excepción */
+/* ── SIDEBAR TOGGLE BUTTON (>>) — idéntico al << del sidebar abierto ─ */
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="stSidebarCollapsedControl"] > *,
 [data-testid="stSidebarCollapsedControl"] button,
 [data-testid="stSidebarCollapsedControl"] div {{
-    background-color: {'#080d14' if dark else c['bg_card']} !important;
-    background: {'#080d14' if dark else c['bg_card']} !important;
+    background-color: {c['bg_sidebar']} !important;
+    background: {c['bg_sidebar']} !important;
     border: 1px solid {c['border']} !important;
     color: {c['text_strong']} !important;
 }}
 [data-testid="stSidebarCollapsedControl"] {{
     border-radius: 0 8px 8px 0 !important;
-    box-shadow: 2px 0 12px rgba(0,0,0,0.12) !important;
+    box-shadow: {'2px 0 16px rgba(0,0,0,0.55)' if dark else '2px 0 12px rgba(0,0,0,0.10)'} !important;
     overflow: hidden !important;
 }}
 [data-testid="stSidebarCollapsedControl"] button {{
@@ -250,7 +249,7 @@ html,body{{
 [data-testid="stSidebarCollapsedControl"] button:hover {{
     background-color: {c['nav_hover']} !important;
 }}
-/* ── Icono << — negro sólido en todo momento (expandido y colapsado) ── */
+/* ── Iconos >> y << — mismo color en ambos estados ───────── */
 [data-testid="stSidebarCollapsedControl"] svg,
 [data-testid="stSidebarCollapsedControl"] svg *,
 [data-testid="stSidebarCollapsedControl"] svg path,
@@ -263,6 +262,12 @@ html,body{{
     fill: {c['text_strong']} !important;
     stroke: {c['text_strong']} !important;
     color: {c['text_strong']} !important;
+}}
+/* << button (dentro del sidebar abierto) — mismo fondo oscuro que >> */
+[data-testid="stBaseButton-headerNoPadding"],
+[data-testid="stSidebarCollapseButton"] button {{
+    background-color: transparent !important;
+    background: transparent !important;
 }}
 
 /* ── HIDE DEPLOY ────────────────────────────────────── */
@@ -1255,33 +1260,45 @@ textarea {{
     border-color: {c['accent']} !important;
     color: {c['accent']} !important;
 }}
-/* Radio circle dot — override dark color — tema adaptable */
-[data-testid="stRadio"] div[role="radio"],
-[data-testid="stRadio"] span[data-testid="stWidgetLabel"] ~ div div[role="radio"],
-div[role="radiogroup"] div[role="radio"] {{
-    border-color: {c['border2']} !important;
-    background: {c['bg_card']} !important;
-    box-shadow: none !important;
+/* ── RADIO CIRCLES — tema adaptable premium ──────────────── */
+/* Ocultar el SVG nativo de Streamlit (siempre negro) */
+[data-testid="stRadio"] div[role="radio"] svg,
+div[role="radiogroup"] div[role="radio"] svg {{
+    display: none !important;
 }}
+/* Círculo exterior — borde adaptable al tema */
+[data-testid="stRadio"] div[role="radio"],
+div[role="radiogroup"] div[role="radio"] {{
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    border-radius: 50% !important;
+    border: 2px solid {c['border2']} !important;
+    background: {'#0c1219' if dark else '#ffffff'} !important;
+    box-shadow: none !important;
+    position: relative !important;
+    transition: border-color .15s ease, background .15s ease !important;
+}}
+/* Dot interior cuando está seleccionado — via pseudo-element */
 [data-testid="stRadio"] div[role="radio"][aria-checked="true"],
 div[role="radiogroup"] div[role="radio"][aria-checked="true"] {{
-    border-color: {c['accent']} !important;
-    background: {c['accent']} !important;
+    border-color: {'#e8b830' if dark else '#9a7510'} !important;
+    background: {'#0c1219' if dark else '#ffffff'} !important;
 }}
-/* SVG/círculo nativo dentro del radio */
-[data-testid="stRadio"] div[role="radio"] > div,
-[data-testid="stRadio"] div[role="radio"] svg,
-div[role="radiogroup"] div[role="radio"] > div,
-div[role="radiogroup"] div[role="radio"] svg {{
-    background: transparent !important;
-    fill: {c['accent']} !important;
-    color: {c['accent']} !important;
+[data-testid="stRadio"] div[role="radio"][aria-checked="true"]::after,
+div[role="radiogroup"] div[role="radio"][aria-checked="true"]::after {{
+    content: '' !important;
+    position: absolute !important;
+    top: 50% !important; left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 7px !important; height: 7px !important;
+    border-radius: 50% !important;
+    background: {'#e8b830' if dark else '#9a7510'} !important;
 }}
-/* Asegurar que el círculo exterior no sea negro en modo claro */
-[data-testid="stRadio"] label input[type="radio"] + div,
-section[data-testid="stSidebar"] div[role="radio"] {{
-    border-color: {c['border2']} !important;
-    background-color: {c['bg_card']} !important;
+/* Label del módulo activo — highlight premium */
+section[data-testid="stSidebar"] div[role="radiogroup"] label:has(div[role="radio"][aria-checked="true"]) {{
+    background: {'rgba(232,184,48,0.10)' if dark else 'rgba(154,117,16,0.08)'} !important;
+    border-color: {'rgba(232,184,48,0.30)' if dark else 'rgba(154,117,16,0.25)'} !important;
 }}
 
 /* ═══ MULTISELECT TAGS — texto completo, sin corte ══════════ */
