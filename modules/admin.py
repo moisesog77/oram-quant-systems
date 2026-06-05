@@ -9,7 +9,7 @@ import json
 from datetime import datetime
 from database.db import (
     obtener_todos_usuarios, admin_stats_globales,
-    admin_crear_usuario, admin_desactivar_usuario, admin_restaurar_usuario,
+    admin_crear_usuario, admin_eliminar_usuario,
     admin_resetear_password, admin_actualizar_capital,
     admin_logs_senales, admin_trades_todos, admin_configs_bot_todas,
     actualizar_bot_config,
@@ -97,8 +97,8 @@ def render_admin():
                     nu_cap  = st.number_input("Capital inicial (USD)", value=1000.0,
                                                min_value=100.0, step=100.0)
                 with col2:
-                    nu_pw1  = st.text_input("Contraseña", type="password")
-                    nu_pw2  = st.text_input("Confirmar contraseña", type="password")
+                    nu_pw1 = st.text_input("Contraseña", type="password")
+                    nu_pw2 = st.text_input("Confirmar contraseña", type="password")
 
                 if st.form_submit_button("✅ Crear usuario", use_container_width=True):
                     if not nu_user or not nu_pw1:
@@ -112,7 +112,7 @@ def render_admin():
                         if ok:
                             oram_bienvenida(
                                 titulo="✅ Usuario creado",
-                                subtitulo=f"<b>{nu_user}</b> ha sido registrado con capital ${nu_cap:,.0f}.",
+                                subtitulo=f"<b>{nu_user}</b> registrado con capital ${nu_cap:,.0f}.",
                                 spinner_label="Actualizando base de datos…",
                                 delay=1.5,
                             )
@@ -129,58 +129,102 @@ def render_admin():
             st.error(f"Error: {e}")
             return
 
+        # Inicializar estado de confirmación de eliminación
+        if "admin_confirm_delete" not in st.session_state:
+            st.session_state["admin_confirm_delete"] = {}
+
         for u in usuarios:
             uid      = u["id"]
             uname    = u["username"]
             capital  = u.get("capital_inicial", 0)
-            is_admin = u.get("is_admin", 0)
-            activo   = u.get("is_active", 1)
+            is_admin_u = u.get("is_admin", 0)
             creado   = str(u.get("created_at", ""))[:10]
 
-            badge_admin = "🛡️ ADMIN" if is_admin else ""
-            badge_est   = "🟢 Activo" if activo else "🔴 Desactivado"
+            badge_admin = "🛡️ ADMIN" if is_admin_u else ""
+            badge_est   = "🟢 Activo" if u.get("is_active", 1) else "🔴"
 
             with st.expander(f"{badge_est} {badge_admin} **{uname}** — ${capital:,.0f} — {creado}"):
-                col_a, col_b, col_c = st.columns(3)
 
-                # Actualizar capital
-                with col_a:
-                    nuevo_cap = st.number_input(
-                        "Capital (USD)", value=float(capital),
-                        min_value=0.0, step=100.0, key=f"cap_{uid}"
-                    )
-                    if st.button("💾 Actualizar capital", key=f"ucap_{uid}", use_container_width=True):
-                        admin_actualizar_capital(uid, nuevo_cap)
-                        oram_notify("success", f"✅ Capital de {uname} actualizado a ${nuevo_cap:,.0f}", toast=True)
-                        st.rerun()
+                if is_admin_u:
+                    # Admin: solo mostrar info, sin controles de eliminación
+                    st.info("🛡️ Superadministrador — cuenta protegida, no puede eliminarse.")
+                    col_a, _ = st.columns([1, 2])
+                    with col_a:
+                        nuevo_cap = st.number_input(
+                            "Capital (USD)", value=float(capital),
+                            min_value=0.0, step=100.0, key=f"cap_{uid}"
+                        )
+                        if st.button("💾 Actualizar capital", key=f"ucap_{uid}", use_container_width=True):
+                            admin_actualizar_capital(uid, nuevo_cap)
+                            oram_notify("success", f"✅ Capital actualizado a ${nuevo_cap:,.0f}", toast=True)
+                            st.rerun()
+                else:
+                    # Usuario normal: capital + resetear pw + ELIMINAR
+                    col_a, col_b, col_c = st.columns(3)
 
-                # Resetear contraseña
-                with col_b:
-                    nueva_pw = st.text_input("Nueva contraseña", type="password", key=f"pw_{uid}")
-                    if st.button("🔑 Resetear contraseña", key=f"upw_{uid}", use_container_width=True):
-                        if nueva_pw and len(nueva_pw) >= 6:
-                            admin_resetear_password(uid, nueva_pw)
-                            oram_notify("success", f"✅ Contraseña de {uname} actualizada.", toast=True)
-                        else:
-                            oram_notify("error", "❌ Mínimo 6 caracteres.", toast=True, banner=True)
+                    with col_a:
+                        nuevo_cap = st.number_input(
+                            "Capital (USD)", value=float(capital),
+                            min_value=0.0, step=100.0, key=f"cap_{uid}"
+                        )
+                        if st.button("💾 Actualizar capital", key=f"ucap_{uid}", use_container_width=True):
+                            admin_actualizar_capital(uid, nuevo_cap)
+                            oram_notify("success", f"✅ Capital de {uname} actualizado a ${nuevo_cap:,.0f}", toast=True)
+                            st.rerun()
 
-                # Activar / Desactivar (solo usuarios no-admin)
-                with col_c:
-                    if not is_admin:
-                        if activo:
-                            if st.button("🔴 Desactivar usuario", key=f"des_{uid}",
-                                          use_container_width=True):
-                                admin_desactivar_usuario(uid)
-                                oram_notify("info", f"⚠️ Usuario {uname} desactivado.", toast=True)
+                    with col_b:
+                        nueva_pw = st.text_input("Nueva contraseña", type="password", key=f"pw_{uid}")
+                        if st.button("🔑 Resetear contraseña", key=f"upw_{uid}", use_container_width=True):
+                            if nueva_pw and len(nueva_pw) >= 6:
+                                admin_resetear_password(uid, nueva_pw)
+                                oram_notify("success", f"✅ Contraseña de {uname} actualizada.", toast=True)
+                            else:
+                                oram_notify("error", "❌ Mínimo 6 caracteres.", toast=True, banner=True)
+
+                    with col_c:
+                        confirm_key = f"confirm_del_{uid}"
+                        confirming  = st.session_state["admin_confirm_delete"].get(uid, False)
+
+                        if not confirming:
+                            # Primer clic — pedir confirmación
+                            if st.button(
+                                "🗑️ Eliminar usuario",
+                                key=f"del1_{uid}",
+                                use_container_width=True,
+                                type="primary",
+                            ):
+                                st.session_state["admin_confirm_delete"][uid] = True
                                 st.rerun()
                         else:
-                            if st.button("🟢 Restaurar usuario", key=f"res_{uid}",
-                                          use_container_width=True):
-                                admin_restaurar_usuario(uid)
-                                oram_notify("success", f"✅ Usuario {uname} restaurado.", toast=True)
-                                st.rerun()
-                    else:
-                        st.info("🛡️ Admin protegido")
+                            # Segundo paso — confirmación real
+                            st.warning(f"⚠️ **¿Eliminar permanentemente a {uname}?**\nSe borrarán todos sus trades, watchlist, alertas y configuración. Esta acción es irreversible.")
+                            col_yes, col_no = st.columns(2)
+                            with col_yes:
+                                if st.button(
+                                    "✅ Sí, eliminar",
+                                    key=f"del_yes_{uid}",
+                                    use_container_width=True,
+                                ):
+                                    ok = admin_eliminar_usuario(uid)
+                                    st.session_state["admin_confirm_delete"].pop(uid, None)
+                                    if ok:
+                                        oram_bienvenida(
+                                            titulo="🗑️ Usuario eliminado",
+                                            subtitulo=f"<b>{uname}</b> y todos sus datos han sido eliminados permanentemente.",
+                                            spinner_label="Actualizando base de datos…",
+                                            delay=1.8,
+                                        )
+                                    else:
+                                        oram_notify("error", "❌ No se pudo eliminar. ¿Es admin?", toast=True, banner=True)
+                                        st.rerun()
+                            with col_no:
+                                if st.button(
+                                    "❌ Cancelar",
+                                    key=f"del_no_{uid}",
+                                    use_container_width=True,
+                                ):
+                                    st.session_state["admin_confirm_delete"].pop(uid, None)
+                                    st.rerun()
 
     # ════════════════════════════════════════════════════════════════════════
     # TAB 3 — CONFIGURACIÓN BOT POR USUARIO
@@ -191,7 +235,6 @@ def render_admin():
 
         try:
             configs = admin_configs_bot_todas()
-            todas   = obtener_todos_usuarios()
         except Exception as e:
             st.error(f"Error: {e}")
             return
