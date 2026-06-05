@@ -162,8 +162,10 @@ body {{
 [data-baseweb="layer"],
 [data-baseweb="layer"] > * {{
     color-scheme: {'dark' if dark else 'light'} !important;
+    background-color: {c['bg_card']} !important;
 }}
-/* Cobertura total del portal de dropdowns */
+/* Cobertura total del portal de dropdowns — incluyendo wrapper raíz */
+[data-baseweb="layer"] *,
 [data-baseweb="layer"] [data-baseweb="popover"],
 [data-baseweb="layer"] [data-baseweb="popover"] > *,
 [data-baseweb="layer"] [data-baseweb="menu"],
@@ -178,6 +180,14 @@ body {{
     background-color: {c['bg_card']} !important;
     color: {c['text']} !important;
     border-color: {c['border']} !important;
+}}
+/* Dropdown container box shadow + border radius */
+[data-baseweb="layer"] [data-baseweb="popover"] > div,
+[data-baseweb="layer"] [role="listbox"] > div {{
+    border-radius: 10px !important;
+    border: 1px solid {c['border2']} !important;
+    box-shadow: {'0 8px 32px rgba(0,0,0,0.45)' if dark else '0 8px 24px rgba(0,0,0,0.12)'} !important;
+    overflow: hidden !important;
 }}
 [data-baseweb="layer"] li:hover,
 [data-baseweb="layer"] [role="option"]:hover,
