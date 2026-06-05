@@ -225,34 +225,29 @@ html,body{{
 }}
 [data-testid="stBottom"],[data-testid="stBottom"]>div{{background:{c['bg']}!important}}
 
-/* ── SIDEBAR TOGGLE BUTTON (>>) — mismo fondo que sidebar ── */
-/* Forzar fondo oscuro/claro igual al sidebar, en TODOS sus nodos */
-[data-testid="stSidebarCollapsedControl"] {{
-    background-color: {c['bg_sidebar']} !important;
-    background: {c['bg_sidebar']} !important;
-    border-right: 1px solid {c['border']} !important;
-    border-top: 1px solid {c['border']} !important;
-    border-bottom: 1px solid {c['border']} !important;
-    border-left: none !important;
-    border-radius: 0 8px 8px 0 !important;
-    box-shadow: {'4px 0 20px rgba(0,0,0,0.6)' if dark else '2px 0 12px rgba(0,0,0,0.10)'} !important;
-    overflow: hidden !important;
-}}
+/* ── SIDEBAR TOGGLE BUTTON (>>) — idéntico al << del sidebar abierto ─ */
+[data-testid="stSidebarCollapsedControl"],
 [data-testid="stSidebarCollapsedControl"] > *,
 [data-testid="stSidebarCollapsedControl"] button,
 [data-testid="stSidebarCollapsedControl"] div {{
     background-color: {c['bg_sidebar']} !important;
     background: {c['bg_sidebar']} !important;
+    border: 1px solid {c['border']} !important;
     color: {c['text_strong']} !important;
-    border: none !important;
+}}
+[data-testid="stSidebarCollapsedControl"] {{
+    border-radius: 0 8px 8px 0 !important;
+    box-shadow: {'2px 0 16px rgba(0,0,0,0.55)' if dark else '2px 0 12px rgba(0,0,0,0.10)'} !important;
+    overflow: hidden !important;
 }}
 [data-testid="stSidebarCollapsedControl"] button {{
     border-radius: 0 !important;
     width: 100% !important;
     height: 100% !important;
+    border: none !important;
 }}
 [data-testid="stSidebarCollapsedControl"] button:hover {{
-    background-color: {'#121e2e' if dark else '#edf3fa'} !important;
+    background-color: {c['nav_hover']} !important;
 }}
 /* ── Iconos >> y << — mismo color en ambos estados ───────── */
 [data-testid="stSidebarCollapsedControl"] svg,
@@ -1244,55 +1239,66 @@ textarea {{
     -webkit-text-fill-color: {c['text']} !important;
 }}
 
-/* ═══ RADIO BUTTONS — sidebar nav premium ═══════════════════ */
+/* ═══ RADIO BUTTONS — sin fondo oscuro ══════════════════════ */
 [data-testid="stRadio"] > div {{
     background: transparent !important;
 }}
-/* Ocultar label border — en sidebar los items son simples filas */
 [data-testid="stRadio"] label {{
     background: transparent !important;
-    border: 1px solid transparent !important;
+    border: 1px solid {c['border']} !important;
     border-radius: 8px !important;
     padding: 0.3rem 0.8rem !important;
     color: {c['text']} !important;
-    transition: background .15s ease, border-color .15s ease;
+    transition: all .15s ease;
 }}
 [data-testid="stRadio"] label:hover {{
-    background: {c['nav_hover']} !important;
-    border-color: {c['border']} !important;
+    border-color: {c['accent']} !important;
+    background: {c['glow']} !important;
 }}
-
-/* ── RADIO CIRCLES — selectores correctos Streamlit 1.35+ ── */
-/* El círculo usa [data-baseweb="radio"], NO div[role="radio"] */
-
-/* 1. Ocultar completamente el círculo nativo — usamos solo texto en sidebar */
-section[data-testid="stSidebar"] [data-baseweb="radio"],
-section[data-testid="stSidebar"] [data-baseweb="radio"] > div,
-section[data-testid="stSidebar"] [data-baseweb="radio"] svg,
-section[data-testid="stSidebar"] input[type="radio"] {{
+[data-testid="stRadio"] [data-checked="true"] label,
+[data-testid="stRadio"] label[data-checked="true"] {{
+    border-color: {c['accent']} !important;
+    color: {c['accent']} !important;
+}}
+/* ── RADIO CIRCLES — tema adaptable premium ──────────────── */
+/* Ocultar el SVG nativo de Streamlit (siempre negro) */
+[data-testid="stRadio"] div[role="radio"] svg,
+div[role="radiogroup"] div[role="radio"] svg {{
     display: none !important;
-    visibility: hidden !important;
-    width: 0 !important;
-    height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
 }}
-
-/* 2. Compensar el espacio que dejó el círculo */
-section[data-testid="stSidebar"] [data-testid="stRadio"] label {{
-    padding-left: 0.85rem !important;
-    gap: 0 !important;
+/* Círculo exterior — borde adaptable al tema */
+[data-testid="stRadio"] div[role="radio"],
+div[role="radiogroup"] div[role="radio"] {{
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    border-radius: 50% !important;
+    border: 2px solid {c['border2']} !important;
+    background: {'#0c1219' if dark else '#ffffff'} !important;
+    box-shadow: none !important;
+    position: relative !important;
+    transition: border-color .15s ease, background .15s ease !important;
 }}
-
-/* 3. Módulo activo — highlight de fila premium */
-section[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {{
-    background: {'rgba(232,184,48,0.09)' if dark else 'rgba(154,117,16,0.07)'} !important;
-    border-color: {'rgba(232,184,48,0.28)' if dark else 'rgba(154,117,16,0.22)'} !important;
-    color: {'#e8b830' if dark else '#9a7510'} !important;
+/* Dot interior cuando está seleccionado — via pseudo-element */
+[data-testid="stRadio"] div[role="radio"][aria-checked="true"],
+div[role="radiogroup"] div[role="radio"][aria-checked="true"] {{
+    border-color: {'#e8b830' if dark else '#9a7510'} !important;
+    background: {'#0c1219' if dark else '#ffffff'} !important;
 }}
-section[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p {{
-    color: {'#e8b830' if dark else '#9a7510'} !important;
-    font-weight: 600 !important;
+[data-testid="stRadio"] div[role="radio"][aria-checked="true"]::after,
+div[role="radiogroup"] div[role="radio"][aria-checked="true"]::after {{
+    content: '' !important;
+    position: absolute !important;
+    top: 50% !important; left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 7px !important; height: 7px !important;
+    border-radius: 50% !important;
+    background: {'#e8b830' if dark else '#9a7510'} !important;
+}}
+/* Label del módulo activo — highlight premium */
+section[data-testid="stSidebar"] div[role="radiogroup"] label:has(div[role="radio"][aria-checked="true"]) {{
+    background: {'rgba(232,184,48,0.10)' if dark else 'rgba(154,117,16,0.08)'} !important;
+    border-color: {'rgba(232,184,48,0.30)' if dark else 'rgba(154,117,16,0.25)'} !important;
 }}
 
 /* ═══ MULTISELECT TAGS — texto completo, sin corte ══════════ */
