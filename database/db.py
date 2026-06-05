@@ -1,436 +1,699 @@
 """
-database/db.py — ORAM Quant Systems — Capa de Persistencia (SQLite)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Responsabilidades:
-  · Definir el esquema de 7 tablas SQLite (ver inicializar_db)
-  · Proveer la conexión thread-safe vía context manager get_conn()
-  · Implementar todas las operaciones CRUD de la aplicación
-  · Gestión de superadmin: creación/actualización garantizada en cada arranque
-  · Migración segura: columnas nuevas se añaden con ALTER TABLE sin romper DBs existentes
+database/db.py — ORAM Quant Systems — Capa de Persistencia Dual
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Motor de base de datos con detección automática de entorno:
 
-Tablas:
-  users             → Usuarios registrados (id, username, password_hash, capital, is_admin)
-  trades            → Diario de operaciones por usuario
-  watchlist         → Lista de activos monitoreados por usuario
-  price_alerts      → Alertas de precio personalizadas
-  bot_config        → Configuración del bot de Telegram por usuario
-  backtest_results  → Resultados de backtests guardados
-  signal_log        → Log de señales SMC generadas por el motor
+  ┌─ Si existe DATABASE_URL (variable de entorno) ─────────────┐
+  │  → PostgreSQL via psycopg2                                   │
+  │  → Usado en Railway (bot) y Streamlit Cloud (app web)        │
+  │  → Ambos servicios comparten la MISMA base de datos          │
+  └─────────────────────────────────────────────────────────────┘
+  ┌─ Si NO existe DATABASE_URL ────────────────────────────────┐
+  │  → SQLite local (smc_quant.db)                               │
+  │  → Usado en desarrollo local                                 │
+  └─────────────────────────────────────────────────────────────┘
 
-Seguridad:
-  · Contraseñas hasheadas con SHA-256 (nunca en texto plano)
-  · is_admin=1 solo para Moises OG (Superadmin protegido)
-  · admin_eliminar_usuario() verifica is_admin=0 antes de borrar
-  · Hard delete en cascada: eliminar usuario borra TODOS sus datos
+Marcador de parámetros:
+  · SQLite     → ?
+  · PostgreSQL → %s
+  La función _ph() y _exec() adaptan automáticamente.
 
-Uso típico:
-  from database.db import obtener_trades, insertar_trade
-  trades = obtener_trades(user_id=1)
+Tablas (7):
+  users, trades, watchlist, price_alerts, bot_config,
+  backtest_results, signal_log
 """
-import sqlite3, json, hashlib
-from contextlib import contextmanager
 
-DB_PATH = "smc_quant.db"
+import os
+import json
+import hashlib
+import logging
+from contextlib import contextmanager
+from datetime import datetime, timezone, timedelta, date
+
+logger = logging.getLogger(__name__)
+
+# ── Detección de motor ────────────────────────────────────────────────────────
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+USE_POSTGRES  = bool(DATABASE_URL)
+
+if USE_POSTGRES:
+    import psycopg2
+    import psycopg2.extras
+    logger.info("DB: PostgreSQL (DATABASE_URL detectada)")
+else:
+    import sqlite3
+    DB_PATH = "smc_quant.db"
+    logger.info("DB: SQLite local")
+
+
+# ── Helpers de compatibilidad ─────────────────────────────────────────────────
+
+def _ph(n: int = 1) -> str:
+    """Placeholder para N parámetros: '?,?,?' (SQLite) o '%s,%s,%s' (PG)."""
+    mark = "%s" if USE_POSTGRES else "?"
+    return ",".join([mark] * n)
+
 
 @contextmanager
 def get_conn():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
+    """
+    Context manager de conexión. Garantiza commit en éxito
+    y rollback en excepción. Thread-safe para ambos motores.
+    """
+    if USE_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = False
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+    else:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+
+def _exec(conn, sql: str, params=()):
+    """
+    Ejecuta SQL en ambos motores.
+    Convierte ? → %s automáticamente para PostgreSQL.
+    Retorna el cursor.
+    """
+    if USE_POSTGRES:
+        sql = sql.replace("?", "%s")
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    else:
+        cur = conn.cursor()
+    cur.execute(sql, params)
+    return cur
+
+
+def _fetchall(cur) -> list:
+    """Convierte resultados a lista de dicts (compatible con ambos motores)."""
+    rows = cur.fetchall()
+    if not rows:
+        return []
+    return [dict(r) for r in rows]
+
+
+def _fetchone(cur):
+    """Convierte un resultado a dict, o None si no hay filas."""
+    row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def _lastrowid(cur, table: str, conn) -> int:
+    """
+    Obtiene el ID del último insert.
+    PostgreSQL no tiene lastrowid — consulta el MAX(id) de la tabla.
+    SQLite usa cur.lastrowid directamente.
+    """
+    if USE_POSTGRES:
+        row = _fetchone(_exec(conn, f"SELECT MAX(id) as id FROM {table}"))
+        return row["id"] if row else 0
+    return cur.lastrowid
+
+
+# ── Inicialización de esquema ─────────────────────────────────────────────────
+
+# SQL para SQLite — usa sintaxis nativa de SQLite
+_SQLITE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    capital_inicial REAL DEFAULT 1000.0,
+    settings TEXT DEFAULT '{}',
+    is_admin INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    fecha TEXT NOT NULL,
+    activo TEXT NOT NULL,
+    timeframe TEXT DEFAULT '15m',
+    direccion TEXT NOT NULL,
+    entrada REAL NOT NULL,
+    sl REAL NOT NULL,
+    tp REAL NOT NULL,
+    riesgo_usd REAL DEFAULT 0,
+    resultado_usd REAL DEFAULT 0,
+    rr_planeado REAL DEFAULT 0,
+    rr_real REAL DEFAULT 0,
+    setup TEXT DEFAULT '',
+    emocion TEXT DEFAULT 'Neutral',
+    notas TEXT DEFAULT '',
+    tags TEXT DEFAULT '[]',
+    estado TEXT DEFAULT 'Cerrado',
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS watchlist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    ticker TEXT NOT NULL,
+    alias TEXT DEFAULT '',
+    UNIQUE(user_id, ticker)
+);
+CREATE TABLE IF NOT EXISTS price_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    ticker TEXT NOT NULL,
+    tipo TEXT NOT NULL,
+    precio REAL NOT NULL,
+    mensaje TEXT DEFAULT '',
+    activa INTEGER DEFAULT 1,
+    disparada INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    fired_at TEXT DEFAULT NULL
+);
+CREATE TABLE IF NOT EXISTS bot_config (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER UNIQUE NOT NULL,
+    telegram_chat_id TEXT DEFAULT '',
+    alertas_activas INTEGER DEFAULT 1,
+    resumen_diario INTEGER DEFAULT 1,
+    hora_resumen TEXT DEFAULT '08:00',
+    activos_monitor TEXT DEFAULT '["EURUSD=X","GBPUSD=X","USDJPY=X"]',
+    tf_monitor TEXT DEFAULT '15m',
+    umbral_confianza REAL DEFAULT 70.0,
+    ultima_alerta TEXT DEFAULT NULL
+);
+CREATE TABLE IF NOT EXISTS backtest_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    ticker TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    fecha_inicio TEXT NOT NULL,
+    fecha_fin TEXT NOT NULL,
+    total_trades INTEGER DEFAULT 0,
+    win_rate REAL DEFAULT 0,
+    profit_factor REAL DEFAULT 0,
+    total_pnl REAL DEFAULT 0,
+    max_drawdown REAL DEFAULT 0,
+    sharpe REAL DEFAULT 0,
+    parametros TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS signal_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    tipo TEXT NOT NULL,
+    direccion TEXT NOT NULL,
+    confianza REAL DEFAULT 0,
+    precio REAL DEFAULT 0,
+    sl REAL DEFAULT 0,
+    tp REAL DEFAULT 0,
+    enviada_bot INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+"""
+
+# SQL para PostgreSQL — usa SERIAL y NOW()
+_PG_TABLES = [
+    """CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TEXT DEFAULT (NOW()::text),
+        capital_inicial REAL DEFAULT 1000.0,
+        settings TEXT DEFAULT '{}',
+        is_admin INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1
+    )""",
+    """CREATE TABLE IF NOT EXISTS trades (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        fecha TEXT NOT NULL,
+        activo TEXT NOT NULL,
+        timeframe TEXT DEFAULT '15m',
+        direccion TEXT NOT NULL,
+        entrada REAL NOT NULL,
+        sl REAL NOT NULL,
+        tp REAL NOT NULL,
+        riesgo_usd REAL DEFAULT 0,
+        resultado_usd REAL DEFAULT 0,
+        rr_planeado REAL DEFAULT 0,
+        rr_real REAL DEFAULT 0,
+        setup TEXT DEFAULT '',
+        emocion TEXT DEFAULT 'Neutral',
+        notas TEXT DEFAULT '',
+        tags TEXT DEFAULT '[]',
+        estado TEXT DEFAULT 'Cerrado',
+        created_at TEXT DEFAULT (NOW()::text)
+    )""",
+    """CREATE TABLE IF NOT EXISTS watchlist (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        ticker TEXT NOT NULL,
+        alias TEXT DEFAULT '',
+        UNIQUE(user_id, ticker)
+    )""",
+    """CREATE TABLE IF NOT EXISTS price_alerts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        ticker TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        precio REAL NOT NULL,
+        mensaje TEXT DEFAULT '',
+        activa INTEGER DEFAULT 1,
+        disparada INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (NOW()::text),
+        fired_at TEXT DEFAULT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS bot_config (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER UNIQUE NOT NULL,
+        telegram_chat_id TEXT DEFAULT '',
+        alertas_activas INTEGER DEFAULT 1,
+        resumen_diario INTEGER DEFAULT 1,
+        hora_resumen TEXT DEFAULT '08:00',
+        activos_monitor TEXT DEFAULT '["EURUSD=X","GBPUSD=X","USDJPY=X"]',
+        tf_monitor TEXT DEFAULT '15m',
+        umbral_confianza REAL DEFAULT 70.0,
+        ultima_alerta TEXT DEFAULT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS backtest_results (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        ticker TEXT NOT NULL,
+        timeframe TEXT NOT NULL,
+        fecha_inicio TEXT NOT NULL,
+        fecha_fin TEXT NOT NULL,
+        total_trades INTEGER DEFAULT 0,
+        win_rate REAL DEFAULT 0,
+        profit_factor REAL DEFAULT 0,
+        total_pnl REAL DEFAULT 0,
+        max_drawdown REAL DEFAULT 0,
+        sharpe REAL DEFAULT 0,
+        parametros TEXT DEFAULT '{}',
+        created_at TEXT DEFAULT (NOW()::text)
+    )""",
+    """CREATE TABLE IF NOT EXISTS signal_log (
+        id SERIAL PRIMARY KEY,
+        ticker TEXT NOT NULL,
+        timeframe TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        direccion TEXT NOT NULL,
+        confianza REAL DEFAULT 0,
+        precio REAL DEFAULT 0,
+        sl REAL DEFAULT 0,
+        tp REAL DEFAULT 0,
+        enviada_bot INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (NOW()::text)
+    )""",
+]
+
 
 def inicializar_db():
-    with get_conn() as conn:
-        conn.executescript("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at TEXT DEFAULT (datetime('now')),
-            capital_inicial REAL DEFAULT 1000.0,
-            settings TEXT DEFAULT '{}',
-            is_admin INTEGER DEFAULT 0,
-            is_active INTEGER DEFAULT 1
-        );
-        CREATE TABLE IF NOT EXISTS trades (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL REFERENCES users(id),
-            fecha TEXT NOT NULL, activo TEXT NOT NULL,
-            timeframe TEXT DEFAULT '15m', direccion TEXT NOT NULL,
-            entrada REAL NOT NULL, sl REAL NOT NULL, tp REAL NOT NULL,
-            riesgo_usd REAL DEFAULT 0, resultado_usd REAL DEFAULT 0,
-            rr_planeado REAL DEFAULT 0, rr_real REAL DEFAULT 0,
-            setup TEXT DEFAULT '', emocion TEXT DEFAULT 'Neutral',
-            notas TEXT DEFAULT '', tags TEXT DEFAULT '[]',
-            estado TEXT DEFAULT 'Cerrado',
-            created_at TEXT DEFAULT (datetime('now'))
-        );
-        CREATE TABLE IF NOT EXISTS watchlist (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL REFERENCES users(id),
-            ticker TEXT NOT NULL, alias TEXT DEFAULT '',
-            UNIQUE(user_id, ticker)
-        );
-        CREATE TABLE IF NOT EXISTS price_alerts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL REFERENCES users(id),
-            ticker TEXT NOT NULL, tipo TEXT NOT NULL,
-            precio REAL NOT NULL, mensaje TEXT DEFAULT '',
-            activa INTEGER DEFAULT 1, disparada INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now')),
-            fired_at TEXT DEFAULT NULL
-        );
-        CREATE TABLE IF NOT EXISTS bot_config (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER UNIQUE NOT NULL REFERENCES users(id),
-            telegram_chat_id TEXT DEFAULT '',
-            alertas_activas INTEGER DEFAULT 1,
-            resumen_diario INTEGER DEFAULT 1,
-            hora_resumen TEXT DEFAULT '08:00',
-            activos_monitor TEXT DEFAULT '["EURUSD=X","GBPUSD=X","USDJPY=X"]',
-            tf_monitor TEXT DEFAULT '15m',
-            umbral_confianza REAL DEFAULT 70.0,
-            ultima_alerta TEXT DEFAULT NULL
-        );
-        CREATE TABLE IF NOT EXISTS backtest_results (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL REFERENCES users(id),
-            ticker TEXT NOT NULL, timeframe TEXT NOT NULL,
-            fecha_inicio TEXT NOT NULL, fecha_fin TEXT NOT NULL,
-            total_trades INTEGER DEFAULT 0, win_rate REAL DEFAULT 0,
-            profit_factor REAL DEFAULT 0, total_pnl REAL DEFAULT 0,
-            max_drawdown REAL DEFAULT 0, sharpe REAL DEFAULT 0,
-            parametros TEXT DEFAULT '{}',
-            created_at TEXT DEFAULT (datetime('now'))
-        );
-        CREATE TABLE IF NOT EXISTS signal_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ticker TEXT NOT NULL, timeframe TEXT NOT NULL,
-            tipo TEXT NOT NULL, direccion TEXT NOT NULL,
-            confianza REAL DEFAULT 0, precio REAL DEFAULT 0,
-            sl REAL DEFAULT 0, tp REAL DEFAULT 0,
-            enviada_bot INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
-        """)
-        # Migración segura — añadir columnas nuevas si no existen en DBs antiguas
-        for table, col, definition in [
-            ("users", "is_admin",  "INTEGER DEFAULT 0"),
-            ("users", "is_active", "INTEGER DEFAULT 1"),
-        ]:
-            try:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
-            except sqlite3.OperationalError:
-                pass  # ya existe
+    """
+    Crea todas las tablas si no existen.
+    · SQLite: usa executescript() con el bloque SQL completo (más eficiente)
+    · PostgreSQL: ejecuta cada CREATE TABLE individualmente
+    Es idempotente — se puede llamar múltiples veces sin efectos secundarios.
+    Después garantiza la existencia del usuario demo y del superadmin.
+    """
+    if not USE_POSTGRES:
+        # SQLite — executescript es la forma correcta y más eficiente
+        with get_conn() as conn:
+            conn.executescript(_SQLITE_SCHEMA)
+            # Migración segura: añadir columnas nuevas en DBs antiguas
+            for table, col, definition in [
+                ("users", "is_admin",  "INTEGER DEFAULT 0"),
+                ("users", "is_active", "INTEGER DEFAULT 1"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
+                except sqlite3.OperationalError:
+                    pass  # columna ya existe — normal en rearranques
+    else:
+        # PostgreSQL — cada sentencia por separado (no soporta executescript)
+        with get_conn() as conn:
+            for sql in _PG_TABLES:
+                _exec(conn, sql)
 
+    # Crear usuarios iniciales (idempotente — ignorará duplicados)
     crear_usuario("demo", "demo123", capital_inicial=10000.0)
     _crear_superadmin("moises og", "1977Emog", capital_inicial=10000.0)
 
 
-def _hash(pw): return hashlib.sha256(pw.encode()).hexdigest()
+# ── Utilidades internas ───────────────────────────────────────────────────────
+
+def _hash(pw: str) -> str:
+    """SHA-256 de la contraseña. Nunca se almacena texto plano."""
+    return hashlib.sha256(pw.encode()).hexdigest()
 
 
 def _crear_superadmin(username: str, password: str, capital_inicial: float = 10000.0):
-    """Crea o actualiza el superadmin — garantizado en cada arranque."""
+    """
+    Garantiza la existencia del superadmin en cada arranque.
+    · Si ya existe → actualiza is_admin=1, is_active=1
+    · Si no existe → lo crea con los credenciales dados
+    Idempotente: nunca falla si se llama múltiples veces.
+    """
+    uname = username.strip().lower()
     with get_conn() as conn:
-        existing = conn.execute(
-            "SELECT id FROM users WHERE username=?", (username.strip().lower(),)
-        ).fetchone()
-        if existing:
-            conn.execute(
-                "UPDATE users SET is_admin=1, is_active=1 WHERE username=?",
-                (username.strip().lower(),)
-            )
+        row = _fetchone(_exec(conn, "SELECT id FROM users WHERE username=?", (uname,)))
+        if row:
+            _exec(conn, "UPDATE users SET is_admin=1, is_active=1 WHERE username=?", (uname,))
         else:
-            conn.execute(
-                "INSERT INTO users (username,password_hash,capital_inicial,is_admin,is_active) "
-                "VALUES (?,?,?,1,1)",
-                (username.strip().lower(), _hash(password), capital_inicial)
+            _exec(conn,
+                f"INSERT INTO users (username,password_hash,capital_inicial,is_admin,is_active) "
+                f"VALUES ({_ph(5)})",
+                (uname, _hash(password), capital_inicial, 1, 1)
             )
 
 
-# ── Users ──────────────────────────────────────────────────────────────────────
+# ── CRUD: Usuarios ────────────────────────────────────────────────────────────
 
-def crear_usuario(username, password, capital_inicial=1000.0):
+def crear_usuario(username: str, password: str, capital_inicial: float = 1000.0) -> bool:
+    """Registra nuevo usuario. Retorna False si el username ya existe."""
     try:
         with get_conn() as conn:
-            conn.execute(
-                "INSERT INTO users (username,password_hash,capital_inicial) VALUES (?,?,?)",
+            _exec(conn,
+                f"INSERT INTO users (username,password_hash,capital_inicial) VALUES ({_ph(3)})",
                 (username.strip().lower(), _hash(password), capital_inicial)
             )
         return True
-    except sqlite3.IntegrityError:
+    except Exception:
         return False
 
 
-def autenticar_usuario(username, password):
+def autenticar_usuario(username: str, password: str):
+    """Verifica credenciales. Retorna dict del usuario o None."""
     with get_conn() as conn:
-        row = conn.execute(
+        return _fetchone(_exec(conn,
             "SELECT * FROM users WHERE username=? AND password_hash=? AND is_active=1",
             (username.strip().lower(), _hash(password))
-        ).fetchone()
-        return dict(row) if row else None
+        ))
 
 
-def actualizar_capital(user_id, capital):
+def actualizar_capital(user_id: int, capital: float):
+    """Actualiza capital inicial del usuario."""
     with get_conn() as conn:
-        conn.execute("UPDATE users SET capital_inicial=? WHERE id=?", (capital, user_id))
+        _exec(conn, "UPDATE users SET capital_inicial=? WHERE id=?", (capital, user_id))
 
 
-def obtener_todos_usuarios():
+def obtener_todos_usuarios() -> list:
+    """Lista todos los usuarios ordenados por fecha de creación DESC."""
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute(
+        return _fetchall(_exec(conn,
             "SELECT id,username,capital_inicial,created_at,is_admin,is_active "
             "FROM users ORDER BY created_at DESC"
-        ).fetchall()]
+        ))
 
 
-# ── Admin ──────────────────────────────────────────────────────────────────────
+# ── CRUD: Admin ───────────────────────────────────────────────────────────────
 
 def admin_crear_usuario(username: str, password: str, capital: float = 1000.0) -> bool:
+    """Wrapper admin para crear usuario."""
     return crear_usuario(username, password, capital)
 
 
 def admin_eliminar_usuario(user_id: int) -> bool:
     """
-    Elimina permanentemente un usuario y TODOS sus datos.
-    Protegido: no puede eliminar admins.
+    Hard delete en cascada: borra todos los datos del usuario.
+    Protegido: no puede eliminar admins (is_admin=1).
+    Retorna True si se eliminó, False si era admin o no existía.
     """
     with get_conn() as conn:
-        # Verificar que no sea admin
-        row = conn.execute("SELECT is_admin FROM users WHERE id=?", (user_id,)).fetchone()
-        if not row or row["is_admin"]:
+        row = _fetchone(_exec(conn, "SELECT is_admin FROM users WHERE id=?", (user_id,)))
+        if not row or row.get("is_admin"):
             return False
-        # Borrar en cascada todos los datos del usuario
-        conn.execute("DELETE FROM trades        WHERE user_id=?", (user_id,))
-        conn.execute("DELETE FROM watchlist     WHERE user_id=?", (user_id,))
-        conn.execute("DELETE FROM price_alerts  WHERE user_id=?", (user_id,))
-        conn.execute("DELETE FROM bot_config    WHERE user_id=?", (user_id,))
-        conn.execute("DELETE FROM backtest_results WHERE user_id=?", (user_id,))
-        conn.execute("DELETE FROM users         WHERE id=? AND is_admin=0", (user_id,))
+        for table in ["trades", "watchlist", "price_alerts", "bot_config", "backtest_results"]:
+            _exec(conn, f"DELETE FROM {table} WHERE user_id=?", (user_id,))
+        _exec(conn, "DELETE FROM users WHERE id=? AND is_admin=0", (user_id,))
     return True
 
 
 def admin_resetear_password(user_id: int, nueva_password: str):
+    """Actualiza el hash de contraseña de cualquier usuario."""
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE users SET password_hash=? WHERE id=?",
-            (_hash(nueva_password), user_id)
-        )
+        _exec(conn, "UPDATE users SET password_hash=? WHERE id=?",
+              (_hash(nueva_password), user_id))
 
 
 def admin_actualizar_capital(user_id: int, capital: float):
+    """Admin: actualiza capital de cualquier usuario."""
     actualizar_capital(user_id, capital)
 
 
 def admin_stats_globales() -> dict:
+    """KPIs globales de la plataforma para el panel de admin."""
+    hoy = date.today().isoformat()
     with get_conn() as conn:
+        def cnt(sql, params=()):
+            row = _fetchone(_exec(conn, sql, params))
+            return list(row.values())[0] if row else 0
         return {
-            "total_users":        conn.execute("SELECT COUNT(*) FROM users WHERE is_active=1").fetchone()[0],
-            "total_trades":       conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0],
-            "total_senales":      conn.execute("SELECT COUNT(*) FROM signal_log").fetchone()[0],
-            "bots_activos":       conn.execute(
-                "SELECT COUNT(*) FROM bot_config WHERE alertas_activas=1 AND telegram_chat_id!=''"
-            ).fetchone()[0],
-            "senales_hoy":        conn.execute(
-                "SELECT COUNT(*) FROM signal_log WHERE created_at >= date('now')"
-            ).fetchone()[0],
-            "alertas_pendientes": conn.execute(
-                "SELECT COUNT(*) FROM price_alerts WHERE activa=1 AND disparada=0"
-            ).fetchone()[0],
-            "trades_hoy":         conn.execute(
-                "SELECT COUNT(*) FROM trades WHERE fecha >= date('now')"
-            ).fetchone()[0],
+            "total_users":        cnt("SELECT COUNT(*) as c FROM users WHERE is_active=1"),
+            "total_trades":       cnt("SELECT COUNT(*) as c FROM trades"),
+            "total_senales":      cnt("SELECT COUNT(*) as c FROM signal_log"),
+            "bots_activos":       cnt("SELECT COUNT(*) as c FROM bot_config WHERE alertas_activas=1 AND telegram_chat_id!=?", ("",)),
+            "senales_hoy":        cnt("SELECT COUNT(*) as c FROM signal_log WHERE created_at >= ?", (hoy,)),
+            "alertas_pendientes": cnt("SELECT COUNT(*) as c FROM price_alerts WHERE activa=1 AND disparada=0"),
+            "trades_hoy":         cnt("SELECT COUNT(*) as c FROM trades WHERE fecha >= ?", (hoy,)),
         }
 
 
 def admin_logs_senales(limite: int = 100) -> list:
+    """Últimas N señales SMC del log, descendente."""
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute(
+        return _fetchall(_exec(conn,
             "SELECT * FROM signal_log ORDER BY created_at DESC LIMIT ?", (limite,)
-        ).fetchall()]
+        ))
 
 
 def admin_trades_todos(limite: int = 100) -> list:
+    """Últimos N trades de todos los usuarios con su username."""
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute("""
+        return _fetchall(_exec(conn, """
             SELECT t.*, u.username FROM trades t
             JOIN users u ON t.user_id=u.id
             ORDER BY t.created_at DESC LIMIT ?
-        """, (limite,)).fetchall()]
+        """, (limite,)))
 
 
 def admin_configs_bot_todas() -> list:
+    """Configuración de bot de todos los usuarios."""
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute("""
+        return _fetchall(_exec(conn, """
             SELECT bc.*, u.username FROM bot_config bc
             JOIN users u ON bc.user_id=u.id ORDER BY u.username
-        """).fetchall()]
+        """))
 
 
-# ── Trades ─────────────────────────────────────────────────────────────────────
+# ── CRUD: Trades ──────────────────────────────────────────────────────────────
 
-def insertar_trade(user_id, data):
+def insertar_trade(user_id: int, data: dict) -> int:
+    """
+    Inserta trade en el diario. Calcula automáticamente:
+    · rr_planeado = |TP-entrada| / |SL-entrada|
+    · rr_real     = resultado_usd / riesgo_usd
+    Retorna el ID del trade creado.
+    """
     riesgo    = abs(data['entrada'] - data['sl'])
     beneficio = abs(data['tp'] - data['entrada'])
     rr        = round(beneficio / riesgo, 2) if riesgo > 0 else 0
     rr_real   = round(data['resultado_usd'] / abs(data['riesgo_usd']), 2) \
                 if data.get('resultado_usd') and data.get('riesgo_usd') else 0.0
     with get_conn() as conn:
-        cur = conn.execute("""INSERT INTO trades
+        cur = _exec(conn, f"""INSERT INTO trades
             (user_id,fecha,activo,timeframe,direccion,entrada,sl,tp,
              riesgo_usd,resultado_usd,rr_planeado,rr_real,setup,emocion,notas,tags,estado)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            VALUES ({_ph(17)})""",
             (user_id, data['fecha'], data['activo'], data.get('timeframe','15m'),
              data['direccion'], data['entrada'], data['sl'], data['tp'],
              data.get('riesgo_usd',0), data.get('resultado_usd',0), rr, rr_real,
              data.get('setup',''), data.get('emocion','Neutral'),
              data.get('notas',''), json.dumps(data.get('tags',[])),
-             data.get('estado','Cerrado')))
-        return cur.lastrowid
+             data.get('estado','Cerrado'))
+        )
+        return _lastrowid(cur, "trades", conn)
 
 
-def obtener_trades(user_id):
+def obtener_trades(user_id: int) -> list:
+    """Trades del usuario, ordenados por fecha DESC."""
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute(
+        return _fetchall(_exec(conn,
             "SELECT * FROM trades WHERE user_id=? ORDER BY fecha DESC, id DESC", (user_id,)
-        ).fetchall()]
+        ))
 
 
-def eliminar_trade(trade_id, user_id):
+def eliminar_trade(trade_id: int, user_id: int):
+    """Elimina trade verificando que pertenezca al usuario."""
     with get_conn() as conn:
-        conn.execute("DELETE FROM trades WHERE id=? AND user_id=?", (trade_id, user_id))
+        _exec(conn, "DELETE FROM trades WHERE id=? AND user_id=?", (trade_id, user_id))
 
 
-# ── Watchlist ──────────────────────────────────────────────────────────────────
+# ── CRUD: Watchlist ───────────────────────────────────────────────────────────
 
-def obtener_watchlist(user_id):
+def obtener_watchlist(user_id: int) -> list:
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute(
+        return _fetchall(_exec(conn,
             "SELECT * FROM watchlist WHERE user_id=?", (user_id,)
-        ).fetchall()]
+        ))
 
 
-def agregar_watchlist(user_id, ticker, alias=""):
+def agregar_watchlist(user_id: int, ticker: str, alias: str = "") -> bool:
+    """Agrega activo a la watchlist. Retorna False si ya existe."""
     try:
         with get_conn() as conn:
-            conn.execute("INSERT INTO watchlist (user_id,ticker,alias) VALUES (?,?,?)",
-                         (user_id, ticker.upper(), alias))
+            _exec(conn, f"INSERT INTO watchlist (user_id,ticker,alias) VALUES ({_ph(3)})",
+                  (user_id, ticker.upper(), alias))
         return True
-    except sqlite3.IntegrityError:
+    except Exception:
         return False
 
 
-def eliminar_watchlist(user_id, ticker):
+def eliminar_watchlist(user_id: int, ticker: str):
     with get_conn() as conn:
-        conn.execute("DELETE FROM watchlist WHERE user_id=? AND ticker=?", (user_id, ticker))
+        _exec(conn, "DELETE FROM watchlist WHERE user_id=? AND ticker=?", (user_id, ticker))
 
 
-# ── Price Alerts ───────────────────────────────────────────────────────────────
+# ── CRUD: Price Alerts ────────────────────────────────────────────────────────
 
-def crear_alerta(user_id, ticker, tipo, precio, mensaje=""):
+def crear_alerta(user_id: int, ticker: str, tipo: str, precio: float, mensaje: str = "") -> int:
+    """
+    Crea alerta de precio. tipo: 'above' o 'below'.
+    Retorna el ID creado.
+    """
     with get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO price_alerts (user_id,ticker,tipo,precio,mensaje) VALUES (?,?,?,?,?)",
-            (user_id, ticker, tipo, precio, mensaje))
-        return cur.lastrowid
+        cur = _exec(conn,
+            f"INSERT INTO price_alerts (user_id,ticker,tipo,precio,mensaje) VALUES ({_ph(5)})",
+            (user_id, ticker, tipo, precio, mensaje)
+        )
+        return _lastrowid(cur, "price_alerts", conn)
 
 
-def obtener_alertas(user_id, solo_activas=True):
+def obtener_alertas(user_id: int, solo_activas: bool = True) -> list:
     with get_conn() as conn:
         q = "SELECT * FROM price_alerts WHERE user_id=?"
-        if solo_activas: q += " AND activa=1 AND disparada=0"
-        return [dict(r) for r in conn.execute(q + " ORDER BY created_at DESC", (user_id,)).fetchall()]
+        if solo_activas:
+            q += " AND activa=1 AND disparada=0"
+        return _fetchall(_exec(conn, q + " ORDER BY created_at DESC", (user_id,)))
 
 
-def obtener_todas_alertas_activas():
+def obtener_todas_alertas_activas() -> list:
+    """Todas las alertas activas de todos los usuarios (para el bot)."""
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute(
+        return _fetchall(_exec(conn,
             "SELECT pa.*, u.username FROM price_alerts pa "
             "JOIN users u ON pa.user_id=u.id WHERE pa.activa=1 AND pa.disparada=0"
-        ).fetchall()]
+        ))
 
 
-def disparar_alerta(alert_id):
+def disparar_alerta(alert_id: int):
+    """Marca alerta como disparada con timestamp UTC actual."""
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE price_alerts SET disparada=1, fired_at=datetime('now') WHERE id=?", (alert_id,))
+        _exec(conn,
+            "UPDATE price_alerts SET disparada=1, fired_at=? WHERE id=?",
+            (now_str, alert_id)
+        )
 
 
-def eliminar_alerta(alert_id, user_id):
+def eliminar_alerta(alert_id: int, user_id: int):
     with get_conn() as conn:
-        conn.execute("DELETE FROM price_alerts WHERE id=? AND user_id=?", (alert_id, user_id))
+        _exec(conn, "DELETE FROM price_alerts WHERE id=? AND user_id=?", (alert_id, user_id))
 
 
-# ── Bot Config ─────────────────────────────────────────────────────────────────
+# ── CRUD: Bot Config ──────────────────────────────────────────────────────────
 
-def obtener_bot_config(user_id):
+def obtener_bot_config(user_id: int) -> dict:
+    """Retorna config del bot. Si no existe, la crea con defaults."""
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM bot_config WHERE user_id=?", (user_id,)).fetchone()
-        if row: return dict(row)
-        conn.execute("INSERT INTO bot_config (user_id) VALUES (?)", (user_id,))
-        return dict(conn.execute("SELECT * FROM bot_config WHERE user_id=?", (user_id,)).fetchone())
+        row = _fetchone(_exec(conn, "SELECT * FROM bot_config WHERE user_id=?", (user_id,)))
+        if row:
+            return row
+        _exec(conn, f"INSERT INTO bot_config (user_id) VALUES ({_ph(1)})", (user_id,))
+        return _fetchone(_exec(conn, "SELECT * FROM bot_config WHERE user_id=?", (user_id,)))
 
 
-def actualizar_bot_config(user_id, **kwargs):
-    if not kwargs: return
+def actualizar_bot_config(user_id: int, **kwargs):
+    """Actualiza campos arbitrarios de bot_config via kwargs."""
+    if not kwargs:
+        return
     sets = ", ".join(f"{k}=?" for k in kwargs)
     with get_conn() as conn:
-        conn.execute(f"UPDATE bot_config SET {sets} WHERE user_id=?",
-                     list(kwargs.values()) + [user_id])
+        _exec(conn, f"UPDATE bot_config SET {sets} WHERE user_id=?",
+              tuple(kwargs.values()) + (user_id,))
 
 
-def obtener_todas_configs_bot():
+def obtener_todas_configs_bot() -> list:
+    """Configs de todos los usuarios con bot activo y Chat ID configurado."""
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute(
-            "SELECT bc.*, u.username FROM bot_config bc JOIN users u ON bc.user_id=u.id "
+        return _fetchall(_exec(conn,
+            "SELECT bc.*, u.username FROM bot_config bc "
+            "JOIN users u ON bc.user_id=u.id "
             "WHERE bc.alertas_activas=1 AND bc.telegram_chat_id!=''"
-        ).fetchall()]
+        ))
 
 
-# ── Signal Log ─────────────────────────────────────────────────────────────────
+# ── CRUD: Signal Log ──────────────────────────────────────────────────────────
 
-def registrar_señal(ticker, timeframe, tipo, direccion, confianza, precio, sl, tp):
+def registrar_señal(ticker: str, timeframe: str, tipo: str, direccion: str,
+                    confianza: float, precio: float, sl: float, tp: float) -> int:
+    """Registra señal SMC en el log. Retorna ID para marcarla enviada."""
     with get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO signal_log (ticker,timeframe,tipo,direccion,confianza,precio,sl,tp) "
-            "VALUES (?,?,?,?,?,?,?,?)",
-            (ticker, timeframe, tipo, direccion, confianza, precio, sl, tp))
-        return cur.lastrowid
+        cur = _exec(conn,
+            f"INSERT INTO signal_log (ticker,timeframe,tipo,direccion,confianza,precio,sl,tp) "
+            f"VALUES ({_ph(8)})",
+            (ticker, timeframe, tipo, direccion, confianza, precio, sl, tp)
+        )
+        return _lastrowid(cur, "signal_log", conn)
 
 
-def marcar_señal_enviada(signal_id):
+def marcar_señal_enviada(signal_id: int):
+    """Marca señal como enviada via Telegram."""
     with get_conn() as conn:
-        conn.execute("UPDATE signal_log SET enviada_bot=1 WHERE id=?", (signal_id,))
+        _exec(conn, "UPDATE signal_log SET enviada_bot=1 WHERE id=?", (signal_id,))
 
 
-def obtener_señales_recientes(horas=24):
+def obtener_señales_recientes(horas: int = 24) -> list:
+    """Señales generadas en las últimas N horas."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=horas)).strftime("%Y-%m-%d %H:%M:%S")
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute(
-            "SELECT * FROM signal_log WHERE created_at >= datetime('now',?) ORDER BY created_at DESC",
-            (f"-{horas} hours",)).fetchall()]
+        return _fetchall(_exec(conn,
+            "SELECT * FROM signal_log WHERE created_at >= ? ORDER BY created_at DESC",
+            (cutoff,)
+        ))
 
 
-# ── Backtest ───────────────────────────────────────────────────────────────────
+# ── CRUD: Backtest ────────────────────────────────────────────────────────────
 
-def guardar_backtest(user_id, data):
+def guardar_backtest(user_id: int, data: dict) -> int:
+    """Guarda resultados de backtest. Retorna ID creado."""
     with get_conn() as conn:
-        cur = conn.execute("""INSERT INTO backtest_results
+        cur = _exec(conn, f"""INSERT INTO backtest_results
             (user_id,ticker,timeframe,fecha_inicio,fecha_fin,
              total_trades,win_rate,profit_factor,total_pnl,max_drawdown,sharpe,parametros)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            VALUES ({_ph(12)})""",
             (user_id, data['ticker'], data['timeframe'], data['fecha_inicio'], data['fecha_fin'],
              data['total_trades'], data['win_rate'], data['profit_factor'],
              data['total_pnl'], data['max_drawdown'], data['sharpe'],
-             json.dumps(data.get('parametros',{}))))
-        return cur.lastrowid
+             json.dumps(data.get('parametros',{})))
+        )
+        return _lastrowid(cur, "backtest_results", conn)
 
 
-def obtener_backtests(user_id):
+def obtener_backtests(user_id: int) -> list:
+    """Backtests del usuario, más recientes primero."""
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute(
-            "SELECT * FROM backtest_results WHERE user_id=? ORDER BY created_at DESC", (user_id,)
-        ).fetchall()]
+        return _fetchall(_exec(conn,
+            "SELECT * FROM backtest_results WHERE user_id=? ORDER BY created_at DESC",
+            (user_id,)
+        ))
