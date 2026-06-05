@@ -2,7 +2,6 @@
 utils/multi_timeframe.py — Análisis Multi-Timeframe (MTF).
 Confluencia entre timeframe alto (estructura) y bajo (entrada).
 """
-import pandas as pd
 from utils.market_data import obtener_datos
 from utils.smc_engine  import analisis_completo
 

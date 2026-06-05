@@ -3,11 +3,10 @@ modules/performance.py — Análisis profundo de performance + IA.
 """
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 from database.db import obtener_trades
-from utils.ai_engine import analizar_performance_ia, calcular_drawdown, calcular_sharpe
-from ui.styles import get_colors, page_header, oram_notify
+from utils.ai_engine import analizar_performance_ia, calcular_sharpe
+from ui.styles import get_colors, page_header
 
 
 def render_performance():

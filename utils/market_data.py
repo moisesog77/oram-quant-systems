@@ -180,6 +180,6 @@ def _generar_datos_demo(ticker: str, timeframe: str) -> pd.DataFrame:
         hist = t.history(period="1d", interval="1m")
         if not hist.empty:
             return float(hist['Close'].iloc[-1])
-    except:
+    except Exception:
         pass
     return None

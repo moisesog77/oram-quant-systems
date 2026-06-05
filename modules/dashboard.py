@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from database.db import obtener_trades, actualizar_capital
 from utils.ai_engine import calcular_drawdown, calcular_sharpe
-from ui.styles import metric_card, get_colors, page_header, oram_notify, oram_bienvenida
+from ui.styles import get_colors, page_header, oram_bienvenida
 
 
 def render_dashboard():

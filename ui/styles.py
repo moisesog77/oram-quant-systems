@@ -1421,14 +1421,6 @@ def get_plot_layout(height: int = 700) -> dict:
     )
 
 
-def metric_card(title: str, value: str, sub: str = "", color: str = "gold") -> str:
-    return (f'<div class="oram-card oram-card-{color}">'
-            f'<div class="card-title">{title}</div>'
-            f'<div class="card-value">{value}</div>'
-            + (f'<div class="card-sub">{sub}</div>' if sub else "")
-            + '</div>')
-
-
 def signal_box(tipo: str, descripcion: str, confianza: float = 0) -> str:
     c = get_colors()
     if "LONG" in tipo or "Alcista" in tipo:

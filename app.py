@@ -68,6 +68,10 @@ else:
     is_admin = bool(user.get("is_admin", 0))
 
     with st.sidebar:
+        # Build admin badge outside f-string (no backslash inside {})
+        admin_prefix = "🛡️ " if is_admin else ""
+        admin_badge  = '  <span style="font-size:0.6rem;color:#c9a227">ADMIN</span>' if is_admin else ""
+
         # Logo
         st.markdown(
             f'<div class="oram-logo-wrap">'
@@ -77,8 +81,7 @@ else:
             f'</div>'
             f'<div class="oram-tagline">{APP_TAGLINE}</div>'
             f'<div class="oram-user">'
-            f'{"🛡️ " if is_admin else ""}{user["username"]}'
-            f'{"  <span style=\'font-size:0.6rem;color:#c9a227\'>ADMIN</span>" if is_admin else ""}'
+            f'{admin_prefix}{user["username"]}{admin_badge}'
             f'</div>'
             f'</div>',
             unsafe_allow_html=True,

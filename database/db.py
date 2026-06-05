@@ -166,12 +166,6 @@ def obtener_todos_usuarios():
 
 # ── Admin ──────────────────────────────────────────────────────────────────────
 
-def es_admin(user_id: int) -> bool:
-    with get_conn() as conn:
-        row = conn.execute("SELECT is_admin FROM users WHERE id=?", (user_id,)).fetchone()
-        return bool(row and row["is_admin"])
-
-
 def admin_crear_usuario(username: str, password: str, capital: float = 1000.0) -> bool:
     return crear_usuario(username, password, capital)
 
@@ -246,7 +240,6 @@ def admin_configs_bot_todas() -> list:
 # ── Trades ─────────────────────────────────────────────────────────────────────
 
 def insertar_trade(user_id, data):
-    from utils.time_utils import ahora_mexico
     riesgo    = abs(data['entrada'] - data['sl'])
     beneficio = abs(data['tp'] - data['entrada'])
     rr        = round(beneficio / riesgo, 2) if riesgo > 0 else 0

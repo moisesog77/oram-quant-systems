@@ -5,13 +5,14 @@ Solo accesible para usuarios con is_admin=1 (Moises OG).
 """
 import streamlit as st
 import pandas as pd
+import json
 from datetime import datetime
 from database.db import (
     obtener_todos_usuarios, admin_stats_globales,
     admin_crear_usuario, admin_desactivar_usuario, admin_restaurar_usuario,
     admin_resetear_password, admin_actualizar_capital,
     admin_logs_senales, admin_trades_todos, admin_configs_bot_todas,
-    obtener_todas_configs_bot, actualizar_bot_config,
+    actualizar_bot_config,
 )
 from ui.styles import get_colors, page_header, oram_bienvenida, oram_notify
 
@@ -207,10 +208,9 @@ def render_admin():
                 resumen  = bool(cfg.get("resumen_diario", 1))
                 user_id  = cfg.get("user_id")
 
-                import json as _json
                 try:
-                    activos = _json.loads(cfg.get("activos_monitor", "[]"))
-                except:
+                    activos = json.loads(cfg.get("activos_monitor", "[]"))
+                except Exception:
                     activos = []
 
                 estado = "🟢 Activo" if activas and chat_id else "🔴 Sin configurar"

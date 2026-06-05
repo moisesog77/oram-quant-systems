@@ -10,7 +10,6 @@ warnings.filterwarnings("ignore")
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_score, StratifiedKFold
-from sklearn.metrics import classification_report
 
 
 def _preparar_features(df_trades: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, list[str]]:
@@ -44,7 +43,7 @@ def _preparar_features(df_trades: pd.DataFrame) -> tuple[np.ndarray, np.ndarray,
             df['dow'] = pd.to_datetime(df['fecha']).dt.dayofweek
             features.append(df['dow'].values.astype(float))
             feat_names.append('dia_semana')
-        except:
+        except Exception:
             pass
 
     # Hora del día
@@ -53,7 +52,7 @@ def _preparar_features(df_trades: pd.DataFrame) -> tuple[np.ndarray, np.ndarray,
             df['hora'] = pd.to_datetime(df['fecha']).dt.hour
             features.append(df['hora'].values.astype(float))
             feat_names.append('hora')
-        except:
+        except Exception:
             pass
 
     if not features:
@@ -130,7 +129,7 @@ def analizar_performance_ia(df_trades: pd.DataFrame) -> dict:
             if not por_dia.empty:
                 resultado_base["mejor_sesion"] = por_dia.idxmax()
                 resultado_base["peor_sesion"]  = por_dia.idxmin()
-        except: pass
+        except Exception: pass
 
     # --- Mejor setup ---
     if 'setup' in df.columns:

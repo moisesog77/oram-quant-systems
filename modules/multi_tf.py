@@ -6,7 +6,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from utils.multi_timeframe import analisis_mtf, MTF_COMBOS
 from utils.market_data import ACTIVOS_DEFAULT, obtener_datos
-from ui.styles import get_colors, page_header, signal_box, get_theme, oram_notify
+from ui.styles import get_colors, page_header, signal_box, get_theme
 
 
 def _mini_chart(df, tf_label, ema_col, c):

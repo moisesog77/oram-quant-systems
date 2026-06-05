@@ -5,10 +5,9 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from utils.backtesting import ejecutar_backtest
-from utils.multi_timeframe import MTF_COMBOS
 from utils.market_data import ACTIVOS_DEFAULT
 from database.db import guardar_backtest, obtener_backtests
-from ui.styles import get_colors, page_header, oram_notify, oram_bienvenida
+from ui.styles import get_colors, page_header, oram_notify
 
 
 def render_backtesting():

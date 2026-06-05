@@ -102,7 +102,7 @@ def _utc_a_mx(hora_utc_str: str, fecha: date) -> str:
         h, m = map(int, hora_utc_str.split(":"))
         dt = datetime(fecha.year, fecha.month, fecha.day, h, m, tzinfo=TZ_UTC)
         return dt.astimezone(TZ_MX).strftime("%H:%M")
-    except:
+    except Exception:
         return hora_utc_str
 
 
@@ -112,7 +112,7 @@ def _hora_ya_paso(hora_utc_str: str) -> bool:
         ahora = datetime.now(TZ_UTC)
         ev    = ahora.replace(hour=h, minute=m, second=0, microsecond=0)
         return ahora > ev
-    except:
+    except Exception:
         return False
 
 
@@ -170,7 +170,7 @@ def hay_evento_alto_impacto_pronto(minutos: int = 60) -> tuple[bool, Optional[di
                     "hora_utc":          ev.hora_utc,
                     "minutos_restantes": round(diff),
                 }
-        except:
+        except Exception:
             continue
     return False, None
 

@@ -2,13 +2,7 @@
 utils/time_utils.py — Zona horaria CDMX sin pytz (usa stdlib zoneinfo).
 Compatible con Python 3.9+. No requiere instalación de pytz.
 """
-from datetime import datetime
 from zoneinfo import ZoneInfo
 
 TZ_MEXICO = ZoneInfo("America/Mexico_City")
 TZ_UTC    = ZoneInfo("UTC")
-
-
-def ahora_mexico() -> datetime:
-    """Retorna el datetime actual en hora CDMX."""
-    return datetime.now(TZ_MEXICO)

@@ -15,14 +15,14 @@ except ImportError:
     pass
 
 try:
-    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
+    from telegram import Update
+    from telegram.ext import (Application, CommandHandler,
                                MessageHandler, filters, ContextTypes)
     TELEGRAM_OK = True
 except ImportError:
     TELEGRAM_OK = False
 
-from utils.market_data       import obtener_datos, ACTIVOS_DEFAULT
+from utils.market_data       import obtener_datos
 from utils.smc_engine        import analisis_completo, calcular_riesgo
 from utils.multi_timeframe   import analisis_mtf, MTF_COMBOS
 from utils.economic_calendar import (obtener_eventos_hoy, obtener_proximos_eventos,
@@ -48,10 +48,6 @@ UMBRAL_MTF_ALINEADO   = 65   # MTF: confianza mínima para alerta
 
 
 # ─── Helpers de comunicación ─────────────────────────────────────────────────
-
-def _safe_md(text: str) -> str:
-    """Escapa caracteres problemáticos para Markdown v1."""
-    return text  # Markdown v1 es permisivo; se maneja en _reply/_send
 
 async def _reply(update, text: str):
     try:
@@ -347,7 +343,7 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 "Espera al menos 30 min después del evento."
             )
             return
-    except:
+    except Exception:
         pass
 
     # Escanear todos los activos por defecto
@@ -772,7 +768,7 @@ async def _generar_resumen_diario() -> str:
                 )
                 if conf >= 60 and dir_ != "neutral":
                     señales_activas += 1
-        except:
+        except Exception:
             lineas.append(f"⚫ {ticker} — Sin datos")
 
     # Resumen de señales del día
@@ -785,7 +781,7 @@ async def _generar_resumen_diario() -> str:
             "⚡ *Actividad de señales (24h):*",
             f"  🟢 LONG: {longs}  |  🔴 SHORT: {shorts}  |  Total: {len(senales_24h)}",
         ]
-    except:
+    except Exception:
         pass
 
     # Eventos del día
@@ -796,7 +792,7 @@ async def _generar_resumen_diario() -> str:
             for ev in eventos:
                 estado = "✅" if ev["ya_paso"] else "⏳"
                 lineas.append(f"{estado} {impacto_emoji(ev['impacto'])} {ev['hora_mx']} {ev['titulo']}")
-    except:
+    except Exception:
         pass
 
     lineas += [
@@ -879,7 +875,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
             hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=20)
             if hay_ev:
                 return
-        except:
+        except Exception:
             pass
 
         activos_default = ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "USDCHF=X", "AUDUSD=X"]
@@ -893,7 +889,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
             tf     = cfg.get("tf_monitor", "15m")
             try:
                 activos = json.loads(cfg.get("activos_monitor", "[]")) or activos_default
-            except:
+            except Exception:
                 activos = activos_default
 
             alertas_alta   = []
@@ -973,7 +969,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
             hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=20)
             if hay_ev:
                 return
-        except:
+        except Exception:
             pass
 
         configs = obtener_todas_configs_bot()
@@ -991,7 +987,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
 
             try:
                 activos = json.loads(cfg.get("activos_monitor", "[]")) or activos_default
-            except:
+            except Exception:
                 activos = activos_default
 
             for ticker in activos:
@@ -1033,7 +1029,7 @@ async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
                     df, _ = obtener_datos(ticker, "5m")
                     if df is not None:
                         precios_cache[ticker] = float(df["Close"].iloc[-1])
-                except:
+                except Exception:
                     continue
 
             precio_actual = precios_cache.get(ticker)
