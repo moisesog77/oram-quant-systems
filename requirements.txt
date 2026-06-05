@@ -1,24 +1,12 @@
-# ORAM Quant Systems — Dependencias
+# ORAM Quant Systems v5 — Dependencias
 # Python 3.11+ requerido
 
-# ── Web app ──────────────────────────────────────────────
 streamlit>=1.35.0
-
-# ── Datos y análisis ─────────────────────────────────────
 yfinance>=0.2.40
 pandas>=2.0.0
 numpy>=1.26.0
 plotly>=5.20.0
 scikit-learn>=1.4.0
-
-# ── Bot de Telegram ───────────────────────────────────────
 python-telegram-bot>=20.0
-APScheduler>=3.10.0
-
-# ── Base de datos PostgreSQL ──────────────────────────────
-# psycopg2-binary: driver PostgreSQL (se activa si DATABASE_URL existe)
-# binary = no requiere compilación en el servidor
-psycopg2-binary>=2.9.0
-
-# ── Utilidades ────────────────────────────────────────────
 python-dotenv>=1.0.0
+APScheduler>=3.10.0
