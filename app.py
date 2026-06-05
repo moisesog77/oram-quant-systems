@@ -11,23 +11,18 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Tema independiente del sistema ────────────────────────────────────────────
 if "theme" not in st.session_state:
-    st.session_state["theme"] = "dark"   # siempre oscuro por defecto
+    st.session_state["theme"] = "dark"
 
-# ── Sesión con timeout de 40 minutos ─────────────────────────────────────────
-SESSION_TIMEOUT = 40 * 60   # 40 min en segundos
+# ── Sesión con timeout de 60 minutos ─────────────────────────────────────────
+SESSION_TIMEOUT = 60 * 60   # 60 min exactos en segundos
 
 def _check_session():
-    """Verifica si la sesión sigue activa. Cierra si pasaron 40 min sin actividad."""
-    now = datetime.now(timezone.utc).timestamp()
-    if "last_activity" not in st.session_state:
-        st.session_state["last_activity"] = now
-    # Renovar actividad en cada interacción
-    st.session_state["last_activity"] = now
+    """Renueva el timestamp de actividad en cada interacción."""
+    st.session_state["last_activity"] = datetime.now(timezone.utc).timestamp()
 
-def _is_session_valid():
-    now = datetime.now(timezone.utc).timestamp()
+def _is_session_valid() -> bool:
+    now  = datetime.now(timezone.utc).timestamp()
     last = st.session_state.get("last_activity", now)
     return (now - last) < SESSION_TIMEOUT
 
@@ -47,6 +42,7 @@ from modules.risk_manager  import render_risk_manager
 from modules.bot_config    import render_bot_config
 from modules.watchlist     import render_watchlist
 from modules.signals_panel import render_signals_panel
+from modules.admin         import render_admin
 from database.db           import inicializar_db
 
 inicializar_db()
@@ -54,14 +50,14 @@ inicializar_db()
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# Verificar timeout
+# Verificar timeout — cerrar sesión si pasaron 60 min sin actividad
 if st.session_state.user is not None:
     if not _is_session_valid():
         st.session_state.user = None
         st.session_state.pop("last_activity", None)
         st.rerun()
     else:
-        _check_session()
+        _check_session()  # renovar timestamp
 
 if st.session_state.user is None:
     render_auth()
@@ -69,8 +65,10 @@ else:
     c    = get_colors()
     dark = get_theme() == "dark"
     user = st.session_state.user
+    is_admin = bool(user.get("is_admin", 0))
 
     with st.sidebar:
+        # Logo
         st.markdown(
             f'<div class="oram-logo-wrap">'
             f'<div class="oram-logo">'
@@ -78,12 +76,16 @@ else:
             f'<span class="la">A</span><span class="lm">M</span>'
             f'</div>'
             f'<div class="oram-tagline">{APP_TAGLINE}</div>'
-            f'<div class="oram-user">{user["username"]}</div>'
+            f'<div class="oram-user">'
+            f'{"🛡️ " if is_admin else ""}{user["username"]}'
+            f'{"  <span style=\'font-size:0.6rem;color:#c9a227\'>ADMIN</span>" if is_admin else ""}'
+            f'</div>'
             f'</div>',
             unsafe_allow_html=True,
         )
 
-        nav = st.radio("Navegación", [
+        # Navegación — el admin ve el panel de administración
+        nav_options = [
             "📈 Dashboard",
             "📡 Análisis en Vivo",
             "🔭 Multi-Timeframe",
@@ -96,22 +98,16 @@ else:
             "📰 Calendario Económico",
             "🤖 Bot Telegram",
             "📚 Guía SMC",
-        ], label_visibility="collapsed")
+        ]
+
+        if is_admin:
+            nav_options.append("🔐 Admin Panel")
+
+        nav = st.radio("Navegación", nav_options, label_visibility="collapsed")
 
         st.divider()
 
         _dark = get_theme() == "dark"
-
-        # Colores del botón tema — idénticos al login
-        _tbtn_bg  = "rgba(12,18,25,0.88)"    if _dark else "rgba(255,255,255,0.94)"
-        _tbtn_txt = "#c8d8ea"                 if _dark else "#2a3f54"
-        _tbtn_bdr = "rgba(200,216,234,0.18)"  if _dark else "rgba(0,0,0,0.12)"
-        # Colores del botón salir — píldora roja
-        _logout_bg  = "rgba(239,68,68,0.10)"  if _dark else "rgba(239,68,68,0.07)"
-        _logout_txt = "#f87171"               if _dark else "#dc2626"
-        _logout_bdr = "rgba(239,68,68,0.30)"  if _dark else "rgba(220,38,38,0.25)"
-
-        # Sidebar pill button styles are in styles.py (structural selectors)
 
         col_t, col_s = st.columns(2)
         with col_t:
@@ -125,13 +121,19 @@ else:
                 st.session_state.pop("last_activity", None)
                 st.rerun()
 
+        # Tiempo de sesión restante
+        now  = datetime.now(timezone.utc).timestamp()
+        last = st.session_state.get("last_activity", now)
+        mins_restantes = max(0, int((SESSION_TIMEOUT - (now - last)) / 60))
         st.markdown(
             f'<div style="margin-top:.8rem;padding-top:.7rem;'
             f'border-top:1px solid {c["border"]};text-align:center">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:.6rem;'
             f'color:{c["text_muted"]}">ORAM Quant Systems<br>'
             f'<span style="color:{c["accent3"]}">'
-            f'<span class="status-live"></span> LIVE</span></div>'
+            f'<span class="status-live"></span> LIVE</span><br>'
+            f'<span style="color:{c["text_muted"]}">Sesión: {mins_restantes} min</span>'
+            f'</div>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -149,5 +151,6 @@ else:
         "📰 Calendario Económico": render_calendar,
         "🤖 Bot Telegram":         render_bot_config,
         "📚 Guía SMC":             render_education,
+        "🔐 Admin Panel":          render_admin,
     }
     page_map[nav]()

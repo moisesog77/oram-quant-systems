@@ -1,6 +1,7 @@
 """
-database/db.py
-Multi-usuario · trades · watchlist · alertas de precio · bot config · backtest · signal log
+database/db.py — ORAM Quant Systems
+Multi-usuario · trades · watchlist · alertas · bot config · backtest · signal log
+Superadmin: Moises OG
 """
 import sqlite3, json, hashlib
 from contextlib import contextmanager
@@ -26,7 +27,9 @@ def inicializar_db():
             password_hash TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now')),
             capital_inicial REAL DEFAULT 1000.0,
-            settings TEXT DEFAULT '{}'
+            settings TEXT DEFAULT '{}',
+            is_admin INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS trades (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,35 +92,159 @@ def inicializar_db():
             created_at TEXT DEFAULT (datetime('now'))
         );
         """)
+        # Migración segura — añadir columnas nuevas si no existen en DBs antiguas
+        for table, col, definition in [
+            ("users", "is_admin",  "INTEGER DEFAULT 0"),
+            ("users", "is_active", "INTEGER DEFAULT 1"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
+            except sqlite3.OperationalError:
+                pass  # ya existe
+
     crear_usuario("demo", "demo123", capital_inicial=10000.0)
+    _crear_superadmin("moises og", "1977Emog", capital_inicial=10000.0)
+
 
 def _hash(pw): return hashlib.sha256(pw.encode()).hexdigest()
 
+
+def _crear_superadmin(username: str, password: str, capital_inicial: float = 10000.0):
+    """Crea o actualiza el superadmin — garantizado en cada arranque."""
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id FROM users WHERE username=?", (username.strip().lower(),)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE users SET is_admin=1, is_active=1 WHERE username=?",
+                (username.strip().lower(),)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO users (username,password_hash,capital_inicial,is_admin,is_active) "
+                "VALUES (?,?,?,1,1)",
+                (username.strip().lower(), _hash(password), capital_inicial)
+            )
+
+
 # ── Users ──────────────────────────────────────────────────────────────────────
+
 def crear_usuario(username, password, capital_inicial=1000.0):
     try:
         with get_conn() as conn:
-            conn.execute("INSERT INTO users (username,password_hash,capital_inicial) VALUES (?,?,?)",
-                         (username.strip().lower(), _hash(password), capital_inicial))
+            conn.execute(
+                "INSERT INTO users (username,password_hash,capital_inicial) VALUES (?,?,?)",
+                (username.strip().lower(), _hash(password), capital_inicial)
+            )
         return True
     except sqlite3.IntegrityError:
         return False
 
+
 def autenticar_usuario(username, password):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM users WHERE username=? AND password_hash=?",
-                           (username.strip().lower(), _hash(password))).fetchone()
+        row = conn.execute(
+            "SELECT * FROM users WHERE username=? AND password_hash=? AND is_active=1",
+            (username.strip().lower(), _hash(password))
+        ).fetchone()
         return dict(row) if row else None
+
 
 def actualizar_capital(user_id, capital):
     with get_conn() as conn:
         conn.execute("UPDATE users SET capital_inicial=? WHERE id=?", (capital, user_id))
 
+
 def obtener_todos_usuarios():
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute("SELECT * FROM users").fetchall()]
+        return [dict(r) for r in conn.execute(
+            "SELECT id,username,capital_inicial,created_at,is_admin,is_active "
+            "FROM users ORDER BY created_at DESC"
+        ).fetchall()]
+
+
+# ── Admin ──────────────────────────────────────────────────────────────────────
+
+def es_admin(user_id: int) -> bool:
+    with get_conn() as conn:
+        row = conn.execute("SELECT is_admin FROM users WHERE id=?", (user_id,)).fetchone()
+        return bool(row and row["is_admin"])
+
+
+def admin_crear_usuario(username: str, password: str, capital: float = 1000.0) -> bool:
+    return crear_usuario(username, password, capital)
+
+
+def admin_desactivar_usuario(user_id: int):
+    with get_conn() as conn:
+        conn.execute("UPDATE users SET is_active=0 WHERE id=? AND is_admin=0", (user_id,))
+
+
+def admin_restaurar_usuario(user_id: int):
+    with get_conn() as conn:
+        conn.execute("UPDATE users SET is_active=1 WHERE id=?", (user_id,))
+
+
+def admin_resetear_password(user_id: int, nueva_password: str):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET password_hash=? WHERE id=?",
+            (_hash(nueva_password), user_id)
+        )
+
+
+def admin_actualizar_capital(user_id: int, capital: float):
+    actualizar_capital(user_id, capital)
+
+
+def admin_stats_globales() -> dict:
+    with get_conn() as conn:
+        return {
+            "total_users":        conn.execute("SELECT COUNT(*) FROM users WHERE is_active=1").fetchone()[0],
+            "total_trades":       conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0],
+            "total_senales":      conn.execute("SELECT COUNT(*) FROM signal_log").fetchone()[0],
+            "bots_activos":       conn.execute(
+                "SELECT COUNT(*) FROM bot_config WHERE alertas_activas=1 AND telegram_chat_id!=''"
+            ).fetchone()[0],
+            "senales_hoy":        conn.execute(
+                "SELECT COUNT(*) FROM signal_log WHERE created_at >= date('now')"
+            ).fetchone()[0],
+            "alertas_pendientes": conn.execute(
+                "SELECT COUNT(*) FROM price_alerts WHERE activa=1 AND disparada=0"
+            ).fetchone()[0],
+            "trades_hoy":         conn.execute(
+                "SELECT COUNT(*) FROM trades WHERE fecha >= date('now')"
+            ).fetchone()[0],
+        }
+
+
+def admin_logs_senales(limite: int = 100) -> list:
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM signal_log ORDER BY created_at DESC LIMIT ?", (limite,)
+        ).fetchall()]
+
+
+def admin_trades_todos(limite: int = 100) -> list:
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute("""
+            SELECT t.*, u.username FROM trades t
+            JOIN users u ON t.user_id=u.id
+            ORDER BY t.created_at DESC LIMIT ?
+        """, (limite,)).fetchall()]
+
+
+def admin_configs_bot_todas() -> list:
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute("""
+            SELECT bc.*, u.username FROM bot_config bc
+            JOIN users u ON bc.user_id=u.id ORDER BY u.username
+        """).fetchall()]
+
 
 # ── Trades ─────────────────────────────────────────────────────────────────────
+
 def insertar_trade(user_id, data):
     from utils.time_utils import ahora_mexico
     riesgo    = abs(data['entrada'] - data['sl'])
@@ -138,20 +265,27 @@ def insertar_trade(user_id, data):
              data.get('estado','Cerrado')))
         return cur.lastrowid
 
+
 def obtener_trades(user_id):
     with get_conn() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT * FROM trades WHERE user_id=? ORDER BY fecha DESC, id DESC", (user_id,)).fetchall()]
+            "SELECT * FROM trades WHERE user_id=? ORDER BY fecha DESC, id DESC", (user_id,)
+        ).fetchall()]
+
 
 def eliminar_trade(trade_id, user_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM trades WHERE id=? AND user_id=?", (trade_id, user_id))
 
+
 # ── Watchlist ──────────────────────────────────────────────────────────────────
+
 def obtener_watchlist(user_id):
     with get_conn() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT * FROM watchlist WHERE user_id=?", (user_id,)).fetchall()]
+            "SELECT * FROM watchlist WHERE user_id=?", (user_id,)
+        ).fetchall()]
+
 
 def agregar_watchlist(user_id, ticker, alias=""):
     try:
@@ -162,16 +296,21 @@ def agregar_watchlist(user_id, ticker, alias=""):
     except sqlite3.IntegrityError:
         return False
 
+
 def eliminar_watchlist(user_id, ticker):
     with get_conn() as conn:
         conn.execute("DELETE FROM watchlist WHERE user_id=? AND ticker=?", (user_id, ticker))
 
+
 # ── Price Alerts ───────────────────────────────────────────────────────────────
+
 def crear_alerta(user_id, ticker, tipo, precio, mensaje=""):
     with get_conn() as conn:
-        cur = conn.execute("INSERT INTO price_alerts (user_id,ticker,tipo,precio,mensaje) VALUES (?,?,?,?,?)",
-                           (user_id, ticker, tipo, precio, mensaje))
+        cur = conn.execute(
+            "INSERT INTO price_alerts (user_id,ticker,tipo,precio,mensaje) VALUES (?,?,?,?,?)",
+            (user_id, ticker, tipo, precio, mensaje))
         return cur.lastrowid
+
 
 def obtener_alertas(user_id, solo_activas=True):
     with get_conn() as conn:
@@ -179,21 +318,28 @@ def obtener_alertas(user_id, solo_activas=True):
         if solo_activas: q += " AND activa=1 AND disparada=0"
         return [dict(r) for r in conn.execute(q + " ORDER BY created_at DESC", (user_id,)).fetchall()]
 
+
 def obtener_todas_alertas_activas():
     with get_conn() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT pa.*, u.username FROM price_alerts pa JOIN users u ON pa.user_id=u.id WHERE pa.activa=1 AND pa.disparada=0"
+            "SELECT pa.*, u.username FROM price_alerts pa "
+            "JOIN users u ON pa.user_id=u.id WHERE pa.activa=1 AND pa.disparada=0"
         ).fetchall()]
+
 
 def disparar_alerta(alert_id):
     with get_conn() as conn:
-        conn.execute("UPDATE price_alerts SET disparada=1, fired_at=datetime('now') WHERE id=?", (alert_id,))
+        conn.execute(
+            "UPDATE price_alerts SET disparada=1, fired_at=datetime('now') WHERE id=?", (alert_id,))
+
 
 def eliminar_alerta(alert_id, user_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM price_alerts WHERE id=? AND user_id=?", (alert_id, user_id))
 
+
 # ── Bot Config ─────────────────────────────────────────────────────────────────
+
 def obtener_bot_config(user_id):
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM bot_config WHERE user_id=?", (user_id,)).fetchone()
@@ -201,29 +347,38 @@ def obtener_bot_config(user_id):
         conn.execute("INSERT INTO bot_config (user_id) VALUES (?)", (user_id,))
         return dict(conn.execute("SELECT * FROM bot_config WHERE user_id=?", (user_id,)).fetchone())
 
+
 def actualizar_bot_config(user_id, **kwargs):
     if not kwargs: return
     sets = ", ".join(f"{k}=?" for k in kwargs)
     with get_conn() as conn:
-        conn.execute(f"UPDATE bot_config SET {sets} WHERE user_id=?", list(kwargs.values()) + [user_id])
+        conn.execute(f"UPDATE bot_config SET {sets} WHERE user_id=?",
+                     list(kwargs.values()) + [user_id])
+
 
 def obtener_todas_configs_bot():
     with get_conn() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT bc.*, u.username FROM bot_config bc JOIN users u ON bc.user_id=u.id WHERE bc.alertas_activas=1 AND bc.telegram_chat_id!=''"
+            "SELECT bc.*, u.username FROM bot_config bc JOIN users u ON bc.user_id=u.id "
+            "WHERE bc.alertas_activas=1 AND bc.telegram_chat_id!=''"
         ).fetchall()]
 
+
 # ── Signal Log ─────────────────────────────────────────────────────────────────
+
 def registrar_señal(ticker, timeframe, tipo, direccion, confianza, precio, sl, tp):
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO signal_log (ticker,timeframe,tipo,direccion,confianza,precio,sl,tp) VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO signal_log (ticker,timeframe,tipo,direccion,confianza,precio,sl,tp) "
+            "VALUES (?,?,?,?,?,?,?,?)",
             (ticker, timeframe, tipo, direccion, confianza, precio, sl, tp))
         return cur.lastrowid
+
 
 def marcar_señal_enviada(signal_id):
     with get_conn() as conn:
         conn.execute("UPDATE signal_log SET enviada_bot=1 WHERE id=?", (signal_id,))
+
 
 def obtener_señales_recientes(horas=24):
     with get_conn() as conn:
@@ -231,7 +386,9 @@ def obtener_señales_recientes(horas=24):
             "SELECT * FROM signal_log WHERE created_at >= datetime('now',?) ORDER BY created_at DESC",
             (f"-{horas} hours",)).fetchall()]
 
+
 # ── Backtest ───────────────────────────────────────────────────────────────────
+
 def guardar_backtest(user_id, data):
     with get_conn() as conn:
         cur = conn.execute("""INSERT INTO backtest_results
@@ -244,7 +401,9 @@ def guardar_backtest(user_id, data):
              json.dumps(data.get('parametros',{}))))
         return cur.lastrowid
 
+
 def obtener_backtests(user_id):
     with get_conn() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT * FROM backtest_results WHERE user_id=? ORDER BY created_at DESC", (user_id,)).fetchall()]
+            "SELECT * FROM backtest_results WHERE user_id=? ORDER BY created_at DESC", (user_id,)
+        ).fetchall()]
