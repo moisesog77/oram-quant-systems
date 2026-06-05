@@ -1,18 +1,12 @@
 """
 modules/live_analysis.py — ORAM Quant Systems — Análisis SMC en Vivo
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Ejecuta el motor SMC completo sobre datos de yfinance en tiempo real.
-
-Muestra:
-  · Señal principal: BOS Alcista/Bajista, CHoCH, Sin señal
-  · Confianza: barra de confluencias 0-100%
-  · Gráfica de velas Plotly con EMA200, EMA50, EMA20
-  · Order Blocks (OB alcista/bajista) y FVGs superpuestos
-  · Niveles de liquidez: soportes y resistencias clave
-  · Indicadores: RSI, MACD histogram, ATR
-
-Caché en session_state por (ticker, tf): evita re-fetch al cambiar tema.
-Alerta automática si hay evento de alto impacto en < 30 min.
+v3 — fixes:
+  · Plotly annotation: sin bgcolor (ValuerError corregido)
+  · Capital / Riesgo: st.number_input nativo (mismo aspecto premium que login)
+  · Sin HTML stepper duplicado
+  · Banner de noticias siempre visible
+  · Gráficas con paneles delimitados y espaciado
 """
 import streamlit as st
 import pandas as pd
@@ -34,34 +28,39 @@ TIMEFRAME_LABELS = {
 
 
 def _grafica_velas(df, ticker, smc):
-    c   = get_colors()
+    c    = get_colors()
+    dark = get_theme() == "dark"
+
+    grid_color = c["grid"]
+
     fig = make_subplots(
         rows=3, cols=1, shared_xaxes=True,
-        row_heights=[0.62, 0.19, 0.19],
-        vertical_spacing=0.03,
+        row_heights=[0.60, 0.20, 0.20],
+        vertical_spacing=0.06,
         subplot_titles=["", "RSI (14)", "MACD"],
     )
 
     # Velas
     fig.add_trace(go.Candlestick(
         x=df.index, open=df["Open"], high=df["High"],
-        low=df["Low"],  close=df["Close"], name=ticker,
+        low=df["Low"], close=df["Close"], name=ticker,
         increasing_line_color=c["green"], decreasing_line_color=c["red"],
         increasing_fillcolor="rgba(34,197,94,0.7)",
         decreasing_fillcolor="rgba(239,68,68,0.7)",
+        whiskerwidth=0.3,
     ), row=1, col=1)
 
     # EMAs
     for col_name, color, label in [
-        ("EMA20", c["accent2"], "EMA20"),
-        ("EMA50", c["accent"],  "EMA50"),
-        ("EMA200",c["purple"],  "EMA200"),
+        ("EMA20",  c["accent2"], "EMA20"),
+        ("EMA50",  c["accent"],  "EMA50"),
+        ("EMA200", c["purple"],  "EMA200"),
     ]:
         if col_name in df.columns:
             fig.add_trace(go.Scatter(
                 x=df.index, y=df[col_name],
-                line=dict(color=color, width=1.2),
-                name=label, opacity=0.85,
+                line=dict(color=color, width=1.3),
+                name=label, opacity=0.90,
             ), row=1, col=1)
 
     # Bollinger Bands
@@ -80,21 +79,26 @@ def _grafica_velas(df, ticker, smc):
 
     # Order Blocks
     for ob in smc.get("order_blocks", [])[:3]:
-        fc = "rgba(34,197,94,0.12)" if ob.tipo=="OB_alcista" else "rgba(239,68,68,0.12)"
-        lc =  c["green"] if ob.tipo=="OB_alcista" else c["red"]
-        fig.add_hrect(y0=ob.precio_bot, y1=ob.precio_top, fillcolor=fc,
+        fc = "rgba(34,197,94,0.12)" if ob.tipo == "OB_alcista" else "rgba(239,68,68,0.12)"
+        lc = c["green"] if ob.tipo == "OB_alcista" else c["red"]
+        fig.add_hrect(
+            y0=ob.precio_bot, y1=ob.precio_top, fillcolor=fc,
             line=dict(color=lc, width=1, dash="dot"),
-            annotation_text="OB↑" if ob.tipo=="OB_alcista" else "OB↓",
-            annotation_font_size=9, annotation_font_color=lc, row=1, col=1)
+            annotation_text="OB↑" if ob.tipo == "OB_alcista" else "OB↓",
+            annotation_font_size=9, annotation_font_color=lc,
+            row=1, col=1,
+        )
 
     # FVGs
     for fvg in smc.get("fvgs", [])[:2]:
-        fc = "rgba(61,155,233,0.10)" if fvg.tipo=="FVG_alcista" else "rgba(201,162,39,0.10)"
-        lc = c["accent2"] if fvg.tipo=="FVG_alcista" else c["accent"]
-        fig.add_hrect(y0=fvg.precio_bot, y1=fvg.precio_top, fillcolor=fc,
+        fc = "rgba(61,155,233,0.10)" if fvg.tipo == "FVG_alcista" else "rgba(201,162,39,0.10)"
+        lc = c["accent2"] if fvg.tipo == "FVG_alcista" else c["accent"]
+        fig.add_hrect(
+            y0=fvg.precio_bot, y1=fvg.precio_top, fillcolor=fc,
             line=dict(color=lc, width=1, dash="dot"),
-            annotation_text="FVG", annotation_font_size=8,
-            annotation_font_color=lc, row=1, col=1)
+            annotation_text="FVG", annotation_font_size=8, annotation_font_color=lc,
+            row=1, col=1,
+        )
 
     # Liquidez
     liq = smc.get("liquidez", {})
@@ -110,7 +114,7 @@ def _grafica_velas(df, ticker, smc):
             line=dict(color=c["accent2"], width=1.5),
             name="RSI", showlegend=False,
         ), row=2, col=1)
-        for lvl, col_ in [(70,"rgba(239,68,68,0.5)"),(30,"rgba(34,197,94,0.5)"),(50,"rgba(107,127,153,0.3)")]:
+        for lvl, col_ in [(70, "rgba(239,68,68,0.5)"), (30, "rgba(34,197,94,0.5)"), (50, "rgba(107,127,153,0.3)")]:
             fig.add_hline(y=lvl, line=dict(color=col_, width=1, dash="dot"), row=2, col=1)
 
     # MACD
@@ -118,32 +122,151 @@ def _grafica_velas(df, ticker, smc):
         hist = df["MACD_hist"]
         fig.add_trace(go.Bar(
             x=df.index, y=hist,
-            marker_color=[c["green"] if v>=0 else c["red"] for v in hist],
+            marker_color=[c["green"] if v >= 0 else c["red"] for v in hist],
             name="Hist", showlegend=False, opacity=0.7,
         ), row=3, col=1)
-        fig.add_trace(go.Scatter(x=df.index, y=df["MACD"],
-            line=dict(color=c["accent"], width=1.2), name="MACD", showlegend=False), row=3, col=1)
-        fig.add_trace(go.Scatter(x=df.index, y=df["MACD_signal"],
-            line=dict(color=c["purple"], width=1.2), name="Signal", showlegend=False), row=3, col=1)
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df["MACD"],
+            line=dict(color=c["accent"], width=1.2), name="MACD", showlegend=False,
+        ), row=3, col=1)
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df["MACD_signal"],
+            line=dict(color=c["purple"], width=1.2), name="Signal", showlegend=False,
+        ), row=3, col=1)
 
-    tf = dict(color=c["text_muted"], size=9, family="JetBrains Mono")
-    layout = get_plot_layout(height=660)
+    # ── Subtítulos de paneles (sin bgcolor — causa ValueError) ────────────
+    tf_font = dict(color=c["text_muted"], size=10, family="JetBrains Mono")
+    for ann in fig.layout.annotations:
+        ann.update(font=tf_font)   # solo font, sin bgcolor ni bordercolor
+
+    layout = get_plot_layout(height=740)
     layout.update(
-        xaxis =dict(gridcolor=c["grid"], color=c["text_muted"],
-                    tickfont=tf, tickcolor=c["text_muted"], showline=False),
-        xaxis2=dict(gridcolor=c["grid"], color=c["text_muted"],
-                    tickfont=tf, tickcolor=c["text_muted"], showline=False),
-        xaxis3=dict(gridcolor=c["grid"], color=c["text_muted"],
-                    tickfont=tf, tickcolor=c["text_muted"], showline=False),
-        yaxis =dict(gridcolor=c["grid"], color=c["text_muted"], side="right",
-                    tickfont=tf, tickcolor=c["text_muted"], showline=False),
-        yaxis2=dict(gridcolor=c["grid"], color=c["text_muted"], side="right",
-                    tickfont=tf, tickcolor=c["text_muted"], range=[0,100], showline=False),
-        yaxis3=dict(gridcolor=c["grid"], color=c["text_muted"], side="right",
-                    tickfont=tf, tickcolor=c["text_muted"], showline=False),
+        # Panel velas
+        xaxis=dict(gridcolor=grid_color, color=c["text_muted"],
+                   tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                   showline=False, zeroline=False,
+                   rangeslider=dict(visible=False)),
+        yaxis=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
+                   tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                   showline=False, zeroline=False),
+
+        # Panel RSI
+        xaxis2=dict(gridcolor=grid_color, color=c["text_muted"],
+                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                    showline=False, zeroline=False),
+        yaxis2=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
+                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                    range=[0, 100], showline=False, zeroline=False),
+
+        # Panel MACD
+        xaxis3=dict(gridcolor=grid_color, color=c["text_muted"],
+                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                    showline=False, zeroline=False),
+        yaxis3=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
+                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                    showline=False, zeroline=False),
+
+        margin=dict(l=12, r=72, t=32, b=36),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0,
+            font=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+            bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)",
+        ),
+        # Líneas divisoras entre paneles
+        shapes=[
+            dict(type="line", xref="paper", x0=0, x1=1,
+                 yref="paper", y0=0.405, y1=0.405,
+                 line=dict(color=c["border2"], width=1, dash="dot")),
+            dict(type="line", xref="paper", x0=0, x1=1,
+                 yref="paper", y0=0.205, y1=0.205,
+                 line=dict(color=c["border2"], width=1, dash="dot")),
+        ],
     )
     fig.update_layout(**layout)
     return fig
+
+
+def _render_news_banner(dark: bool):
+    """Banner superior con noticias económicas — siempre visible."""
+    c = get_colors()
+
+    hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=90)
+    proximos = obtener_proximos_eventos(5)
+
+    if hay_ev and ev_info:
+        st.markdown(f"""
+        <div style="
+            background:{'rgba(239,68,68,0.12)' if dark else 'rgba(200,30,30,0.07)'};
+            border:1.5px solid {'rgba(239,68,68,0.55)' if dark else 'rgba(200,30,30,0.40)'};
+            border-radius:10px;padding:0.65rem 1.1rem;margin-bottom:0.6rem;
+            display:flex;align-items:center;gap:0.75rem;
+        ">
+            <span style="font-size:1.25rem">⚠️</span>
+            <div>
+                <span style="color:{'#f87171' if dark else '#c81e1e'};font-weight:700;
+                    font-family:'Space Grotesk',sans-serif;font-size:0.9rem;">
+                    Evento de alto impacto en {ev_info['minutos_restantes']} min
+                </span>
+                <span style="color:{c['text_muted']};font-size:0.82rem;margin-left:0.5rem;">
+                    — {ev_info['titulo']} ({ev_info['moneda']}) · {ev_info['hora_mx']} CDMX
+                </span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    if not proximos:
+        return
+
+    cards_html = ""
+    for ev in proximos:
+        imp_color = impacto_color(ev["impacto"], dark)
+        imp_bg = (
+            "rgba(239,68,68,0.10)"  if ev["impacto"] == "High"   else
+            "rgba(201,162,39,0.08)" if ev["impacto"] == "Medium" else
+            "rgba(107,127,153,0.07)"
+        )
+        imp_bg_l = (
+            "rgba(200,30,30,0.07)"  if ev["impacto"] == "High"   else
+            "rgba(154,117,16,0.06)" if ev["impacto"] == "Medium" else
+            "rgba(80,100,120,0.05)"
+        )
+        cards_html += f"""
+        <div style="flex:1;min-width:148px;max-width:230px;
+            background:{imp_bg if dark else imp_bg_l};
+            border:1px solid {imp_color}33;border-radius:8px;padding:0.5rem 0.75rem;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:0.60rem;
+                color:{c['text_muted']};margin-bottom:0.18rem;">
+                {ev['dia']} · {ev['hora_mx']} CDMX
+            </div>
+            <div style="font-size:0.78rem;font-weight:700;color:{imp_color};
+                font-family:'Inter',sans-serif;line-height:1.3;">
+                {impacto_emoji(ev['impacto'])} {ev['titulo']}
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:0.63rem;
+                color:{c['text_muted']};margin-top:0.12rem;">{ev['moneda']}</div>
+        </div>"""
+
+    st.markdown(f"""
+    <div style="background:{c['bg_card']};border:1px solid {c['border']};
+        border-left:3px solid {c['accent2']};border-radius:10px;
+        padding:0.75rem 1.1rem 0.65rem 1.1rem;margin-bottom:1rem;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:0.60rem;
+            text-transform:uppercase;letter-spacing:2.5px;
+            color:{c['text_muted']};margin-bottom:0.5rem;">
+            📰 &nbsp;Próximos eventos de mercado
+        </div>
+        <div style="display:flex;gap:0.55rem;flex-wrap:wrap;">
+            {cards_html}
+        </div>
+        <div style="margin-top:0.5rem;">
+            <a href="{FOREX_FACTORY_URL}" target="_blank"
+               style="color:{c['accent2']};font-family:'JetBrains Mono',monospace;
+               font-size:0.67rem;text-decoration:none;opacity:0.8;">
+               🔗 Ver calendario completo en Forex Factory →
+            </a>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_live_analysis():
@@ -153,51 +276,45 @@ def render_live_analysis():
 
     page_header("📡", "Análisis en Vivo", "Smart Money Concepts · Order Blocks · FVG · Liquidez")
 
-    # ── Alerta económica ──────────────────────────────────────────────────
-    hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=90)
-    if hay_ev and ev_info:
-        st.error(f"⚠️ **Evento de alto impacto en {ev_info['minutos_restantes']} min** — "
-                 f"{ev_info['titulo']} ({ev_info['moneda']}) · {ev_info['hora_mx']} CDMX")
-
-    # Próximos eventos
-    proximos = obtener_proximos_eventos(3)
-    if proximos:
-        with st.expander("📰 Próximos eventos económicos", expanded=False):
-            cols = st.columns(min(len(proximos), 3))
-            for col, ev in zip(cols, proximos):
-                imp_color = impacto_color(ev["impacto"], dark)
-                col.markdown(f"""
-                <div class="oram-card" style="padding:0.6rem 0.9rem;margin:0">
-                    <div class="card-title">{ev['dia']} · {ev['hora_mx']} CDMX</div>
-                    <div style="font-size:0.8rem;font-weight:700;color:{imp_color}">
-                        {impacto_emoji(ev['impacto'])} {ev['titulo']}
-                    </div>
-                    <div class="card-sub">{ev['moneda']}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            st.markdown(
-                f'<a href="{FOREX_FACTORY_URL}" target="_blank" '
-                f'style="color:{c["accent"]};font-size:0.78rem">'
-                f'🔗 Forex Factory →</a>',
-                unsafe_allow_html=True)
+    # ── Banner de noticias (siempre visible) ──────────────────────────────
+    _render_news_banner(dark)
 
     # ── Controles ─────────────────────────────────────────────────────────
-    col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
-    with col1:
-        categoria = st.selectbox("Categoría", list(ACTIVOS_DEFAULT.keys()), key="cat_live", label_visibility="visible")
-    with col2:
-        ticker = st.selectbox("Activo", ACTIVOS_DEFAULT[categoria], key="ticker_live")
-    with col3:
-        tf = st.selectbox("Temporalidad", list(TIMEFRAME_LABELS.keys()),
-                          format_func=lambda x: TIMEFRAME_LABELS[x], index=2, key="tf_live")
-    with col4:
-        capital = st.number_input("Capital USD", value=float(user.get("capital_inicial", 1000)),
-                                   min_value=100.0, step=500.0, key="cap_live")
-    with col5:
-        riesgo_pct = st.number_input("Riesgo %", value=1.0, min_value=0.1, max_value=5.0,
-                                      step=0.1, key="rsk_live")
+    col1, col2, col3, col4, col5 = st.columns([2, 2, 1.5, 1.5, 1.5])
 
-    actualizar = st.button("🔄 Actualizar análisis", width='stretch')
+    with col1:
+        categoria = st.selectbox(
+            "Categoría", list(ACTIVOS_DEFAULT.keys()), key="cat_live"
+        )
+    with col2:
+        ticker = st.selectbox(
+            "Activo", ACTIVOS_DEFAULT[categoria], key="ticker_live"
+        )
+    with col3:
+        tf = st.selectbox(
+            "Temporalidad", list(TIMEFRAME_LABELS.keys()),
+            format_func=lambda x: TIMEFRAME_LABELS[x], index=2, key="tf_live"
+        )
+    with col4:
+        # st.number_input nativo — hereda el CSS premium de styles.py
+        capital = st.number_input(
+            "Capital USD",
+            value=float(user.get("capital_inicial", 1000)),
+            min_value=100.0,
+            step=500.0,
+            key="cap_live",
+        )
+    with col5:
+        riesgo_pct = st.number_input(
+            "Riesgo %",
+            value=1.0,
+            min_value=0.1,
+            max_value=5.0,
+            step=0.1,
+            key="rsk_live",
+        )
+
+    actualizar = st.button("🔄 Actualizar análisis", key="btn_actualizar_live")
 
     # ── Datos ─────────────────────────────────────────────────────────────
     theme_key = get_theme()
@@ -219,41 +336,46 @@ def render_live_analysis():
 
     smc = analisis_completo(df, ticker)
 
-    # ── LAYOUT PRINCIPAL: gráfica arriba completa, panel abajo ────────────
-    # Gráfica a ancho completo
-    st.plotly_chart(_grafica_velas(df, ticker, smc), width='stretch')
+    # ── Gráfica envuelta en tarjeta premium ───────────────────────────────
+    st.markdown(f"""
+    <div style="
+        background:{c['bg_card']};
+        border:1px solid {c['border']};
+        border-radius:14px;
+        padding:1rem 0.4rem 0.6rem 0.4rem;
+        margin-bottom:1.25rem;
+        box-shadow:{c['shadow']};
+    ">
+    """, unsafe_allow_html=True)
+    st.plotly_chart(_grafica_velas(df, ticker, smc), use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    # Panel de análisis debajo en 4 columnas
-    precio  = smc.get("precio", 0)
-    atr     = smc.get("atr", 0)
-    rsi     = smc.get("rsi")
-    est     = smc.get("estructura", {})
-    conf    = smc.get("confluencia", {})
-    dir_    = est.get("direccion", "neutral")
-    tipo    = est.get("tipo", "Sin señal")
+    # ── Panel de análisis ─────────────────────────────────────────────────
+    precio    = smc.get("precio", 0)
+    atr       = smc.get("atr", 0)
+    rsi       = smc.get("rsi")
+    est       = smc.get("estructura", {})
+    conf      = smc.get("confluencia", {})
+    tipo      = est.get("tipo", "Sin señal")
     confianza = conf.get("confianza", 0)
     factores  = conf.get("factores", [])
 
     st.divider()
 
-    # Fila de métricas rápidas
     m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Precio", f"{precio:.5f}")
-    m2.metric("ATR", f"{atr:.5f}")
-    m3.metric("RSI", f"{rsi:.1f}" if rsi else "—",
-               delta="Sobrecomprado" if rsi and rsi>70 else "Sobrevendido" if rsi and rsi<30 else "Neutral")
-    m4.metric("Señal", tipo if tipo != "Sin señal" else "Rango")
+    m1.metric("Precio",    f"{precio:.5f}")
+    m2.metric("ATR",       f"{atr:.5f}")
+    m3.metric("RSI",       f"{rsi:.1f}" if rsi else "—",
+               delta="Sobrecomprado" if rsi and rsi > 70 else "Sobrevendido" if rsi and rsi < 30 else "Neutral")
+    m4.metric("Señal",     tipo if tipo != "Sin señal" else "Rango")
     m5.metric("Confianza", f"{confianza:.0f}%")
 
     st.markdown("")
 
-    # Panel analítico en 3 columnas
     col_senal, col_niveles, col_riesgo = st.columns([2, 2, 1])
 
     with col_senal:
-        st.markdown(signal_box(tipo, est.get("descripcion",""), confianza), unsafe_allow_html=True)
-
-        # Recomendación directa
+        st.markdown(signal_box(tipo, est.get("descripcion", ""), confianza), unsafe_allow_html=True)
         if "Alcista" in tipo or "LONG" in tipo:
             st.success("✅ **SEÑAL: COMPRA (LONG)**\nBusca entrada en OB o FVG alcista.")
         elif "Bajista" in tipo or "SHORT" in tipo:
@@ -261,7 +383,6 @@ def render_live_analysis():
         else:
             st.warning("⚠️ **ESPERA / RANGO**\nSin tendencia clara definida.")
 
-        # Confluencias
         if factores:
             st.markdown(f"""
             <div class="oram-card oram-card-blue" style="margin-top:0.5rem">
@@ -271,16 +392,15 @@ def render_live_analysis():
             """, unsafe_allow_html=True)
 
     with col_niveles:
-        # Order Blocks
-        obs = smc.get("order_blocks", [])
+        obs  = smc.get("order_blocks", [])
         fvgs = smc.get("fvgs", [])
         liq  = smc.get("liquidez", {})
 
         st.markdown("**🧱 Order Blocks**")
         if obs:
             for ob in obs[:4]:
-                badge = "badge-ob-bull" if ob.tipo=="OB_alcista" else "badge-ob-bear"
-                label = "OB↑" if ob.tipo=="OB_alcista" else "OB↓"
+                badge = "badge-ob-bull" if ob.tipo == "OB_alcista" else "badge-ob-bear"
+                label = "OB↑" if ob.tipo == "OB_alcista" else "OB↓"
                 st.markdown(
                     f'<span class="level-badge {badge}">{label} {ob.precio_bot:.5f}–{ob.precio_top:.5f}</span>',
                     unsafe_allow_html=True)
@@ -290,8 +410,8 @@ def render_live_analysis():
         st.markdown("**⚡ Fair Value Gaps**")
         if fvgs:
             for fvg in fvgs[:4]:
-                badge = "badge-fvg-bull" if fvg.tipo=="FVG_alcista" else "badge-fvg-bear"
-                label = "FVG↑" if fvg.tipo=="FVG_alcista" else "FVG↓"
+                badge = "badge-fvg-bull" if fvg.tipo == "FVG_alcista" else "badge-fvg-bear"
+                label = "FVG↑" if fvg.tipo == "FVG_alcista" else "FVG↓"
                 st.markdown(
                     f'<span class="level-badge {badge}">{label} {fvg.precio_bot:.5f}–{fvg.precio_top:.5f}</span>',
                     unsafe_allow_html=True)
@@ -299,9 +419,9 @@ def render_live_analysis():
             st.caption("Sin FVGs activos.")
 
         st.markdown("**💧 Zonas de Liquidez**")
-        for lvl in liq.get("resistance_levels",[])[:2]:
+        for lvl in liq.get("resistance_levels", [])[:2]:
             st.markdown(f'<span class="level-badge badge-ob-bear">Res {lvl:.5f}</span>', unsafe_allow_html=True)
-        for lvl in liq.get("support_levels",[])[:2]:
+        for lvl in liq.get("support_levels", [])[:2]:
             st.markdown(f'<span class="level-badge badge-ob-bull">Sop {lvl:.5f}</span>', unsafe_allow_html=True)
         if liq.get("equal_highs"):
             st.markdown('<span class="level-badge badge-fvg-bear">⚠️ Equal Highs</span>', unsafe_allow_html=True)
@@ -319,7 +439,6 @@ def render_live_analysis():
                 <div class="card-sub">🔴 SL: <b>{sl_s:.5f}</b></div>
             </div>
             """, unsafe_allow_html=True)
-
             risk = calcular_riesgo(precio, sl_s, tp_s, capital, riesgo_pct)
             if risk:
                 st.markdown(f"""
