@@ -33,7 +33,37 @@ from datetime import datetime, timezone, timedelta, date
 logger = logging.getLogger(__name__)
 
 # ── Detección de motor ────────────────────────────────────────────────────────
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+# DATABASE_URL puede venir de dos fuentes según el entorno:
+#   · Railway (bot worker)    → variable de entorno del sistema (os.environ)
+#   · Streamlit Cloud (app)   → st.secrets (NO es una variable de entorno)
+# Esta función intenta ambas fuentes en orden, sin crashear si st no está disponible.
+
+def _get_database_url() -> str:
+    """
+    Obtiene DATABASE_URL desde:
+    1. Variable de entorno del sistema (Railway, Docker, local con .env)
+    2. st.secrets de Streamlit Cloud (si está disponible)
+    3. String vacío → usar SQLite local
+    """
+    # Fuente 1: variable de entorno del sistema (Railway worker, .env local)
+    url = os.environ.get("DATABASE_URL", "")
+    if url:
+        return url
+
+    # Fuente 2: st.secrets de Streamlit Cloud
+    # Importamos streamlit solo aquí para no romper el bot que no usa Streamlit
+    try:
+        import streamlit as st
+        url = st.secrets.get("DATABASE_URL", "")
+        if url:
+            return url
+    except Exception:
+        pass  # streamlit no disponible o secrets no configurados
+
+    return ""
+
+
+DATABASE_URL = _get_database_url()
 USE_POSTGRES  = bool(DATABASE_URL)
 
 if USE_POSTGRES:
@@ -359,21 +389,28 @@ def _hash(pw: str) -> str:
 
 def _crear_superadmin(username: str, password: str, capital_inicial: float = 10000.0):
     """
-    Garantiza la existencia del superadmin en cada arranque.
-    · Si ya existe → actualiza is_admin=1, is_active=1
+    Garantiza la existencia del superadmin en CADA arranque.
+    · Si ya existe → actualiza password_hash, is_admin=1, is_active=1
+      (esto garantiza que las credenciales siempre sean correctas,
+       incluso si la DB quedó en estado inconsistente por un deploy fallido)
     · Si no existe → lo crea con los credenciales dados
     Idempotente: nunca falla si se llama múltiples veces.
     """
-    uname = username.strip().lower()
+    uname    = username.strip().lower()
+    pw_hash  = _hash(password)
     with get_conn() as conn:
         row = _fetchone(_exec(conn, "SELECT id FROM users WHERE username=?", (uname,)))
         if row:
-            _exec(conn, "UPDATE users SET is_admin=1, is_active=1 WHERE username=?", (uname,))
+            # SIEMPRE actualiza hash + admin flags — garantiza credenciales correctas
+            _exec(conn,
+                "UPDATE users SET password_hash=?, is_admin=1, is_active=1 WHERE username=?",
+                (pw_hash, uname)
+            )
         else:
             _exec(conn,
                 f"INSERT INTO users (username,password_hash,capital_inicial,is_admin,is_active) "
                 f"VALUES ({_ph(5)})",
-                (uname, _hash(password), capital_inicial, 1, 1)
+                (uname, pw_hash, capital_inicial, 1, 1)
             )
 
 
