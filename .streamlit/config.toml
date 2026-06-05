@@ -10,6 +10,7 @@ serverAddress = "0.0.0.0"
 [theme]
 # Forzar tema base — el código Python maneja oscuro/claro
 base = "dark"
+primaryColor = "#c9a227"
 backgroundColor = "#06090f"
 secondaryBackgroundColor = "#0c1219"
 textColor = "#c8d8ea"
