@@ -153,6 +153,37 @@ else:
 
         nav = st.radio("Navegación", nav_options, label_visibility="collapsed")
 
+        # ── Auto-colapsar sidebar al seleccionar módulo (efecto premium) ─────
+        st.markdown("""
+<script>
+(function() {
+    function attachNavCollapse() {
+        var radioGroup = document.querySelector('[data-testid="stRadio"] div[role="radiogroup"]');
+        if (!radioGroup) return;
+        radioGroup.querySelectorAll('label').forEach(function(label) {
+            label.addEventListener('click', function() {
+                setTimeout(function() {
+                    var collapseBtn = document.querySelector('[data-testid="stSidebarCollapseButton"] button');
+                    if (!collapseBtn) collapseBtn = document.querySelector('[data-testid="stBaseButton-headerNoPadding"]');
+                    if (collapseBtn) collapseBtn.click();
+                }, 150);
+            });
+        });
+    }
+    var attempts = 0;
+    var interval = setInterval(function() {
+        attempts++;
+        var rg = document.querySelector('[data-testid="stRadio"] div[role="radiogroup"]');
+        if (rg && rg.querySelectorAll('label').length > 0) {
+            attachNavCollapse();
+            clearInterval(interval);
+        }
+        if (attempts > 30) clearInterval(interval);
+    }, 300);
+})();
+</script>
+""", unsafe_allow_html=True)
+
         st.divider()
 
         # ── Botones Tema / Salir ──────────────────────────────────────────────

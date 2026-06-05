@@ -231,10 +231,10 @@ html,body{{
 [data-testid="stSidebarCollapsedControl"] > *,
 [data-testid="stSidebarCollapsedControl"] button,
 [data-testid="stSidebarCollapsedControl"] div {{
-    background-color: {c['bg_card']} !important;
-    background: {c['bg_card']} !important;
+    background-color: {'#080d14' if dark else c['bg_card']} !important;
+    background: {'#080d14' if dark else c['bg_card']} !important;
     border: 1px solid {c['border']} !important;
-    color: {c['text']} !important;
+    color: {c['text_strong']} !important;
 }}
 [data-testid="stSidebarCollapsedControl"] {{
     border-radius: 0 8px 8px 0 !important;
@@ -1255,14 +1255,33 @@ textarea {{
     border-color: {c['accent']} !important;
     color: {c['accent']} !important;
 }}
-/* Radio circle dot — override dark color */
-[data-testid="stRadio"] div[role="radio"] {{
-    border-color: {c['border']} !important;
-    background: transparent !important;
+/* Radio circle dot — override dark color — tema adaptable */
+[data-testid="stRadio"] div[role="radio"],
+[data-testid="stRadio"] span[data-testid="stWidgetLabel"] ~ div div[role="radio"],
+div[role="radiogroup"] div[role="radio"] {{
+    border-color: {c['border2']} !important;
+    background: {c['bg_card']} !important;
+    box-shadow: none !important;
 }}
-[data-testid="stRadio"] div[role="radio"][aria-checked="true"] {{
+[data-testid="stRadio"] div[role="radio"][aria-checked="true"],
+div[role="radiogroup"] div[role="radio"][aria-checked="true"] {{
     border-color: {c['accent']} !important;
     background: {c['accent']} !important;
+}}
+/* SVG/círculo nativo dentro del radio */
+[data-testid="stRadio"] div[role="radio"] > div,
+[data-testid="stRadio"] div[role="radio"] svg,
+div[role="radiogroup"] div[role="radio"] > div,
+div[role="radiogroup"] div[role="radio"] svg {{
+    background: transparent !important;
+    fill: {c['accent']} !important;
+    color: {c['accent']} !important;
+}}
+/* Asegurar que el círculo exterior no sea negro en modo claro */
+[data-testid="stRadio"] label input[type="radio"] + div,
+section[data-testid="stSidebar"] div[role="radio"] {{
+    border-color: {c['border2']} !important;
+    background-color: {c['bg_card']} !important;
 }}
 
 /* ═══ MULTISELECT TAGS — texto completo, sin corte ══════════ */
