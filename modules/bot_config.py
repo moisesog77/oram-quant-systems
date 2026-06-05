@@ -1,5 +1,16 @@
 """
-modules/bot_config.py — Configuración del bot de Telegram desde la app.
+modules/bot_config.py — ORAM Quant Systems — Configuración Bot Telegram
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Permite configurar el bot de Telegram por usuario:
+  · Chat ID (se obtiene con /start en ToroMaster)
+  · Umbral de confianza para alertas automáticas
+  · Timeframe de monitoreo y activos a vigilar
+  · Activar/desactivar alertas y resumen diario (8AM CDMX)
+
+Tabs:
+  🔧 Configuración → formulario guardado en bot_config DB
+  🔔 Alertas       → crear alertas de precio (above/below) por nivel
+  📋 Historial     → señales enviadas por el bot en últimas 72h
 """
 import streamlit as st
 import json

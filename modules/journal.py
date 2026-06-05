@@ -1,6 +1,17 @@
 """
-modules/journal.py — Diario de trades.
-Incorpora: setup SMC, emoción, timeframe, tags, preview RR, filtros avanzados.
+modules/journal.py — ORAM Quant Systems — Diario de Trades
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Registro y análisis del historial de operaciones.
+
+Tabs:
+  ✏️ Nuevo Trade  → formulario: activo, TF, dirección, entrada/SL/TP,
+                    RR calculado en tiempo real, setup SMC, emoción, estado
+  📋 Historial    → tabla filtrable + métricas win rate, P&L, RR promedio
+  📊 Analytics    → distribución por setup, emoción, activo, estado
+  🗑️ Eliminar     → selección por ID con overlay de confirmación
+
+RR planeado = |TP-entrada| / |SL-entrada| calculado en insertar_trade().
+RR real = resultado_usd / riesgo_usd guardado en el mismo trade.
 """
 import streamlit as st
 import pandas as pd

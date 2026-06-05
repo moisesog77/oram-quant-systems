@@ -1,5 +1,17 @@
 """
-modules/performance.py — Análisis profundo de performance + IA.
+modules/performance.py — ORAM Quant Systems — Performance & Análisis IA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Análisis profundo del historial de trades con métricas institucionales.
+
+Secciones:
+  · KPIs principales: P&L total, win rate, trades, Sharpe, drawdown
+  · Curva de equity acumulada (Plotly interactivo)
+  · P&L desglosado por: activo, setup SMC, temporalidad, emoción
+  · Análisis IA (RandomForest): qué variables predicen trades ganadores
+    Features: activo, TF, dirección, setup, emoción, riesgo, RR planeado
+    Target: trade ganador/perdedor (resultado_usd > 0)
+
+Requiere mínimo 5 trades para el análisis IA.
 """
 import streamlit as st
 import pandas as pd

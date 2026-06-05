@@ -1,5 +1,18 @@
 """
-modules/live_analysis.py — ORAM Quant Systems — Análisis SMC en vivo.
+modules/live_analysis.py — ORAM Quant Systems — Análisis SMC en Vivo
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ejecuta el motor SMC completo sobre datos de yfinance en tiempo real.
+
+Muestra:
+  · Señal principal: BOS Alcista/Bajista, CHoCH, Sin señal
+  · Confianza: barra de confluencias 0-100%
+  · Gráfica de velas Plotly con EMA200, EMA50, EMA20
+  · Order Blocks (OB alcista/bajista) y FVGs superpuestos
+  · Niveles de liquidez: soportes y resistencias clave
+  · Indicadores: RSI, MACD histogram, ATR
+
+Caché en session_state por (ticker, tf): evita re-fetch al cambiar tema.
+Alerta automática si hay evento de alto impacto en < 30 min.
 """
 import streamlit as st
 import pandas as pd

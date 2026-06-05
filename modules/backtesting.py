@@ -1,5 +1,20 @@
 """
-modules/backtesting.py — Página de Backtesting v2.
+modules/backtesting.py — ORAM Quant Systems — Backtesting SMC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Prueba la estrategia SMC sobre datos históricos reales de yfinance.
+
+Motor (utils/backtesting.ejecutar_backtest):
+  · Ventana deslizante de 80 velas para señales SMC
+  · SL = ATR × 1.5 / TP = ATR × 3.0
+  · Filtra señales por umbral de confianza configurable
+  · Simula P&L con % de riesgo por trade sobre capital inicial
+
+KPIs mostrados: Total trades, Win Rate, Profit Factor, P&L total,
+Max Drawdown, Sharpe Ratio, gráfica de equity del backtest.
+
+Tabs:
+  ▶️ Nuevo Backtest → configurar ticker/TF/umbral/capital/riesgo + ejecutar
+  📋 Historial      → últimos backtests guardados en DB por usuario
 """
 import streamlit as st
 import pandas as pd

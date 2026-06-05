@@ -1,6 +1,17 @@
 """
-modules/multi_tf.py — Análisis Multi-Timeframe v2.
-Gráficas limpias, layout corregido, sin solapamiento.
+modules/multi_tf.py — ORAM Quant Systems — Análisis Multi-Timeframe
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Analiza el mismo activo en dos timeframes para confirmar dirección.
+
+Concepto:
+  TF Alto → define la estructura/dirección maestra (ej: 1H → LONG)
+  TF Bajo  → busca el punto de entrada preciso (ej: 15m → BOS Alcista)
+  Solo operar cuando AMBOS apuntan en la misma dirección (alineación).
+
+Confianza MTF combinada = conf_alto × 0.6 + conf_bajo × 0.4
+
+Combos predefinidos (utils/multi_timeframe.MTF_COMBOS):
+  Scalping (5m/1m), Intraday (1h/15m), Swing (4h/1h), Posicional (1d/4h)
 """
 import streamlit as st
 import plotly.graph_objects as go

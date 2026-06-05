@@ -1,7 +1,20 @@
 """
-modules/admin.py — ORAM Quant Systems
-Panel de control del Superadministrador.
-Solo accesible para usuarios con is_admin=1 (Moises OG).
+modules/admin.py — ORAM Quant Systems — Panel de Superadministración
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Acceso exclusivo: usuarios con is_admin=1 (Moises OG).
+Doble verificación de seguridad al inicio de render_admin().
+
+Tabs:
+  📊 Estadísticas  → KPIs globales en tiempo real + últimas señales SMC
+  👥 Usuarios      → Crear / editar capital / resetear pw / ELIMINAR (2 pasos)
+  🤖 Config Bot    → Ver y modificar config de bot de cualquier usuario
+  ⚡ Log Señales   → Historial de señales SMC con métricas LONG/SHORT
+  📋 Trades        → Todos los trades de todos los usuarios + P&L global
+
+Eliminación (hard delete en cascada, irreversible):
+  Paso 1 → botón "Eliminar usuario" → advertencia visible
+  Paso 2 → botón "Sí, eliminar"     → borra trades/watchlist/alertas/bot_config/usuario
+  Admin (is_admin=1) protegido: nunca puede eliminarse.
 """
 import streamlit as st
 import pandas as pd

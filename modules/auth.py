@@ -560,7 +560,7 @@ p[class*="instructions"] {{
                         if data:
                             st.session_state.user = data
                             from datetime import datetime, timezone
-                            st.session_state["last_activity"] = datetime.now(timezone.utc).timestamp()
+                            st.session_state["session_start"] = datetime.now(timezone.utc).timestamp()
                             st.rerun()
                         else:
                             st.error("Credenciales incorrectas.")
@@ -596,7 +596,7 @@ p[class*="instructions"] {{
                             if data:
                                 st.session_state.user = data
                                 from datetime import datetime, timezone
-                                st.session_state["last_activity"] = datetime.now(timezone.utc).timestamp()
+                                st.session_state["session_start"] = datetime.now(timezone.utc).timestamp()
                             # 2. Mostrar overlay premium + delay + rerun
                             #    (si autenticar falló igual mostramos
                             #     la pantalla y el rerun llevará al login)

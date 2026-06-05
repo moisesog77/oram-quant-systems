@@ -1,5 +1,14 @@
 """
-modules/dashboard.py — Resumen general del trader.
+modules/dashboard.py — ORAM Quant Systems — Dashboard Principal
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Vista general de la cuenta del trader:
+  · KPIs: capital actual, trades totales, P&L, drawdown máximo, Sharpe
+  · Curva de equity (Plotly interactivo)
+  · Rendimiento por activo (gráfica de barras horizontal)
+  · Expander "Configuración de cuenta": ajustar capital inicial
+
+El capital actualizado persiste en la DB (actualizar_capital) y en
+st.session_state.user para reflejar el cambio sin recargar datos.
 """
 import streamlit as st
 import pandas as pd

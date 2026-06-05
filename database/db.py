@@ -1,7 +1,31 @@
 """
-database/db.py — ORAM Quant Systems
-Multi-usuario · trades · watchlist · alertas · bot config · backtest · signal log
-Superadmin: Moises OG
+database/db.py — ORAM Quant Systems — Capa de Persistencia (SQLite)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Responsabilidades:
+  · Definir el esquema de 7 tablas SQLite (ver inicializar_db)
+  · Proveer la conexión thread-safe vía context manager get_conn()
+  · Implementar todas las operaciones CRUD de la aplicación
+  · Gestión de superadmin: creación/actualización garantizada en cada arranque
+  · Migración segura: columnas nuevas se añaden con ALTER TABLE sin romper DBs existentes
+
+Tablas:
+  users             → Usuarios registrados (id, username, password_hash, capital, is_admin)
+  trades            → Diario de operaciones por usuario
+  watchlist         → Lista de activos monitoreados por usuario
+  price_alerts      → Alertas de precio personalizadas
+  bot_config        → Configuración del bot de Telegram por usuario
+  backtest_results  → Resultados de backtests guardados
+  signal_log        → Log de señales SMC generadas por el motor
+
+Seguridad:
+  · Contraseñas hasheadas con SHA-256 (nunca en texto plano)
+  · is_admin=1 solo para Moises OG (Superadmin protegido)
+  · admin_eliminar_usuario() verifica is_admin=0 antes de borrar
+  · Hard delete en cascada: eliminar usuario borra TODOS sus datos
+
+Uso típico:
+  from database.db import obtener_trades, insertar_trade
+  trades = obtener_trades(user_id=1)
 """
 import sqlite3, json, hashlib
 from contextlib import contextmanager

@@ -1,6 +1,16 @@
 """
-modules/watchlist.py — ORAM Quant Systems
-Watchlist personalizada con precios en tiempo real y mini-análisis SMC.
+modules/watchlist.py — ORAM Quant Systems — Watchlist Personalizada
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Lista de activos favoritos del usuario con análisis SMC rápido.
+
+Funcionalidades:
+  · Agregar activos por categoría (Forex, Cripto, Índices, Commodities)
+  · Mini-gráfica sparkline (últimas 50 velas, Plotly)
+  · Señal SMC actual, confianza, precio, RSI, ATR, SL/TP sugeridos
+  · Botón "Quitar" con overlay de confirmación premium
+
+Los datos se obtienen de yfinance (obtener_datos) en cada render;
+el spinner indica la carga por activo.
 """
 import streamlit as st
 import plotly.graph_objects as go

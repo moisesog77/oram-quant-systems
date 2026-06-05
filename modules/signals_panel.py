@@ -1,6 +1,17 @@
 """
-modules/signals_panel.py — ORAM Quant Systems
-Panel de señales en tiempo real: escaneo de múltiples activos simultáneamente.
+modules/signals_panel.py — ORAM Quant Systems — Panel de Señales SMC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Escanea múltiples activos en paralelo y clasifica señales SMC activas.
+
+Flujo:
+  1. Filtros: categorías (multiselect), timeframe, umbral de confianza
+  2. Clic "⚡ Escanear" → barra de progreso por activo
+  3. Resultados en session_state["sp_results"] (persisten sin re-escanear)
+  4. KPIs resumen: total escaneados, LONG, SHORT, Neutral
+  5. Señales de alta confianza primero, formato semáforo 🔥⚡💡
+
+Bloqueo preventivo: si hay evento de alto impacto en < 30 min,
+se muestra advertencia y no se permite escanear.
 """
 import streamlit as st
 import pandas as pd

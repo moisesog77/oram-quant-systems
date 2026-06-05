@@ -1,5 +1,27 @@
 """
-ui/styles.py — ORAM Quant Systems — Premium Design System FINAL
+ui/styles.py — ORAM Quant Systems — Sistema de Diseño Premium
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Responsabilidades:
+  · Definir la paleta de colores para modo oscuro (DARK) y claro (LIGHT)
+  · Inyectar el CSS global premium vía inject_styles()
+  · Proveer funciones utilitarias: get_theme(), get_colors(), toggle_theme()
+  · Proveer componentes HTML reutilizables: signal_box(), page_header()
+  · Proveer el sistema de notificaciones: oram_notify(), oram_bienvenida()
+
+Principios de diseño:
+  · Un solo punto de verdad para todos los estilos (Single Source of Truth)
+  · Selectores de alta especificidad con !important para sobrescribir Streamlit
+  · Tema dinámico: todos los colores se leen de DARK o LIGHT en tiempo de render
+  · Inputs premium unificados: mismo estilo en login, dashboard y todos los módulos
+  · Selectbox/multiselect: readonly por CSS (sin escritura libre, solo selección)
+  · Barra de scroll: elegante y adaptada al tema (no el negro del sistema)
+  · Notificaciones: toast flotante (st.toast) + overlay premium tipo "Bienvenida"
+
+Variables CSS globales (:root):
+  --oram-input-bg, --oram-input-bdr, --oram-input-text, --oram-input-ph
+  --oram-label-col, --oram-focus-clr, --oram-focus-glow, --oram-icon-col
+  Estas variables permiten que módulos externos las referencien sin
+  necesitar importar Python — útil para CSS inyectado en módulos.
 """
 import time
 import streamlit as st
@@ -595,35 +617,125 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     border-color:{c['green']}!important;
     box-shadow:0 0 0 3px rgba(34,197,94,0.15)!important;
 }}
-/* Selectbox */
-.stSelectbox>div>div{{
-    background:{c['input_bg']}!important;
-    border:1px solid {c['border']}!important;
-    border-radius:8px!important;color:{c['text']}!important;
-    transition:border-color .15s;
+/* ══════════════════════════════════════════════════════════════
+   SELECTBOX — Premium unificado con foco verde
+   ─────────────────────────────────────────────────────────────
+   Estructura DOM de st.selectbox:
+     .stSelectbox
+       div           → wrapper externo (limpiar bordes)
+       div > div     → contenedor principal con borde premium
+         [data-baseweb="select"] > div  → el control visual
+           span      → texto seleccionado
+           div       → flecha chevron
+         input       → campo oculto interno (NO debe escribirse)
+
+   Comportamiento:
+   · Solo dropdown — el usuario elige, no escribe
+   · caret-color: transparent  → oculta el cursor de texto
+   · user-select: none         → no se puede seleccionar/copiar
+   · pointer-events: none      → en el input interno (no en el div)
+   · El div externo conserva pointer-events para abrir el dropdown
+   ══════════════════════════════════════════════════════════════ */
+.stSelectbox > div {{
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important; margin: 0 !important;
 }}
-.stSelectbox>div>div>div{{color:{c['text']}!important}}
-[data-baseweb="popover"] [role="listbox"],
-[data-baseweb="popover"] [role="listbox"] li,
-[data-baseweb="popover"] [role="listbox"] ul {{
-    background:{c['bg_card']}!important;
-    border:1px solid {c['border']}!important;border-radius:8px!important;
-    color:{c['text']}!important;
-    color-scheme: {'dark' if dark else 'light'} !important;
+.stSelectbox > div > div {{
+    background: {c['input_bg']} !important;
+    border: 2px solid {c['border2']} !important;
+    border-radius: 10px !important;
+    min-height: 46px !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    box-shadow: none !important;
+    display: flex !important; align-items: center !important;
+    cursor: pointer !important;
 }}
-[data-baseweb="popover"] li{{color:{c['text']}!important;background:{c['bg_card']}!important}}
-[data-baseweb="popover"] li:hover{{background:{c['nav_hover']}!important}}
-/* Multiselect */
-[data-testid="stMultiSelect"]>div{{
-    background:{c['input_bg']}!important;
-    border:1px solid {c['border']}!important;border-radius:8px!important;
+.stSelectbox > div > div:focus-within {{
+    border-color: {c['green']} !important;
+    box-shadow: 0 0 0 3px rgba(34,197,94,0.15) !important;
 }}
-[data-testid="stMultiSelect"] [data-baseweb="tag"]{{
-    background:{c['bg_card2']}!important;
-    border:1px solid {c['border2']}!important;
-    color:{c['text']}!important;border-radius:5px!important;
+.stSelectbox [data-baseweb="select"] > div {{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: {c['text']} !important;
+    padding: 0 0.75rem !important;
+    min-height: 44px !important;
+    cursor: pointer !important;
 }}
-[data-testid="stMultiSelect"] input{{color:{c['text']}!important;background:transparent!important}}
+.stSelectbox [data-baseweb="select"] span {{
+    color: {c['text']} !important;
+    -webkit-text-fill-color: {c['text']} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.93rem !important;
+}}
+/* Flecha/chevron del selectbox */
+.stSelectbox [data-baseweb="select"] svg {{
+    fill: #64748b !important;
+    opacity: 0.7 !important;
+    flex-shrink: 0 !important;
+}}
+/* ── READONLY: el input interno NO debe permitir escritura libre ──
+   El input interno de Base Web es un campo de búsqueda oculto.
+   Lo deshabilitamos visualmente para que funcione SOLO como selector. */
+.stSelectbox [data-baseweb="select"] input,
+.stSelectbox input {{
+    background: transparent !important;
+    color: {c['text']} !important;
+    -webkit-text-fill-color: {c['text']} !important;
+    caret-color: transparent !important;    /* oculta cursor de texto      */
+    user-select: none !important;           /* no seleccionable con mouse   */
+    -webkit-user-select: none !important;
+    pointer-events: none !important;        /* no recibe clics directos     */
+    cursor: pointer !important;
+}}
+
+/* ══════════════════════════════════════════════════════════════
+   MULTISELECT — Premium con foco verde y tags elegantes
+   ─────────────────────────────────────────────────────────────
+   Diferencia con selectbox: permite múltiples selecciones.
+   El input interno SÍ debe recibir texto para filtrar opciones,
+   pero no queremos que parezca un campo de texto libre —
+   se oculta el cursor y se mantiene el estilo coherente.
+   ══════════════════════════════════════════════════════════════ */
+[data-testid="stMultiSelect"] > div {{
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important; margin: 0 !important;
+}}
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div {{
+    background: {c['input_bg']} !important;
+    border: 2px solid {c['border2']} !important;
+    border-radius: 10px !important;
+    min-height: 46px !important;
+    transition: border-color .18s, box-shadow .18s !important;
+    box-shadow: none !important;
+    flex-wrap: wrap !important;
+    height: auto !important;
+    padding: 4px 8px !important;
+    cursor: pointer !important;
+}}
+[data-testid="stMultiSelect"] [data-baseweb="select"]:focus-within > div {{
+    border-color: {c['green']} !important;
+    box-shadow: 0 0 0 3px rgba(34,197,94,0.15) !important;
+}}
+[data-testid="stMultiSelect"] [data-baseweb="select"] svg {{
+    fill: #64748b !important;
+    opacity: 0.7 !important;
+}}
+/* Input de búsqueda dentro del multiselect — permite escribir para filtrar */
+[data-testid="stMultiSelect"] input {{
+    background: transparent !important;
+    color: {c['text']} !important;
+    -webkit-text-fill-color: {c['text']} !important;
+    caret-color: {c['green']} !important;   /* cursor visible pero verde    */
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.88rem !important;
+    min-width: 60px !important;
+}}
 /* Labels */
 .stTextInput label,.stNumberInput label,.stTextArea label,
 .stSelectbox label,.stSlider label,.stDateInput label,
@@ -1027,17 +1139,25 @@ pre,[data-testid="stCode"]>div{{
 /* Number input — transparente general incluyendo botones ± */
 [data-testid="stNumberInput"] * {{ background-color: transparent !important; }}
 [data-testid="stNumberInput"] > div {{ background-color: {c['input_bg']} !important; }}
-/* Select / Multiselect — DROPDOWN FONDO CLARO */
+/* ── Cobertura global de selectbox Base Web (portals y inline) ──
+   Aplica el color correcto sin sobreescribir el readonly del bloque superior */
 [data-baseweb="select"] > div {{
     background-color: {c['input_bg']} !important;
-    border-color: {c['border']} !important;
+    border-color: {c['border2']} !important;
     color: {c['text']} !important;
 }}
-[data-baseweb="select"] span {{ color: {c['text']} !important; }}
+[data-baseweb="select"] span {{
+    color: {c['text']} !important;
+    -webkit-text-fill-color: {c['text']} !important;
+}}
+/* Input interno de cualquier select — READONLY global */
 [data-baseweb="select"] input {{
     background: transparent !important;
     color: {c['text']} !important;
     -webkit-text-fill-color: {c['text']} !important;
+    caret-color: transparent !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
 }}
 /* Dropdown menu popup — CRÍTICO para fondo de la lista.
    Se aplica tanto dentro de la app como en portals de body */
@@ -1165,12 +1285,6 @@ textarea {{
 }}
 [data-baseweb="tag"] [role="button"] {{
     color: {c['text_muted']} !important;
-}}
-[data-testid="stMultiSelect"] [data-baseweb="select"] > div {{
-    flex-wrap: wrap !important;
-    min-height: 40px !important;
-    height: auto !important;
-    padding: 4px 8px !important;
 }}
 /* ── PASSWORD INPUT — eliminar espacio extra junto al ojo ── */
 /* En Streamlit 1.58 el password wrapper tiene estructura:

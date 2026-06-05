@@ -1,5 +1,21 @@
 """
-modules/risk_manager.py — Calculadora avanzada de riesgo y Kelly Criterion.
+modules/risk_manager.py — ORAM Quant Systems — Gestor de Riesgo Institucional
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tres herramientas profesionales de gestión de capital.
+
+Tabs:
+  📐 Calculadora de Posición
+     Inputs: capital, riesgo %, par, entrada, SL, TP
+     Outputs: lote sugerido, $ en riesgo, pips SL/TP, RR, ganancia potencial
+
+  📊 Kelly Criterion
+     Fracción óptima de capital según win rate y RR promedio.
+     f* = (p × b - q) / b  donde b = RR, p = win rate, q = 1-p
+
+  💀 Riesgo de Ruina (Monte Carlo)
+     Simula N trayectorias de capital con riesgo/trade y win rate dados.
+     Probabilidad de ruina = % de simulaciones que tocan el nivel de ruina.
+     Gráfica interactiva Plotly con percentiles 10/50/90.
 """
 import streamlit as st
 import numpy as np
