@@ -1,12 +1,13 @@
 """
 modules/live_analysis.py — ORAM Quant Systems — Análisis SMC en Vivo
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-v6 — fix definitivo:
-  · Inputs con CSS idéntico al de auth.py (nth-child, baseweb, etc.)
-  · Dropdown: CSS inyectado en window.parent.document via JS
-    (única forma de estilizar portals fuera del iframe de Streamlit)
-  · Noticias al tope con variables CSS del tema
-  · Botón primary con glow verde
+v7 — fixes precisos:
+  1. Dropdown claro: fondo blanco/gris en tema light, negro solo en dark
+     → el id del style en parent se invalida cuando cambia el tema
+  2. Selectbox readonly: pointer-events en el div contenedor (no solo input)
+  3. Capital USD: step=1, format="%d" → solo enteros, sin decimales
+  4. Noticias: se renderizan ANTES del CSS para aparecer arriba
+  5. Botón: usa oram_bienvenida() de styles.py igual que "Crear cuenta"
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -18,7 +19,8 @@ from utils.economic_calendar import (hay_evento_alto_impacto_pronto,
                                       obtener_proximos_eventos,
                                       impacto_emoji, impacto_color,
                                       FOREX_FACTORY_URL)
-from ui.styles import signal_box, get_colors, get_plot_layout, page_header, get_theme
+from ui.styles import (signal_box, get_colors, get_plot_layout,
+                       page_header, get_theme, oram_bienvenida)
 
 TIMEFRAME_LABELS = {
     "1m":"1 Min","5m":"5 Min","15m":"15 Min","30m":"30 Min",
@@ -28,14 +30,14 @@ TIMEFRAME_LABELS = {
 
 def _inject_module_css(dark: bool, c: dict):
     """
-    Inyecta CSS del módulo en dos partes:
-    1. CSS inline (iframe) para inputs, noticias, gráfica, botón
-    2. JS que inyecta CSS del dropdown en window.parent.document
-       (única forma de estilizar portals Base Web fuera del iframe)
+    CSS + JS del módulo.
+    FIX 1: El style del portal dropdown lleva el tema en el ID para que
+            se invalide y se re-inyecte cuando el usuario cambia de tema.
+    FIX 2: Selectbox readonly — cursor:pointer en el div wrapper,
+            pointer-events:none solo en el <input> interno oculto.
     """
     input_bg   = "#080d14"  if dark else "#f0f4f8"
     input_text = "#c8d8ea"  if dark else "#1a2b3c"
-    input_ph   = "#3a5068"  if dark else "#9baab8"
     input_bdr  = "#2a4560"  if dark else "#94a3b8"
     label_col  = "#4a6a84"  if dark else "#6b7f94"
     focus_clr  = "#22c55e"
@@ -48,18 +50,19 @@ def _inject_module_css(dark: bool, c: dict):
     text_muted = c["text_muted"]
     accent2    = c["accent2"]
     nav_hover  = c["nav_hover"]
+    # FIX 1: tema en el ID y en el CSS del dropdown para que cambiar tema
+    # borre el style anterior y meta el nuevo con los colores correctos
+    theme_id   = "dark" if dark else "light"
     shadow_dr  = "0 8px 32px rgba(0,0,0,0.45)" if dark else "0 8px 24px rgba(0,0,0,0.12)"
+    # Colores del dropdown según tema
+    dd_bg      = bg_card   # oscuro o blanco según tema
+    dd_text    = text
+    dd_hover   = nav_hover
 
-    # ── 1. CSS inyectado en el iframe (inputs, noticias, gráfica) ─────────
     st.markdown(f"""
 <style>
-/* ══════════════════════════════════════════════════════════
-   INPUTS — Idéntico a auth.py para coherencia visual
-   ══════════════════════════════════════════════════════════ */
-
-/* Labels de inputs */
-.stSelectbox label,
-.stNumberInput label {{
+/* ══ LABELS ══════════════════════════════════════════════════════════ */
+.stSelectbox label, .stNumberInput label {{
     color: {label_col} !important;
     font-family: 'Inter', sans-serif !important;
     font-size: 0.72rem !important; font-weight: 600 !important;
@@ -67,13 +70,16 @@ def _inject_module_css(dark: bool, c: dict):
     margin-bottom: 0.3rem !important; display: block !important;
 }}
 
-/* ── SELECTBOX — igual al login ── */
-.stSelectbox,
-.stSelectbox > div,
-.stSelectbox > div > div {{
+/* ══ SELECTBOX ════════════════════════════════════════════════════════
+   FIX 2: el div contenedor tiene cursor:pointer para abrir el dropdown.
+   Solo el <input> interno (de búsqueda oculto) bloquea pointer-events.
+   ══════════════════════════════════════════════════════════════════ */
+.stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
     background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
+    border: none !important; box-shadow: none !important;
+}}
+.stSelectbox [data-baseweb="select"] {{
+    cursor: pointer !important;
 }}
 .stSelectbox [data-baseweb="select"] > div {{
     background: {input_bg} !important;
@@ -95,23 +101,27 @@ def _inject_module_css(dark: bool, c: dict):
     -webkit-text-fill-color: {input_text} !important;
     font-family: 'Inter', sans-serif !important;
     font-size: 0.93rem !important;
+    pointer-events: none !important;
 }}
 .stSelectbox [data-baseweb="select"] svg {{
-    fill: {eye_col} !important;
-    opacity: 0.7 !important;
-    flex-shrink: 0 !important;
+    fill: {eye_col} !important; opacity: 0.7 !important;
+    flex-shrink: 0 !important; pointer-events: none !important;
 }}
+/* Input interno — oculto/readonly: no escribe, solo selecciona */
 .stSelectbox [data-baseweb="select"] input {{
     background: transparent !important;
-    color: {input_text} !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
     caret-color: transparent !important;
-    user-select: none !important;
+    user-select: none !important; -webkit-user-select: none !important;
     pointer-events: none !important;
-    border: none !important;
-    box-shadow: none !important;
+    border: none !important; box-shadow: none !important;
+    outline: none !important;
+    position: absolute !important; width: 1px !important;
+    height: 1px !important; opacity: 0 !important;
 }}
 
-/* ── NUMBER INPUT — idéntico a auth.py ── */
+/* ══ NUMBER INPUT ═════════════════════════════════════════════════════ */
 [data-testid="stNumberInput"] {{
     background: transparent !important;
     border: none !important; box-shadow: none !important;
@@ -173,7 +183,6 @@ def _inject_module_css(dark: bool, c: dict):
     stroke-width: 1.8 !important; pointer-events: none !important;
     display: block !important; flex-shrink: 0 !important;
 }}
-/* fantasma */
 [data-testid="stNumberInput"] > input:last-child,
 [data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
 [data-testid="stNumberInput"] > *:nth-child(n+3) {{
@@ -188,9 +197,7 @@ def _inject_module_css(dark: bool, c: dict):
     height: 0 !important; margin: 0 !important;
 }}
 
-/* ══════════════════════════════════════════════════════════
-   BOTÓN PRINCIPAL — glow verde institucional
-   ══════════════════════════════════════════════════════════ */
+/* ══ BOTÓN PRIMARY ════════════════════════════════════════════════════ */
 [data-testid="stBaseButton-primary"] {{
     background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
     border: none !important; border-radius: 10px !important;
@@ -211,38 +218,8 @@ def _inject_module_css(dark: bool, c: dict):
     box-shadow: 0 2px 8px 0 rgba(16,185,129,0.30) !important;
     transform: scale(0.98) !important;
 }}
-@keyframes oram-btn-confirm {{
-    0%   {{ box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39); }}
-    30%  {{ box-shadow: 0 0 0 6px rgba(34,197,94,0.45), 0 4px 22px 0 rgba(16,185,129,0.70); }}
-    70%  {{ box-shadow: 0 0 0 12px rgba(34,197,94,0.10), 0 4px 18px 0 rgba(16,185,129,0.50); }}
-    100% {{ box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39); }}
-}}
-.oram-btn-confirming {{
-    animation: oram-btn-confirm 0.7s cubic-bezier(0.22,1,0.36,1) both !important;
-}}
 
-/* ── micro-spinner status ── */
-@keyframes oram-micro-spin {{ to {{ transform: rotate(360deg); }} }}
-.oram-micro-spinner {{
-    width: 12px; height: 12px;
-    border: 1.5px solid rgba(34,197,94,0.3);
-    border-top-color: #22c55e;
-    border-radius: 50%;
-    animation: oram-micro-spin 0.65s linear infinite;
-    display: inline-block; vertical-align: middle;
-}}
-#oram-btn-status {{
-    display: inline-flex; align-items: center; gap: 0.45rem;
-    font-family: 'JetBrains Mono', monospace; font-size: 0.70rem;
-    letter-spacing: 1.2px; text-transform: uppercase;
-    color: #22c55e; opacity: 0; transition: opacity 0.3s ease;
-    padding-top: 0.65rem;
-}}
-#oram-btn-status.oram-visible {{ opacity: 1; }}
-
-/* ══════════════════════════════════════════════════════════
-   NOTICIAS — contenedor consistente con inputs
-   ══════════════════════════════════════════════════════════ */
+/* ══ NOTICIAS ═════════════════════════════════════════════════════════ */
 .oram-news-wrapper {{
     background: {bg_card};
     border: 1px solid {border};
@@ -274,9 +251,7 @@ def _inject_module_css(dark: bool, c: dict):
     border-radius: 10px; padding: 0.65rem 1.1rem; margin-bottom: 0.65rem;
 }}
 
-/* ══════════════════════════════════════════════════════════
-   GRÁFICA — tarjeta con contorno uniforme
-   ══════════════════════════════════════════════════════════ */
+/* ══ GRÁFICA ══════════════════════════════════════════════════════════ */
 .oram-chart-card {{
     background: {bg_card};
     border: 1px solid #1f2937;
@@ -289,26 +264,32 @@ def _inject_module_css(dark: bool, c: dict):
 </style>
 """, unsafe_allow_html=True)
 
-    # ── 2. JS: inyectar CSS del dropdown en window.parent.document ────────
-    # Los portals de Base Web se montan FUERA del iframe de Streamlit.
-    # El único CSS que llega al documento padre es el que inyecta este JS.
+    # ── JS: inyectar CSS del dropdown en window.parent.document ──────────
+    # FIX 1: El ID incluye el tema actual. Al cambiar de oscuro a claro,
+    # el ID cambia → se elimina el viejo style y se inyecta el nuevo.
     st.markdown(f"""
 <script>
 (function() {{
-    var ORAM_STYLE_ID = 'oram-parent-dropdown-css';
+    var THEME_ID = 'oram-portal-css-{theme_id}';
+    var OLD_ID   = 'oram-portal-css-{"light" if dark else "dark"}';
 
-    function injectParentCSS() {{
+    function removeOldStyle() {{
         var doc = window.parent.document;
-        if (doc.getElementById(ORAM_STYLE_ID)) return;
+        var old = doc.getElementById(OLD_ID);
+        if (old) old.parentNode.removeChild(old);
+    }}
 
+    function injectDropdownCSS() {{
+        var doc = window.parent.document;
+        removeOldStyle();
+        if (doc.getElementById(THEME_ID)) return;
         var style = doc.createElement('style');
-        style.id = ORAM_STYLE_ID;
+        style.id = THEME_ID;
         style.textContent = `
-            /* ORAM — Dropdown portal (Base Web, fuera del iframe) */
             [data-baseweb="layer"],
             [data-baseweb="layer"] > * {{
-                background-color: {bg_card} !important;
-                color-scheme: {'dark' if dark else 'light'} !important;
+                background-color: {dd_bg} !important;
+                color-scheme: {theme_id} !important;
             }}
             [data-baseweb="layer"] *,
             [data-baseweb="layer"] [data-baseweb="popover"],
@@ -320,8 +301,8 @@ def _inject_module_css(dark: bool, c: dict):
             [data-baseweb="layer"] ul,
             [data-baseweb="layer"] li,
             [data-baseweb="layer"] [role="option"] {{
-                background-color: {bg_card} !important;
-                color: {text} !important;
+                background-color: {dd_bg} !important;
+                color: {dd_text} !important;
                 border-color: {border} !important;
             }}
             [data-baseweb="layer"] [data-baseweb="popover"] > div,
@@ -335,84 +316,43 @@ def _inject_module_css(dark: bool, c: dict):
             [data-baseweb="layer"] [role="option"]:hover,
             [data-baseweb="layer"] [aria-selected="true"],
             [data-baseweb="layer"] [data-highlighted="true"] {{
-                background-color: {nav_hover} !important;
-                color: {text} !important;
+                background-color: {dd_hover} !important;
+                color: {dd_text} !important;
             }}
             [data-baseweb="menu"] {{
-                background: {bg_card} !important;
+                background: {dd_bg} !important;
                 border: 1px solid {border} !important;
                 border-radius: 8px !important;
             }}
             [data-baseweb="menu"] li,
             [data-baseweb="menu"] [role="option"] {{
-                background: {bg_card} !important;
-                color: {text} !important;
+                background: {dd_bg} !important;
+                color: {dd_text} !important;
             }}
             [data-baseweb="menu"] li:hover,
             [data-baseweb="menu"] [role="option"]:hover {{
-                background: {nav_hover} !important;
+                background: {dd_hover} !important;
             }}
         `;
         doc.head.appendChild(style);
     }}
 
-    // Intentar inmediatamente
-    try {{ injectParentCSS(); }} catch(e) {{}}
+    try {{ injectDropdownCSS(); }} catch(e) {{}}
 
-    // Re-intentar en cada apertura de dropdown (MutationObserver en parent)
+    // MutationObserver: re-inyectar cuando aparece un portal nuevo
     try {{
-        var observer = new MutationObserver(function(mutations) {{
-            mutations.forEach(function(m) {{
+        var observer = new MutationObserver(function(muts) {{
+            muts.forEach(function(m) {{
                 m.addedNodes.forEach(function(node) {{
-                    if (node.nodeType === 1 &&
-                        (node.getAttribute && node.getAttribute('data-baseweb') === 'layer' ||
-                         node.querySelector && node.querySelector('[data-baseweb="layer"]'))) {{
-                        injectParentCSS();
-                    }}
+                    if (node.nodeType === 1 && (
+                        (node.getAttribute && node.getAttribute('data-baseweb') === 'layer') ||
+                        (node.querySelector && node.querySelector('[data-baseweb="layer"]'))
+                    )) {{ injectDropdownCSS(); }}
                 }});
             }});
         }});
-        observer.observe(window.parent.document.body, {{
-            childList: true, subtree: true
-        }});
+        observer.observe(window.parent.document.body, {{childList:true, subtree:true}});
     }} catch(e) {{}}
-
-    // También inyectar el CSS del botón primary en parent (por si acaso)
-    function injectBtnCSS() {{
-        var doc = window.parent.document;
-        var btnStyleId = 'oram-parent-btn-css';
-        if (doc.getElementById(btnStyleId)) return;
-        var s = doc.createElement('style');
-        s.id = btnStyleId;
-        s.textContent = `
-            [data-testid="stBaseButton-primary"] {{
-                box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
-            }}
-        `;
-        doc.head.appendChild(s);
-    }}
-    try {{ injectBtnCSS(); }} catch(e) {{}}
-
-    // Animación confirmación al clicar
-    setTimeout(function() {{
-        var btn = window.parent.document.querySelector(
-            '[data-testid="stBaseButton-primary"]'
-        );
-        if (!btn || btn.dataset.oramBound) return;
-        btn.dataset.oramBound = '1';
-        btn.addEventListener('click', function() {{
-            btn.classList.add('oram-btn-confirming');
-            var status = document.getElementById('oram-btn-status');
-            if (status) {{
-                status.classList.add('oram-visible');
-                setTimeout(function() {{ status.classList.remove('oram-visible'); }}, 2400);
-            }}
-            btn.addEventListener('animationend', function h() {{
-                btn.classList.remove('oram-btn-confirming');
-                btn.removeEventListener('animationend', h);
-            }});
-        }});
-    }}, 800);
 }})();
 </script>
 """, unsafe_allow_html=True)
@@ -545,7 +485,11 @@ def _grafica_velas(df, ticker, smc):
 
 
 def _render_news_banner(dark: bool, c: dict):
-    """Noticias al tope — colores computados en Python (no var() CSS)."""
+    """
+    Noticias al tope — siempre visible.
+    FIX 4: se llama ANTES de _inject_module_css en render_live_analysis,
+    así ocupa la primera posición visual tras el header.
+    """
     hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=90)
     proximos = obtener_proximos_eventos(5)
 
@@ -567,9 +511,7 @@ def _render_news_banner(dark: bool, c: dict):
             </div>
         </div>"""
 
-    if not proximos:
-        if alert_html:
-            st.markdown(alert_html, unsafe_allow_html=True)
+    if not proximos and not alert_html:
         return
 
     cards_html = ""
@@ -598,6 +540,9 @@ def _render_news_banner(dark: bool, c: dict):
                 color:{c['text_muted']};margin-top:0.12rem;">{ev['moneda']}</div>
         </div>"""
 
+    # Nota: las clases oram-news-* se definen en _inject_module_css
+    # pero como el CSS de Streamlit se inyecta en el head, las clases
+    # funcionan aunque el HTML aparezca antes en el DOM.
     st.markdown(f"""
     {alert_html}
     <div class="oram-news-wrapper">
@@ -615,16 +560,18 @@ def render_live_analysis():
     c    = get_colors()
     dark = get_theme() == "dark"
 
-    # CSS + JS del módulo (inputs, dropdown portal, botón, noticias, gráfica)
-    _inject_module_css(dark, c)
-
     # [1] Header
     page_header("📡", "Análisis en Vivo", "Smart Money Concepts · Order Blocks · FVG · Liquidez")
 
-    # [2] Noticias AL TOPE
+    # [2] NOTICIAS AL TOPE — inmediatamente tras el header
+    # FIX 4: se renderizan ANTES del CSS del módulo para garantizar
+    # que ocupen la primera posición visual
     _render_news_banner(dark, c)
 
-    # [3] Controles
+    # [3] CSS + JS del módulo (inputs, dropdown, botón, gráfica)
+    _inject_module_css(dark, c)
+
+    # [4] Controles
     col1, col2, col3, col4, col5 = st.columns([2, 2, 1.5, 1.5, 1.5])
     with col1:
         categoria = st.selectbox("Categoría", list(ACTIVOS_DEFAULT.keys()), key="cat_live")
@@ -636,34 +583,48 @@ def render_live_analysis():
             format_func=lambda x: TIMEFRAME_LABELS[x], index=2, key="tf_live",
         )
     with col4:
+        # FIX 3: step=1, format="%d" → enteros, sin .00
         capital = st.number_input(
-            "Capital USD", value=float(user.get("capital_inicial", 1000)),
-            min_value=100.0, step=500.0, key="cap_live",
+            "Capital USD",
+            value=int(user.get("capital_inicial", 1000)),
+            min_value=100,
+            step=500,
+            format="%d",
+            key="cap_live",
         )
     with col5:
         riesgo_pct = st.number_input(
             "Riesgo %", value=1.0, min_value=0.1, max_value=5.0, step=0.1, key="rsk_live",
         )
 
-    # [4] Botón + status
-    btn_col, status_col = st.columns([3, 7])
-    with btn_col:
-        actualizar = st.button(
-            "🔄 Actualizar análisis", key="btn_actualizar_live",
-            type="primary", use_container_width=True,
-        )
-    with status_col:
-        st.markdown(
-            '<span id="oram-btn-status">'
-            '<span class="oram-micro-spinner"></span>&nbsp;Actualizando…'
-            '</span>',
-            unsafe_allow_html=True,
-        )
+    # [5] Botón "Actualizar análisis"
+    # FIX 5: Al clicar, muestra el overlay de confirmación idéntico al de
+    # "Crear cuenta" usando oram_bienvenida() de styles.py
+    actualizar = st.button(
+        "🔄 Actualizar análisis",
+        key="btn_actualizar_live",
+        type="primary",
+        use_container_width=False,
+    )
 
-    # [5] Datos
+    if actualizar:
+        # Mostrar overlay de confirmación premium (igual que crear cuenta)
+        # oram_bienvenida() muestra el overlay, espera delay seg y hace st.rerun()
+        # Guardamos la señal en session_state para que el rerun ejecute la descarga
+        st.session_state["_live_actualizar"] = True
+        oram_bienvenida(
+            titulo="🔄 Analizando mercado",
+            subtitulo=f"Descargando datos de {ticker} · {TIMEFRAME_LABELS.get(tf, tf)}",
+            spinner_label="Actualizando análisis…",
+            delay=1.8,
+        )
+        # oram_bienvenida hace st.rerun() internamente — lo de abajo no se ejecuta
+
+    # [6] Datos (se ejecuta en el rerun posterior al overlay)
+    forzar = st.session_state.pop("_live_actualizar", False)
     theme_key = get_theme()
     cache_key  = f"df_{ticker}_{tf}_{theme_key}"
-    if cache_key not in st.session_state or actualizar:
+    if cache_key not in st.session_state or forzar:
         with st.spinner(f"Descargando {ticker} ({TIMEFRAME_LABELS[tf]})..."):
             df, status_msg = obtener_datos(ticker, tf)
             st.session_state[cache_key] = (df, status_msg)
@@ -680,12 +641,12 @@ def render_live_analysis():
 
     smc = analisis_completo(df, ticker)
 
-    # [6] Gráfica con tarjeta institucional
+    # [7] Gráfica con tarjeta institucional
     st.markdown('<div class="oram-chart-card">', unsafe_allow_html=True)
     st.plotly_chart(_grafica_velas(df, ticker, smc), use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # [7] Panel de análisis
+    # [8] Panel de análisis
     precio    = smc.get("precio", 0)
     atr       = smc.get("atr", 0)
     rsi       = smc.get("rsi")
