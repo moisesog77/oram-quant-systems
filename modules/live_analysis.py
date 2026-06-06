@@ -1,13 +1,15 @@
 """
 modules/live_analysis.py — ORAM Quant Systems — Análisis SMC en Vivo
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-v3 — fixes:
-  · Plotly annotation: sin bgcolor (ValuerError corregido)
-  · Capital / Riesgo: st.number_input nativo (mismo aspecto premium que login)
-  · Sin HTML stepper duplicado
-  · Banner de noticias siempre visible
-  · Gráficas con paneles delimitados y espaciado
+v4 — refactoring premium:
+  · Noticias movidas al tope del módulo (debajo del header)
+  · Contenedor de noticias con fondo/borde consistente con inputs
+  · Inputs de controles alineados al estilo premium del login
+  · Gráficas con contorno uniforme (tarjeta premium con borde y sombra)
+  · Botón "Actualizar análisis" con animación de confirmación (glow + spinner)
+  · CSS: box-shadow glow verde en botón primario, bordes 1px solid #1f2937
 """
+import time
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -25,6 +27,155 @@ TIMEFRAME_LABELS = {
     "1m":"1 Min","5m":"5 Min","15m":"15 Min","30m":"30 Min",
     "1h":"1 Hora","4h":"4 Horas","1d":"Diario","1wk":"Semanal",
 }
+
+
+# ── CSS adicional para animación del botón y estilos premium ──────────────────
+_LIVE_CSS = """
+<style>
+/* ── Botón principal "Actualizar análisis" — glow premium ─────────────── */
+div[data-testid="stButton"] > button[kind="primary"],
+div[data-testid="stButton"] > button.oram-btn-primary {
+    box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39) !important;
+    transition: box-shadow 0.25s ease, transform 0.18s ease, background-color 0.2s ease !important;
+}
+div[data-testid="stButton"] > button[kind="primary"]:hover {
+    box-shadow: 0 6px 22px 0 rgba(16, 185, 129, 0.58) !important;
+    transform: translateY(-1px) !important;
+}
+div[data-testid="stButton"] > button[kind="primary"]:active {
+    box-shadow: 0 2px 8px 0 rgba(16, 185, 129, 0.30) !important;
+    transform: translateY(0) !important;
+}
+
+/* ── Animación de confirmación — destello verde en botón ─────────────── */
+@keyframes oram-btn-confirm {
+    0%   { box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39); }
+    30%  { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.45), 0 4px 22px 0 rgba(16,185,129,0.70); }
+    70%  { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0.10), 0 4px 18px 0 rgba(16,185,129,0.50); }
+    100% { box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39); }
+}
+.oram-btn-confirming {
+    animation: oram-btn-confirm 0.7s cubic-bezier(0.22,1,0.36,1) both !important;
+}
+
+/* ── Contenedor inline de estado del botón ───────────────────────────── */
+#oram-btn-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #22c55e;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    vertical-align: middle;
+    margin-left: 0.8rem;
+}
+#oram-btn-status.visible { opacity: 1; }
+@keyframes oram-micro-spin {
+    to { transform: rotate(360deg); }
+}
+.oram-micro-spinner {
+    width: 12px; height: 12px;
+    border: 1.5px solid rgba(34,197,94,0.3);
+    border-top-color: #22c55e;
+    border-radius: 50%;
+    animation: oram-micro-spin 0.65s linear infinite;
+    display: inline-block;
+}
+
+/* ── Contenedor de noticias premium — consistente con inputs ─────────── */
+.oram-news-wrapper {
+    background: var(--oram-input-bg, #0c1219);
+    border: 1px solid var(--oram-input-bdr, #1b2a40);
+    border-left: 3px solid #3d9be9;
+    border-radius: 12px;
+    padding: 0.85rem 1.2rem 0.75rem 1.2rem;
+    margin-bottom: 1.25rem;
+}
+.oram-news-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    color: var(--oram-label-col, #637a94);
+    margin-bottom: 0.55rem;
+}
+.oram-news-cards {
+    display: flex;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+}
+.oram-news-card {
+    flex: 1;
+    min-width: 148px;
+    max-width: 230px;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid transparent;
+}
+.oram-news-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    text-decoration: none;
+    opacity: 0.75;
+    transition: opacity 0.2s;
+}
+.oram-news-link:hover { opacity: 1; }
+
+/* ── Alerta de evento inminente ──────────────────────────────────────── */
+.oram-alert-high {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 10px;
+    padding: 0.65rem 1.1rem;
+    margin-bottom: 0.65rem;
+}
+
+/* ── Gráfica: tarjeta uniforme con borde y sombra institucional ──────── */
+.oram-chart-card {
+    border: 1px solid #1f2937;
+    border-radius: 14px;
+    padding: 1rem 0.4rem 0.6rem 0.4rem;
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+}
+</style>
+"""
+
+# ── Script de animación del botón (JS) ───────────────────────────────────────
+_BTN_ANIM_JS = """
+<script>
+(function() {
+    // Espera a que Streamlit termine de renderizar
+    setTimeout(function() {
+        var btns = window.parent.document.querySelectorAll(
+            'button[kind="primary"], button[data-testid="baseButton-primary"]'
+        );
+        btns.forEach(function(btn) {
+            if (btn.dataset.oramAnim) return;
+            btn.dataset.oramAnim = "1";
+            btn.addEventListener('click', function() {
+                btn.classList.add('oram-btn-confirming');
+                var status = document.getElementById('oram-btn-status');
+                if (status) {
+                    status.classList.add('visible');
+                    setTimeout(function() { status.classList.remove('visible'); }, 2200);
+                }
+                btn.addEventListener('animationend', function() {
+                    btn.classList.remove('oram-btn-confirming');
+                }, { once: true });
+            });
+        });
+    }, 600);
+})();
+</script>
+"""
 
 
 def _grafica_velas(df, ticker, smc):
@@ -134,14 +285,13 @@ def _grafica_velas(df, ticker, smc):
             line=dict(color=c["purple"], width=1.2), name="Signal", showlegend=False,
         ), row=3, col=1)
 
-    # ── Subtítulos de paneles (sin bgcolor — causa ValueError) ────────────
+    # Subtítulos de paneles (sin bgcolor — causa ValueError)
     tf_font = dict(color=c["text_muted"], size=10, family="JetBrains Mono")
     for ann in fig.layout.annotations:
-        ann.update(font=tf_font)   # solo font, sin bgcolor ni bordercolor
+        ann.update(font=tf_font)
 
     layout = get_plot_layout(height=740)
     layout.update(
-        # Panel velas
         xaxis=dict(gridcolor=grid_color, color=c["text_muted"],
                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
                    showline=False, zeroline=False,
@@ -149,30 +299,25 @@ def _grafica_velas(df, ticker, smc):
         yaxis=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
                    showline=False, zeroline=False),
-
-        # Panel RSI
         xaxis2=dict(gridcolor=grid_color, color=c["text_muted"],
                     tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
                     showline=False, zeroline=False),
         yaxis2=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
                     tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
                     range=[0, 100], showline=False, zeroline=False),
-
-        # Panel MACD
         xaxis3=dict(gridcolor=grid_color, color=c["text_muted"],
                     tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
                     showline=False, zeroline=False),
         yaxis3=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
                     tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
                     showline=False, zeroline=False),
-
         margin=dict(l=12, r=72, t=32, b=36),
         legend=dict(
             orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0,
             font=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
             bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)",
         ),
-        # Líneas divisoras entre paneles
+        # Líneas divisoras entre paneles — refuerzan el contorno institucional
         shapes=[
             dict(type="line", xref="paper", x0=0, x1=1,
                  yref="paper", y0=0.405, y1=0.405,
@@ -187,36 +332,46 @@ def _grafica_velas(df, ticker, smc):
 
 
 def _render_news_banner(dark: bool):
-    """Banner superior con noticias económicas — siempre visible."""
+    """
+    Banner de noticias económicas — renderizado con contenedor premium
+    consistente con el estilo de inputs del sistema de diseño ORAM.
+    POSICIÓN: siempre al tope del módulo, inmediatamente bajo el header.
+    """
     c = get_colors()
 
+    # ── Alerta de evento inminente (alta prioridad) ────────────────────
     hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=90)
     proximos = obtener_proximos_eventos(5)
 
+    alert_html = ""
     if hay_ev and ev_info:
-        st.markdown(f"""
-        <div style="
-            background:{'rgba(239,68,68,0.12)' if dark else 'rgba(200,30,30,0.07)'};
-            border:1.5px solid {'rgba(239,68,68,0.55)' if dark else 'rgba(200,30,30,0.40)'};
-            border-radius:10px;padding:0.65rem 1.1rem;margin-bottom:0.6rem;
-            display:flex;align-items:center;gap:0.75rem;
+        alert_bg  = "rgba(239,68,68,0.12)" if dark else "rgba(200,30,30,0.07)"
+        alert_bdr = "rgba(239,68,68,0.55)" if dark else "rgba(200,30,30,0.40)"
+        alert_txt = "#f87171"              if dark else "#c81e1e"
+        alert_html = f"""
+        <div class="oram-alert-high" style="
+            background:{alert_bg};
+            border:1.5px solid {alert_bdr};
+            margin-bottom:0.65rem;
         ">
-            <span style="font-size:1.25rem">⚠️</span>
+            <span style="font-size:1.2rem">⚠️</span>
             <div>
-                <span style="color:{'#f87171' if dark else '#c81e1e'};font-weight:700;
-                    font-family:'Space Grotesk',sans-serif;font-size:0.9rem;">
+                <span style="color:{alert_txt};font-weight:700;
+                    font-family:'Space Grotesk',sans-serif;font-size:0.88rem;">
                     Evento de alto impacto en {ev_info['minutos_restantes']} min
                 </span>
-                <span style="color:{c['text_muted']};font-size:0.82rem;margin-left:0.5rem;">
+                <span style="color:{c['text_muted']};font-size:0.80rem;margin-left:0.5rem;">
                     — {ev_info['titulo']} ({ev_info['moneda']}) · {ev_info['hora_mx']} CDMX
                 </span>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>"""
 
     if not proximos:
+        if alert_html:
+            st.markdown(alert_html, unsafe_allow_html=True)
         return
 
+    # ── Tarjetas de próximos eventos ───────────────────────────────────
     cards_html = ""
     for ev in proximos:
         imp_color = impacto_color(ev["impacto"], dark)
@@ -224,49 +379,56 @@ def _render_news_banner(dark: bool):
             "rgba(239,68,68,0.10)"  if ev["impacto"] == "High"   else
             "rgba(201,162,39,0.08)" if ev["impacto"] == "Medium" else
             "rgba(107,127,153,0.07)"
-        )
-        imp_bg_l = (
+        ) if dark else (
             "rgba(200,30,30,0.07)"  if ev["impacto"] == "High"   else
             "rgba(154,117,16,0.06)" if ev["impacto"] == "Medium" else
             "rgba(80,100,120,0.05)"
         )
         cards_html += f"""
-        <div style="flex:1;min-width:148px;max-width:230px;
-            background:{imp_bg if dark else imp_bg_l};
-            border:1px solid {imp_color}33;border-radius:8px;padding:0.5rem 0.75rem;">
-            <div style="font-family:'JetBrains Mono',monospace;font-size:0.60rem;
+        <div class="oram-news-card" style="
+            background:{imp_bg};
+            border-color:{imp_color}33;
+        ">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:0.59rem;
                 color:{c['text_muted']};margin-bottom:0.18rem;">
                 {ev['dia']} · {ev['hora_mx']} CDMX
             </div>
-            <div style="font-size:0.78rem;font-weight:700;color:{imp_color};
+            <div style="font-size:0.77rem;font-weight:700;color:{imp_color};
                 font-family:'Inter',sans-serif;line-height:1.3;">
                 {impacto_emoji(ev['impacto'])} {ev['titulo']}
             </div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:0.63rem;
+            <div style="font-family:'JetBrains Mono',monospace;font-size:0.62rem;
                 color:{c['text_muted']};margin-top:0.12rem;">{ev['moneda']}</div>
         </div>"""
 
+    # ── Contenedor principal — fondo/borde consistente con inputs ─────
     st.markdown(f"""
-    <div style="background:{c['bg_card']};border:1px solid {c['border']};
-        border-left:3px solid {c['accent2']};border-radius:10px;
-        padding:0.75rem 1.1rem 0.65rem 1.1rem;margin-bottom:1rem;">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:0.60rem;
-            text-transform:uppercase;letter-spacing:2.5px;
-            color:{c['text_muted']};margin-bottom:0.5rem;">
-            📰 &nbsp;Próximos eventos de mercado
-        </div>
-        <div style="display:flex;gap:0.55rem;flex-wrap:wrap;">
+    {alert_html}
+    <div class="oram-news-wrapper" style="
+        background:{c['bg_card']};
+        border-color:{c['border']};
+        border-left-color:{c['accent2']};
+    ">
+        <div class="oram-news-label">📰 &nbsp;Próximos eventos de mercado</div>
+        <div class="oram-news-cards">
             {cards_html}
         </div>
-        <div style="margin-top:0.5rem;">
-            <a href="{FOREX_FACTORY_URL}" target="_blank"
-               style="color:{c['accent2']};font-family:'JetBrains Mono',monospace;
-               font-size:0.67rem;text-decoration:none;opacity:0.8;">
-               🔗 Ver calendario completo en Forex Factory →
-            </a>
-        </div>
+        <a href="{FOREX_FACTORY_URL}" target="_blank"
+           class="oram-news-link" style="color:{c['accent2']};">
+           🔗 Ver calendario completo en Forex Factory →
+        </a>
     </div>
     """, unsafe_allow_html=True)
+
+
+def _render_btn_status_html():
+    """Indicador de estado inline junto al botón."""
+    return """
+    <span id="oram-btn-status">
+        <span class="oram-micro-spinner"></span>
+        Actualizando…
+    </span>
+    """
 
 
 def render_live_analysis():
@@ -274,12 +436,16 @@ def render_live_analysis():
     c    = get_colors()
     dark = get_theme() == "dark"
 
+    # ── Inyectar CSS premium del módulo ───────────────────────────────────
+    st.markdown(_LIVE_CSS, unsafe_allow_html=True)
+
+    # ── Header del módulo ─────────────────────────────────────────────────
     page_header("📡", "Análisis en Vivo", "Smart Money Concepts · Order Blocks · FVG · Liquidez")
 
-    # ── Banner de noticias (siempre visible) ──────────────────────────────
+    # ── [1] Noticias al tope — inmediatamente debajo del header ───────────
     _render_news_banner(dark)
 
-    # ── Controles ─────────────────────────────────────────────────────────
+    # ── [2] Controles con estilo premium unificado ────────────────────────
     col1, col2, col3, col4, col5 = st.columns([2, 2, 1.5, 1.5, 1.5])
 
     with col1:
@@ -296,7 +462,6 @@ def render_live_analysis():
             format_func=lambda x: TIMEFRAME_LABELS[x], index=2, key="tf_live"
         )
     with col4:
-        # st.number_input nativo — hereda el CSS premium de styles.py
         capital = st.number_input(
             "Capital USD",
             value=float(user.get("capital_inicial", 1000)),
@@ -314,7 +479,21 @@ def render_live_analysis():
             key="rsk_live",
         )
 
-    actualizar = st.button("🔄 Actualizar análisis", key="btn_actualizar_live")
+    # ── [3] Botón con animación de confirmación + indicador de estado ──────
+    btn_col, status_col = st.columns([2, 5])
+    with btn_col:
+        actualizar = st.button(
+            "🔄 Actualizar análisis",
+            key="btn_actualizar_live",
+            type="primary",
+            use_container_width=True,
+        )
+    with status_col:
+        # El indicador se activa vía JS al clicar — siempre presente en DOM
+        st.markdown(_render_btn_status_html(), unsafe_allow_html=True)
+
+    # JS de animación — inyectado una sola vez tras el botón
+    st.markdown(_BTN_ANIM_JS, unsafe_allow_html=True)
 
     # ── Datos ─────────────────────────────────────────────────────────────
     theme_key = get_theme()
@@ -336,15 +515,16 @@ def render_live_analysis():
 
     smc = analisis_completo(df, ticker)
 
-    # ── Gráfica envuelta en tarjeta premium ───────────────────────────────
+    # ── [4] Gráfica con contorno uniforme — tarjeta institucional ─────────
+    chart_bg     = c["bg_card"]
+    chart_border = "#1f2937"
+    chart_shadow = c["shadow"]
+
     st.markdown(f"""
-    <div style="
-        background:{c['bg_card']};
-        border:1px solid {c['border']};
-        border-radius:14px;
-        padding:1rem 0.4rem 0.6rem 0.4rem;
-        margin-bottom:1.25rem;
-        box-shadow:{c['shadow']};
+    <div class="oram-chart-card" style="
+        background:{chart_bg};
+        border-color:{chart_border};
+        box-shadow:{chart_shadow};
     ">
     """, unsafe_allow_html=True)
     st.plotly_chart(_grafica_velas(df, ticker, smc), use_container_width=True)
