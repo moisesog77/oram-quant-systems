@@ -1617,6 +1617,40 @@ div[data-testid="stAlert"].st-info {{
     from {{ opacity: 0; transform: translateY(-6px); }}
     to   {{ opacity: 1; transform: translateY(0);    }}
 }}
+
+/* ══ FIX ESPACIO EN BLANCO: quitar margin despues de st.success/error ══ */
+.element-container:empty {{
+    display: none !important; height: 0 !important; margin: 0 !important;
+}}
+[data-testid="stAlert"] + .element-container {{
+    margin-top: 0 !important; padding-top: 0 !important;
+}}
+
+/* ══ REFUERZO DROPDOWN — especificidad maxima para tema claro/oscuro ══════
+   :root prefix garantiza que este CSS gane sobre el color-scheme del OS/config */
+:root {{
+    color-scheme: {'dark' if dark else 'light'} !important;
+}}
+:root [data-baseweb="layer"],
+:root [data-baseweb="layer"] > *,
+:root [data-baseweb="layer"] * {{
+    background-color: {c['bg_card']} !important;
+    color: {c['text']} !important;
+    color-scheme: {'dark' if dark else 'light'} !important;
+}}
+:root [data-baseweb="menu"],
+:root [data-baseweb="menu"] *,
+:root [data-baseweb="menu"] li,
+:root [data-baseweb="menu"] [role="option"] {{
+    background-color: {c['bg_card']} !important;
+    color: {c['text']} !important;
+}}
+:root [data-baseweb="menu"] li:hover,
+:root [data-baseweb="menu"] [role="option"]:hover,
+:root [data-baseweb="layer"] [aria-selected="true"] {{
+    background-color: {c['nav_hover']} !important;
+    color: {c['text']} !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 

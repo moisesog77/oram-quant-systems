@@ -1,22 +1,11 @@
 """
 modules/live_analysis.py — ORAM Quant Systems — Análisis SMC en Vivo
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-v9 — fixes definitivos post-auditoría completa:
-
-  DIAGNÓSTICO:
-  · styles.py YA maneja [data-baseweb="layer"] con colores correctos por tema.
-    El JS en live_analysis INTERFERÍA eliminando ese CSS y reemplazándolo.
-    → SOLUCIÓN: eliminar el JS de dropdown. styles.py lo resuelve solo.
-
-  · Las noticias no salían porque obtener_proximos_eventos() retorna []
-    cuando la semana actual ya pasó (fin de semana, sábado).
-    → SOLUCIÓN: economic_calendar.py ahora muestra próxima semana en ese caso.
-
-  · RSI y MACD se "pegaban" por vertical_spacing insuficiente y subplot_titles
-    vacío en row1 que no reserva espacio. También el borde del card no era
-    consistente con el header de cada panel.
-    → SOLUCIÓN: usar row_heights, spacing mayor, y titles con anotaciones
-    posicionadas como banners flotantes sobre cada panel.
+v10 — fixes definitivos:
+  · Noticias: font-family con comillas dobles (soluciona HTML crudo)
+  · Dropdown: 100% gestionado por styles.py + config.toml sin base=dark
+  · Espacio blanco: CSS en styles.py elimina margin post-alert
+  · Gráficas: separación visual premium con badges de título
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -38,10 +27,7 @@ TIMEFRAME_LABELS = {
 
 
 def _inject_module_css(dark: bool, c: dict):
-    """
-    Inyecta CSS de inputs, botón y layout del módulo.
-    NO toca [data-baseweb="layer"] — styles.py ya lo maneja correctamente.
-    """
+    """CSS de inputs y botón del módulo. Sin JS de dropdown."""
     input_bg   = "#080d14"  if dark else "#f0f4f8"
     input_text = "#c8d8ea"  if dark else "#1a2b3c"
     input_bdr  = "#2a4560"  if dark else "#94a3b8"
@@ -55,13 +41,13 @@ def _inject_module_css(dark: bool, c: dict):
 /* ══ LABELS ══════════════════════════════════════════════════════════════ */
 .stSelectbox label, .stNumberInput label {{
     color: {label_col} !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family: Inter, sans-serif !important;
     font-size: 0.72rem !important; font-weight: 600 !important;
     letter-spacing: 1px !important; text-transform: uppercase !important;
     margin-bottom: 0.3rem !important; display: block !important;
 }}
 
-/* ══ SELECTBOX — readonly (no escribir, solo seleccionar) ════════════════ */
+/* ══ SELECTBOX ════════════════════════════════════════════════════════════ */
 .stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
     background: transparent !important;
     border: none !important; box-shadow: none !important;
@@ -70,8 +56,7 @@ def _inject_module_css(dark: bool, c: dict):
 .stSelectbox [data-baseweb="select"] > div {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important;
-    box-shadow: none !important;
+    border-radius: 10px !important; box-shadow: none !important;
     min-height: 46px !important;
     display: flex !important; align-items: center !important;
     cursor: pointer !important;
@@ -85,15 +70,13 @@ def _inject_module_css(dark: bool, c: dict):
 .stSelectbox [data-baseweb="select"] span {{
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
-    font-family: 'Inter', sans-serif !important;
-    font-size: 0.93rem !important;
-    pointer-events: none !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.93rem !important; pointer-events: none !important;
 }}
 .stSelectbox [data-baseweb="select"] svg {{
     fill: {eye_col} !important; opacity: 0.7 !important;
     flex-shrink: 0 !important; pointer-events: none !important;
 }}
-/* input interno: completamente oculto para que no se pueda escribir */
 .stSelectbox [data-baseweb="select"] input {{
     position: absolute !important; width: 1px !important;
     height: 1px !important; opacity: 0 !important;
@@ -111,10 +94,9 @@ def _inject_module_css(dark: bool, c: dict):
 [data-testid="stNumberInput"] > div:nth-child(2) {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important;
-    box-shadow: none !important; display: flex !important;
-    align-items: center !important; min-height: 46px !important;
-    overflow: hidden !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    display: flex !important; align-items: center !important;
+    min-height: 46px !important; overflow: hidden !important;
     transition: border-color .18s ease, box-shadow .18s ease !important;
     padding: 0 !important;
 }}
@@ -127,8 +109,7 @@ def _inject_module_css(dark: bool, c: dict):
     box-shadow: none !important; outline: none !important;
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
-    font-family: 'Inter', sans-serif !important;
-    font-size: 0.93rem !important;
+    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
     padding: 0 0.75rem !important; flex: 1 !important;
     height: 46px !important; -moz-appearance: textfield !important;
 }}
@@ -166,10 +147,9 @@ def _inject_module_css(dark: bool, c: dict):
 [data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
 [data-testid="stNumberInput"] > *:nth-child(n+3) {{
     display: none !important; visibility: hidden !important;
-    height: 0 !important; margin: 0 !important;
-    padding: 0 !important; border: none !important;
-    opacity: 0 !important; position: absolute !important;
-    pointer-events: none !important;
+    height: 0 !important; margin: 0 !important; padding: 0 !important;
+    border: none !important; opacity: 0 !important;
+    position: absolute !important; pointer-events: none !important;
 }}
 [data-testid="InputInstructions"] {{
     display: none !important; visibility: hidden !important;
@@ -181,7 +161,7 @@ def _inject_module_css(dark: bool, c: dict):
     background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
     border: none !important; border-radius: 10px !important;
     color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family: Inter, sans-serif !important;
     font-weight: 600 !important; font-size: 0.95rem !important;
     padding: 0.72rem 1.4rem !important;
     box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
@@ -197,7 +177,7 @@ def _inject_module_css(dark: bool, c: dict):
     box-shadow: 0 2px 8px 0 rgba(16,185,129,0.30) !important;
     transform: scale(0.98) !important;
 }}
-/* En columns (stHorizontalBlock) el primary debe seguir verde */
+/* En stHorizontalBlock el primary sigue siendo verde */
 [data-testid="stHorizontalBlock"] [data-testid="stBaseButton-primary"] {{
     background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
     box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
@@ -210,8 +190,9 @@ def _inject_module_css(dark: bool, c: dict):
 
 def _render_news_banner(dark: bool, c: dict):
     """
-    Noticias al tope con INLINE STYLES únicamente.
-    Muestra próxima semana cuando la actual ya pasó (economic_calendar.py fix).
+    Noticias al tope con INLINE STYLES.
+    CRÍTICO: usar comillas dobles (") en font-family dentro de style="..."
+    Las comillas simples (') causan que Streamlit muestre HTML crudo.
     """
     hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=90)
     proximos = obtener_proximos_eventos(5)
@@ -229,22 +210,24 @@ def _render_news_banner(dark: bool, c: dict):
         ab  = "rgba(239,68,68,0.12)" if dark else "rgba(200,30,30,0.07)"
         abd = "rgba(239,68,68,0.55)" if dark else "rgba(200,30,30,0.40)"
         at  = "#f87171" if dark else "#c81e1e"
-        alert_html = f"""
-        <div style="display:flex;align-items:center;gap:0.75rem;border-radius:10px;
-            padding:0.65rem 1.1rem;margin-bottom:0.65rem;
-            background:{ab};border:1.5px solid {abd};">
-            <span style="font-size:1.2rem">⚠️</span>
-            <div>
-                <span style="color:{at};font-weight:700;
-                    font-family:'Space Grotesk',sans-serif;font-size:0.88rem;">
-                    Evento de alto impacto en {ev_info['minutos_restantes']} min
-                </span>
-                <span style="color:{text_muted};font-size:0.80rem;margin-left:0.5rem;">
-                    — {ev_info['titulo']} ({ev_info['moneda']}) · {ev_info['hora_mx']} CDMX
-                </span>
-            </div>
-        </div>"""
+        alert_html = (
+            f'<div style="display:flex;align-items:center;gap:0.75rem;'
+            f'border-radius:10px;padding:0.65rem 1.1rem;margin-bottom:0.65rem;'
+            f'background:{ab};border:1.5px solid {abd};">'
+            f'<span style="font-size:1.2rem">&#9888;&#65039;</span>'
+            f'<div>'
+            f'<span style="color:{at};font-weight:700;'
+            f'font-family:Space Grotesk,sans-serif;font-size:0.88rem;">'
+            f'Evento de alto impacto en {ev_info["minutos_restantes"]} min'
+            f'</span>'
+            f'<span style="color:{text_muted};font-size:0.80rem;margin-left:0.5rem;">'
+            f'&mdash; {ev_info["titulo"]} ({ev_info["moneda"]}) &middot; {ev_info["hora_mx"]} CDMX'
+            f'</span>'
+            f'</div></div>'
+        )
 
+    # Construir cards con string concatenation (sin f-string anidado)
+    # Usar comillas dobles en font-family para evitar que Streamlit escape el HTML
     cards_html = ""
     for ev in proximos:
         imp_color = impacto_color(ev["impacto"], dark)
@@ -257,70 +240,66 @@ def _render_news_banner(dark: bool, c: dict):
             "rgba(154,117,16,0.06)"  if ev["impacto"] == "Medium" else
             "rgba(80,100,120,0.05)"
         )
-        cards_html += f"""
-        <div style="flex:1;min-width:140px;max-width:220px;border-radius:8px;
-            padding:0.5rem 0.75rem;background:{imp_bg};
-            border:1px solid {imp_color}33;">
-            <div style="font-family:'JetBrains Mono',monospace;font-size:0.59rem;
-                color:{text_muted};margin-bottom:0.18rem;">
-                {ev['dia']} · {ev['hora_mx']} CDMX
-            </div>
-            <div style="font-size:0.77rem;font-weight:700;color:{imp_color};
-                font-family:'Inter',sans-serif;line-height:1.3;">
-                {impacto_emoji(ev['impacto'])} {ev['titulo']}
-            </div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:0.62rem;
-                color:{text_muted};margin-top:0.12rem;">{ev['moneda']}</div>
-        </div>"""
+        emoji = impacto_emoji(ev["impacto"])
+        cards_html += (
+            f'<div style="flex:1;min-width:140px;max-width:220px;border-radius:8px;'
+            f'padding:0.5rem 0.75rem;background:{imp_bg};'
+            f'border:1px solid {imp_color}33;">'
+            f'<div style="font-family:JetBrains Mono,monospace;font-size:0.59rem;'
+            f'color:{text_muted};margin-bottom:0.18rem;">'
+            f'{ev["dia"]} &middot; {ev["hora_mx"]} CDMX'
+            f'</div>'
+            f'<div style="font-size:0.77rem;font-weight:700;color:{imp_color};'
+            f'font-family:Inter,sans-serif;line-height:1.3;">'
+            f'{emoji} {ev["titulo"]}'
+            f'</div>'
+            f'<div style="font-family:JetBrains Mono,monospace;font-size:0.62rem;'
+            f'color:{text_muted};margin-top:0.12rem;">{ev["moneda"]}</div>'
+            f'</div>'
+        )
 
-    st.markdown(f"""
-    {alert_html}
-    <div style="background:{bg_card};border:1px solid {border};
-        border-left:3px solid {accent2};border-radius:12px;
-        padding:0.85rem 1.2rem 0.75rem 1.2rem;margin-bottom:1.25rem;">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:0.58rem;
-            text-transform:uppercase;letter-spacing:2.5px;
-            color:{text_muted};margin-bottom:0.55rem;">
-            📰 &nbsp;Próximos eventos de mercado
-        </div>
-        <div style="display:flex;gap:0.55rem;flex-wrap:wrap;">
-            {cards_html}
-        </div>
-        <a href="{FOREX_FACTORY_URL}" target="_blank"
-           style="display:inline-block;margin-top:0.5rem;
-           font-family:'JetBrains Mono',monospace;font-size:0.65rem;
-           text-decoration:none;opacity:0.75;color:{accent2};">
-            🔗 Ver calendario completo en Forex Factory →
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
+    html = (
+        alert_html +
+        f'<div style="background:{bg_card};border:1px solid {border};'
+        f'border-left:3px solid {accent2};border-radius:12px;'
+        f'padding:0.85rem 1.2rem 0.75rem 1.2rem;margin-bottom:1.25rem;">'
+        f'<div style="font-family:JetBrains Mono,monospace;font-size:0.58rem;'
+        f'text-transform:uppercase;letter-spacing:2.5px;'
+        f'color:{text_muted};margin-bottom:0.55rem;">'
+        f'&#128240;&nbsp;&nbsp;PR&Oacute;XIMOS EVENTOS DE MERCADO'
+        f'</div>'
+        f'<div style="display:flex;gap:0.55rem;flex-wrap:wrap;">'
+        f'{cards_html}'
+        f'</div>'
+        f'<a href="{FOREX_FACTORY_URL}" target="_blank"'
+        f' style="display:inline-block;margin-top:0.5rem;'
+        f'font-family:JetBrains Mono,monospace;font-size:0.65rem;'
+        f'text-decoration:none;opacity:0.75;color:{accent2};">'
+        f'&#128279; Ver calendario completo en Forex Factory &rarr;'
+        f'</a>'
+        f'</div>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def _grafica_velas(df, ticker, smc):
-    """
-    3 subplots con separación visual premium.
-    Títulos RSI y MACD como badges posicionados sobre cada panel.
-    Fondos diferenciados con bordes delimitadores sólidos.
-    """
+    """Gráfica con 3 paneles separados visualmente."""
     c    = get_colors()
     dark = get_theme() == "dark"
     gc   = c["grid"]
 
-    # Fondos diferenciados por panel
     bg_rsi  = "rgba(61,155,233,0.04)"  if dark else "rgba(22,96,168,0.03)"
     bg_macd = "rgba(201,162,39,0.04)"  if dark else "rgba(154,117,16,0.03)"
-    # Color del borde separador
     sep_col = c["border2"]
 
-    # row_heights + vertical_spacing: más espacio real entre paneles
     fig = make_subplots(
         rows=3, cols=1, shared_xaxes=True,
         row_heights=[0.55, 0.225, 0.225],
-        vertical_spacing=0.04,        # espacio en unidades de paper [0-1]
-        subplot_titles=["", "", ""],  # sin títulos nativos (los ponemos como shapes/annotations)
+        vertical_spacing=0.04,
+        subplot_titles=["", "", ""],
     )
 
-    # ── Panel 1: Velas ─────────────────────────────────────────────────────
+    # Panel 1: Velas
     fig.add_trace(go.Candlestick(
         x=df.index, open=df["Open"], high=df["High"],
         low=df["Low"], close=df["Close"], name=ticker,
@@ -329,7 +308,6 @@ def _grafica_velas(df, ticker, smc):
         decreasing_fillcolor="rgba(239,68,68,0.75)",
         whiskerwidth=0.3,
     ), row=1, col=1)
-
     for col_name, color, label in [
         ("EMA20", c["accent2"], "EMA20"), ("EMA50", c["accent"], "EMA50"),
         ("EMA200", c["purple"], "EMA200"),
@@ -339,7 +317,6 @@ def _grafica_velas(df, ticker, smc):
                 x=df.index, y=df[col_name],
                 line=dict(color=color, width=1.3), name=label, opacity=0.90,
             ), row=1, col=1)
-
     if "BB_upper" in df.columns:
         fig.add_trace(go.Scatter(
             x=df.index, y=df["BB_upper"],
@@ -352,34 +329,27 @@ def _grafica_velas(df, ticker, smc):
             fill="tonexty", fillcolor="rgba(139,92,246,0.04)",
             showlegend=False, name="BB Lower",
         ), row=1, col=1)
-
     for ob in smc.get("order_blocks", [])[:3]:
         fc = "rgba(34,197,94,0.12)" if ob.tipo == "OB_alcista" else "rgba(239,68,68,0.12)"
         lc = c["green"] if ob.tipo == "OB_alcista" else c["red"]
-        fig.add_hrect(
-            y0=ob.precio_bot, y1=ob.precio_top, fillcolor=fc,
-            line=dict(color=lc, width=1, dash="dot"),
-            annotation_text="OB↑" if ob.tipo == "OB_alcista" else "OB↓",
-            annotation_font_size=9, annotation_font_color=lc, row=1, col=1,
-        )
-
+        fig.add_hrect(y0=ob.precio_bot, y1=ob.precio_top, fillcolor=fc,
+                      line=dict(color=lc, width=1, dash="dot"),
+                      annotation_text="OB↑" if ob.tipo == "OB_alcista" else "OB↓",
+                      annotation_font_size=9, annotation_font_color=lc, row=1, col=1)
     for fvg in smc.get("fvgs", [])[:2]:
         fc = "rgba(61,155,233,0.10)" if fvg.tipo == "FVG_alcista" else "rgba(201,162,39,0.10)"
         lc = c["accent2"] if fvg.tipo == "FVG_alcista" else c["accent"]
-        fig.add_hrect(
-            y0=fvg.precio_bot, y1=fvg.precio_top, fillcolor=fc,
-            line=dict(color=lc, width=1, dash="dot"),
-            annotation_text="FVG", annotation_font_size=8,
-            annotation_font_color=lc, row=1, col=1,
-        )
-
+        fig.add_hrect(y0=fvg.precio_bot, y1=fvg.precio_top, fillcolor=fc,
+                      line=dict(color=lc, width=1, dash="dot"),
+                      annotation_text="FVG", annotation_font_size=8,
+                      annotation_font_color=lc, row=1, col=1)
     liq = smc.get("liquidez", {})
     for lvl in liq.get("resistance_levels", [])[:2]:
         fig.add_hline(y=lvl, line=dict(color="rgba(239,68,68,0.4)", width=1, dash="dash"), row=1, col=1)
     for lvl in liq.get("support_levels", [])[:2]:
         fig.add_hline(y=lvl, line=dict(color="rgba(34,197,94,0.4)", width=1, dash="dash"), row=1, col=1)
 
-    # ── Panel 2: RSI ───────────────────────────────────────────────────────
+    # Panel 2: RSI
     if "RSI" in df.columns:
         fig.add_trace(go.Scatter(
             x=df.index, y=df["RSI"],
@@ -391,7 +361,7 @@ def _grafica_velas(df, ticker, smc):
         for lvl, col_ in [(70, "rgba(239,68,68,0.45)"), (30, "rgba(34,197,94,0.45)"), (50, "rgba(107,127,153,0.25)")]:
             fig.add_hline(y=lvl, line=dict(color=col_, width=1, dash="dot"), row=2, col=1)
 
-    # ── Panel 3: MACD ──────────────────────────────────────────────────────
+    # Panel 3: MACD
     if "MACD" in df.columns:
         hist = df["MACD_hist"]
         fig.add_trace(go.Bar(
@@ -408,15 +378,8 @@ def _grafica_velas(df, ticker, smc):
             line=dict(color=c["purple"], width=1.3), name="Signal", showlegend=False,
         ), row=3, col=1)
 
-    # ── Layout ─────────────────────────────────────────────────────────────
     layout = get_plot_layout(height=800)
-
-    # Posiciones Y de los paneles (calculadas con row_heights + vertical_spacing):
-    # Panel 1 (velas):  paper y de 0.455 a 1.0
-    # Panel 2 (RSI):    paper y de 0.23 a 0.41
-    # Panel 3 (MACD):   paper y de 0.0  a 0.19
-    y_sep1 = 0.435   # línea entre velas y RSI
-    y_sep2 = 0.215   # línea entre RSI y MACD
+    y_sep1, y_sep2 = 0.435, 0.215
 
     layout.update(
         xaxis=dict(gridcolor=gc, color=c["text_muted"],
@@ -425,7 +388,6 @@ def _grafica_velas(df, ticker, smc):
         yaxis=dict(gridcolor=gc, color=c["text_muted"], side="right",
                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
                    showline=False, zeroline=False),
-
         xaxis2=dict(gridcolor=gc, color=c["text_muted"],
                     tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
                     showline=False, zeroline=False),
@@ -433,63 +395,38 @@ def _grafica_velas(df, ticker, smc):
                     tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
                     range=[0, 100], showline=False, zeroline=False,
                     tickvals=[0, 30, 50, 70, 100]),
-
         xaxis3=dict(gridcolor=gc, color=c["text_muted"],
                     tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
                     showline=False, zeroline=False),
         yaxis3=dict(gridcolor=gc, color=c["text_muted"], side="right",
                     tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                    showline=False,
-                    zerolinecolor=c["border2"], zerolinewidth=1, zeroline=True),
-
+                    showline=False, zerolinecolor=c["border2"], zerolinewidth=1, zeroline=True),
         margin=dict(l=8, r=68, t=24, b=32),
-
         legend=dict(
             orientation="h", yanchor="bottom", y=1.005, xanchor="left", x=0,
             font=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
             bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)",
         ),
-
-        # Títulos de panel como annotations premium posicionadas exactamente
         annotations=[
-            # RSI badge
-            dict(
-                text="<b>RSI</b> <span style='font-size:9px'>(14)</span>",
-                xref="paper", yref="paper",
-                x=0.01, y=y_sep1 - 0.01,
-                xanchor="left", yanchor="top",
-                font=dict(color=c["accent2"], size=11, family="JetBrains Mono"),
-                showarrow=False,
-                bgcolor="rgba(61,155,233,0.12)",
-                borderpad=3,
-            ),
-            # MACD badge
-            dict(
-                text="<b>MACD</b>",
-                xref="paper", yref="paper",
-                x=0.01, y=y_sep2 - 0.01,
-                xanchor="left", yanchor="top",
-                font=dict(color=c["accent"], size=11, family="JetBrains Mono"),
-                showarrow=False,
-                bgcolor="rgba(201,162,39,0.12)",
-                borderpad=3,
-            ),
+            dict(text="<b>RSI</b> (14)", xref="paper", yref="paper",
+                 x=0.01, y=y_sep1 - 0.005, xanchor="left", yanchor="top",
+                 font=dict(color=c["accent2"], size=11, family="JetBrains Mono"),
+                 showarrow=False, bgcolor="rgba(61,155,233,0.14)", borderpad=4),
+            dict(text="<b>MACD</b>", xref="paper", yref="paper",
+                 x=0.01, y=y_sep2 - 0.005, xanchor="left", yanchor="top",
+                 font=dict(color=c["accent"], size=11, family="JetBrains Mono"),
+                 showarrow=False, bgcolor="rgba(201,162,39,0.14)", borderpad=4),
         ],
-
         shapes=[
-            # Línea separadora velas/RSI — sólida y prominente
             dict(type="line", xref="paper", x0=0, x1=1,
                  yref="paper", y0=y_sep1, y1=y_sep1,
                  line=dict(color=sep_col, width=2)),
-            # Línea separadora RSI/MACD
             dict(type="line", xref="paper", x0=0, x1=1,
                  yref="paper", y0=y_sep2, y1=y_sep2,
                  line=dict(color=sep_col, width=2)),
-            # Fondo RSI (entre las dos líneas)
             dict(type="rect", xref="paper", x0=0, x1=1,
                  yref="paper", y0=y_sep2, y1=y_sep1,
                  fillcolor=bg_rsi, line_width=0, layer="below"),
-            # Fondo MACD (debajo de la segunda línea)
             dict(type="rect", xref="paper", x0=0, x1=1,
                  yref="paper", y0=0, y1=y_sep2,
                  fillcolor=bg_macd, line_width=0, layer="below"),
@@ -504,58 +441,37 @@ def render_live_analysis():
     c    = get_colors()
     dark = get_theme() == "dark"
 
-    # [1] Header
     page_header("📡", "Análisis en Vivo",
                 "Smart Money Concepts · Order Blocks · FVG · Liquidez")
-
-    # [2] NOTICIAS AL TOPE — inline styles, independiente del CSS del módulo
     _render_news_banner(dark, c)
-
-    # [3] CSS del módulo (inputs, botón) — SIN JS de dropdown
     _inject_module_css(dark, c)
 
-    # [4] Controles
     col1, col2, col3, col4, col5 = st.columns([2, 2, 1.5, 1.5, 1.5])
     with col1:
-        categoria = st.selectbox("Categoría",
-                                 list(ACTIVOS_DEFAULT.keys()), key="cat_live")
+        categoria = st.selectbox("Categoría", list(ACTIVOS_DEFAULT.keys()), key="cat_live")
     with col2:
-        ticker = st.selectbox("Activo",
-                              ACTIVOS_DEFAULT[categoria], key="ticker_live")
+        ticker = st.selectbox("Activo", ACTIVOS_DEFAULT[categoria], key="ticker_live")
     with col3:
-        tf = st.selectbox(
-            "Temporalidad", list(TIMEFRAME_LABELS.keys()),
-            format_func=lambda x: TIMEFRAME_LABELS[x], index=2, key="tf_live",
-        )
+        tf = st.selectbox("Temporalidad", list(TIMEFRAME_LABELS.keys()),
+                          format_func=lambda x: TIMEFRAME_LABELS[x], index=2, key="tf_live")
     with col4:
-        capital = st.number_input(
-            "Capital USD",
-            value=int(user.get("capital_inicial", 1000)),
-            min_value=100, step=500, format="%d", key="cap_live",
-        )
+        capital = st.number_input("Capital USD",
+                                  value=int(user.get("capital_inicial", 1000)),
+                                  min_value=100, step=500, format="%d", key="cap_live")
     with col5:
-        riesgo_pct = st.number_input(
-            "Riesgo %", value=1.0, min_value=0.1, max_value=5.0,
-            step=0.1, key="rsk_live",
-        )
+        riesgo_pct = st.number_input("Riesgo %", value=1.0, min_value=0.1,
+                                     max_value=5.0, step=0.1, key="rsk_live")
 
-    # [5] Botón con overlay de confirmación premium
-    actualizar = st.button(
-        "🔄 Actualizar análisis", key="btn_actualizar_live",
-        type="primary", use_container_width=False,
-    )
+    actualizar = st.button("🔄 Actualizar análisis", key="btn_actualizar_live",
+                           type="primary", use_container_width=False)
 
     if actualizar:
         st.session_state["_live_actualizar"] = True
         oram_bienvenida(
             titulo="🔄 Analizando mercado",
-            subtitulo=(f"Descargando datos de {ticker} · "
-                       f"{TIMEFRAME_LABELS.get(tf, tf)}"),
-            spinner_label="Actualizando análisis…",
-            delay=1.8,
-        )
+            subtitulo=f"Descargando datos de {ticker} · {TIMEFRAME_LABELS.get(tf, tf)}",
+            spinner_label="Actualizando análisis…", delay=1.8)
 
-    # [6] Datos
     forzar    = st.session_state.pop("_live_actualizar", False)
     theme_key = get_theme()
     cache_key = f"df_{ticker}_{tf}_{theme_key}"
@@ -576,23 +492,16 @@ def render_live_analysis():
 
     smc = analisis_completo(df, ticker)
 
-    # [7] Gráfica — tarjeta premium con borde y sin espacio extra
-    st.markdown(f"""
-    <div style="
-        background:{c['bg_card']};
-        border:1.5px solid {c['border2']};
-        border-radius:14px;
-        padding:1rem 0.2rem 0.6rem 0.2rem;
-        margin-top:0.25rem;
-        margin-bottom:1.25rem;
-        box-shadow:{c['shadow']};
-        overflow:hidden;
-    ">
-    """, unsafe_allow_html=True)
+    # Gráfica — sin margin-top extra
+    st.markdown(
+        f'<div style="background:{c["bg_card"]};border:1.5px solid {c["border2"]};'
+        f'border-radius:14px;padding:1rem 0.2rem 0.6rem 0.2rem;'
+        f'margin-top:0;margin-bottom:1.25rem;'
+        f'box-shadow:{c["shadow"]};overflow:hidden;">',
+        unsafe_allow_html=True)
     st.plotly_chart(_grafica_velas(df, ticker, smc), use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # [8] Panel de análisis
     precio    = smc.get("precio", 0)
     atr       = smc.get("atr", 0)
     rsi       = smc.get("rsi")
@@ -603,40 +512,32 @@ def render_live_analysis():
     factores  = conf.get("factores", [])
 
     st.divider()
-
     m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Precio",    f"{precio:.5f}")
-    m2.metric("ATR",       f"{atr:.5f}")
-    m3.metric("RSI",
-              f"{rsi:.1f}" if rsi else "—",
+    m1.metric("Precio", f"{precio:.5f}")
+    m2.metric("ATR", f"{atr:.5f}")
+    m3.metric("RSI", f"{rsi:.1f}" if rsi else "—",
               delta=("Sobrecomprado" if rsi and rsi > 70
-                     else "Sobrevendido" if rsi and rsi < 30
-                     else "Neutral"))
-    m4.metric("Señal",     tipo if tipo != "Sin señal" else "Rango")
+                     else "Sobrevendido" if rsi and rsi < 30 else "Neutral"))
+    m4.metric("Señal", tipo if tipo != "Sin señal" else "Rango")
     m5.metric("Confianza", f"{confianza:.0f}%")
 
     st.markdown("")
     col_senal, col_niveles, col_riesgo = st.columns([2, 2, 1])
 
     with col_senal:
-        st.markdown(signal_box(tipo, est.get("descripcion", ""), confianza),
-                    unsafe_allow_html=True)
+        st.markdown(signal_box(tipo, est.get("descripcion", ""), confianza), unsafe_allow_html=True)
         if "Alcista" in tipo or "LONG" in tipo:
-            st.success("✅ **SEÑAL: COMPRA (LONG)**\n"
-                       "Busca entrada en OB o FVG alcista.")
+            st.success("✅ **SEÑAL: COMPRA (LONG)**\nBusca entrada en OB o FVG alcista.")
         elif "Bajista" in tipo or "SHORT" in tipo:
-            st.error("❌ **SEÑAL: VENTA (SHORT)**\n"
-                     "Busca entrada en OB o FVG bajista.")
+            st.error("❌ **SEÑAL: VENTA (SHORT)**\nBusca entrada en OB o FVG bajista.")
         else:
             st.warning("⚠️ **ESPERA / RANGO**\nSin tendencia clara definida.")
         if factores:
-            st.markdown(f"""
-            <div class="oram-card oram-card-blue" style="margin-top:0.5rem">
-                <div class="card-title">
-                    Confluencias ({conf.get('score',0)}/{conf.get('max',8)})
-                </div>
-                {"".join([f'<div class="card-sub">✓ {f}</div>' for f in factores])}
-            </div>""", unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="oram-card oram-card-blue" style="margin-top:0.5rem">'
+                f'<div class="card-title">Confluencias ({conf.get("score",0)}/{conf.get("max",8)})</div>'
+                + "".join([f'<div class="card-sub">&#10003; {f}</div>' for f in factores])
+                + '</div>', unsafe_allow_html=True)
 
     with col_niveles:
         obs  = smc.get("order_blocks", [])
@@ -645,63 +546,46 @@ def render_live_analysis():
         st.markdown("**🧱 Order Blocks**")
         if obs:
             for ob in obs[:4]:
-                badge = ("badge-ob-bull" if ob.tipo == "OB_alcista"
-                         else "badge-ob-bear")
+                badge = "badge-ob-bull" if ob.tipo == "OB_alcista" else "badge-ob-bear"
                 label = "OB↑" if ob.tipo == "OB_alcista" else "OB↓"
-                st.markdown(
-                    f'<span class="level-badge {badge}">'
-                    f'{label} {ob.precio_bot:.5f}–{ob.precio_top:.5f}</span>',
-                    unsafe_allow_html=True)
+                st.markdown(f'<span class="level-badge {badge}">{label} {ob.precio_bot:.5f}–{ob.precio_top:.5f}</span>', unsafe_allow_html=True)
         else:
             st.caption("Sin OBs detectados.")
         st.markdown("**⚡ Fair Value Gaps**")
         if fvgs:
             for fvg in fvgs[:4]:
-                badge = ("badge-fvg-bull" if fvg.tipo == "FVG_alcista"
-                         else "badge-fvg-bear")
+                badge = "badge-fvg-bull" if fvg.tipo == "FVG_alcista" else "badge-fvg-bear"
                 label = "FVG↑" if fvg.tipo == "FVG_alcista" else "FVG↓"
-                st.markdown(
-                    f'<span class="level-badge {badge}">'
-                    f'{label} {fvg.precio_bot:.5f}–{fvg.precio_top:.5f}</span>',
-                    unsafe_allow_html=True)
+                st.markdown(f'<span class="level-badge {badge}">{label} {fvg.precio_bot:.5f}–{fvg.precio_top:.5f}</span>', unsafe_allow_html=True)
         else:
             st.caption("Sin FVGs activos.")
         st.markdown("**💧 Zonas de Liquidez**")
         for lvl in liq.get("resistance_levels", [])[:2]:
-            st.markdown(
-                f'<span class="level-badge badge-ob-bear">Res {lvl:.5f}</span>',
-                unsafe_allow_html=True)
+            st.markdown(f'<span class="level-badge badge-ob-bear">Res {lvl:.5f}</span>', unsafe_allow_html=True)
         for lvl in liq.get("support_levels", [])[:2]:
-            st.markdown(
-                f'<span class="level-badge badge-ob-bull">Sop {lvl:.5f}</span>',
-                unsafe_allow_html=True)
+            st.markdown(f'<span class="level-badge badge-ob-bull">Sop {lvl:.5f}</span>', unsafe_allow_html=True)
         if liq.get("equal_highs"):
-            st.markdown(
-                '<span class="level-badge badge-fvg-bear">⚠️ Equal Highs</span>',
-                unsafe_allow_html=True)
+            st.markdown('<span class="level-badge badge-fvg-bear">&#9888;&#65039; Equal Highs</span>', unsafe_allow_html=True)
         if liq.get("equal_lows"):
-            st.markdown(
-                '<span class="level-badge badge-fvg-bull">⚠️ Equal Lows</span>',
-                unsafe_allow_html=True)
+            st.markdown('<span class="level-badge badge-fvg-bull">&#9888;&#65039; Equal Lows</span>', unsafe_allow_html=True)
 
     with col_riesgo:
         sl_s = smc.get("sl_sugerido", 0)
         tp_s = smc.get("tp_sugerido", 0)
         if sl_s and tp_s:
-            st.markdown(f"""
-            <div class="oram-card oram-card-blue">
-                <div class="card-title">SL / TP sugeridos</div>
-                <div class="card-sub">🟢 TP: <b>{tp_s:.5f}</b></div>
-                <div class="card-sub">🔴 SL: <b>{sl_s:.5f}</b></div>
-            </div>""", unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="oram-card oram-card-blue">'
+                f'<div class="card-title">SL / TP sugeridos</div>'
+                f'<div class="card-sub">&#129001; TP: <b>{tp_s:.5f}</b></div>'
+                f'<div class="card-sub">&#128308; SL: <b>{sl_s:.5f}</b></div>'
+                f'</div>', unsafe_allow_html=True)
             risk = calcular_riesgo(precio, sl_s, tp_s, capital, riesgo_pct)
             if risk:
-                st.markdown(f"""
-                <div class="oram-card oram-card-gold">
-                    <div class="card-title">Gestión de Riesgo</div>
-                    <div class="card-sub">Riesgo: <b>${risk['riesgo_usd']}</b></div>
-                    <div class="card-sub">RR: <b>{risk['rr']}:1</b></div>
-                    <div class="card-sub">Ganancia pot:
-                        <b>${risk['ganancia_pot']}</b></div>
-                    <div class="card-sub">Lote: <b>{risk['lot_size']}</b></div>
-                </div>""", unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="oram-card oram-card-gold">'
+                    f'<div class="card-title">Gesti&oacute;n de Riesgo</div>'
+                    f'<div class="card-sub">Riesgo: <b>${risk["riesgo_usd"]}</b></div>'
+                    f'<div class="card-sub">RR: <b>{risk["rr"]}:1</b></div>'
+                    f'<div class="card-sub">Ganancia pot: <b>${risk["ganancia_pot"]}</b></div>'
+                    f'<div class="card-sub">Lote: <b>{risk["lot_size"]}</b></div>'
+                    f'</div>', unsafe_allow_html=True)
