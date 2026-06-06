@@ -1,13 +1,12 @@
 """
 modules/live_analysis.py — ORAM Quant Systems — Análisis SMC en Vivo
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-v7 — fixes precisos:
-  1. Dropdown claro: fondo blanco/gris en tema light, negro solo en dark
-     → el id del style en parent se invalida cuando cambia el tema
-  2. Selectbox readonly: pointer-events en el div contenedor (no solo input)
-  3. Capital USD: step=1, format="%d" → solo enteros, sin decimales
-  4. Noticias: se renderizan ANTES del CSS para aparecer arriba
-  5. Botón: usa oram_bienvenida() de styles.py igual que "Crear cuenta"
+v8 — fixes:
+  1. Dropdown: SIEMPRE eliminar+recrear el style (sin cache por ID)
+  2. Espacio blanco eliminado: CSS margin negativo sobre el chart card
+  3. Noticias: inline styles directamente (no depende de clases CSS)
+  4. Gráficas: 3 subplots separados visualmente, borde premium,
+     vertical_spacing aumentado, fondos diferenciados por panel
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -29,13 +28,6 @@ TIMEFRAME_LABELS = {
 
 
 def _inject_module_css(dark: bool, c: dict):
-    """
-    CSS + JS del módulo.
-    FIX 1: El style del portal dropdown lleva el tema en el ID para que
-            se invalide y se re-inyecte cuando el usuario cambia de tema.
-    FIX 2: Selectbox readonly — cursor:pointer en el div wrapper,
-            pointer-events:none solo en el <input> interno oculto.
-    """
     input_bg   = "#080d14"  if dark else "#f0f4f8"
     input_text = "#c8d8ea"  if dark else "#1a2b3c"
     input_bdr  = "#2a4560"  if dark else "#94a3b8"
@@ -47,17 +39,13 @@ def _inject_module_css(dark: bool, c: dict):
     border     = c["border"]
     border2    = c["border2"]
     text       = c["text"]
-    text_muted = c["text_muted"]
-    accent2    = c["accent2"]
     nav_hover  = c["nav_hover"]
-    # FIX 1: tema en el ID y en el CSS del dropdown para que cambiar tema
-    # borre el style anterior y meta el nuevo con los colores correctos
-    theme_id   = "dark" if dark else "light"
-    shadow_dr  = "0 8px 32px rgba(0,0,0,0.45)" if dark else "0 8px 24px rgba(0,0,0,0.12)"
-    # Colores del dropdown según tema
-    dd_bg      = bg_card   # oscuro o blanco según tema
+    # FIX 1: colores del dropdown según tema actual
+    dd_bg      = bg_card
     dd_text    = text
     dd_hover   = nav_hover
+    shadow_dr  = "0 8px 32px rgba(0,0,0,0.45)" if dark else "0 8px 24px rgba(0,0,0,0.12)"
+    theme_key  = "dark" if dark else "light"
 
     st.markdown(f"""
 <style>
@@ -70,17 +58,12 @@ def _inject_module_css(dark: bool, c: dict):
     margin-bottom: 0.3rem !important; display: block !important;
 }}
 
-/* ══ SELECTBOX ════════════════════════════════════════════════════════
-   FIX 2: el div contenedor tiene cursor:pointer para abrir el dropdown.
-   Solo el <input> interno (de búsqueda oculto) bloquea pointer-events.
-   ══════════════════════════════════════════════════════════════════ */
+/* ══ SELECTBOX — readonly ═════════════════════════════════════════════ */
 .stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
     background: transparent !important;
     border: none !important; box-shadow: none !important;
 }}
-.stSelectbox [data-baseweb="select"] {{
-    cursor: pointer !important;
-}}
+.stSelectbox [data-baseweb="select"] {{ cursor: pointer !important; }}
 .stSelectbox [data-baseweb="select"] > div {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
@@ -107,18 +90,17 @@ def _inject_module_css(dark: bool, c: dict):
     fill: {eye_col} !important; opacity: 0.7 !important;
     flex-shrink: 0 !important; pointer-events: none !important;
 }}
-/* Input interno — oculto/readonly: no escribe, solo selecciona */
 .stSelectbox [data-baseweb="select"] input {{
     background: transparent !important;
     color: transparent !important;
     -webkit-text-fill-color: transparent !important;
     caret-color: transparent !important;
-    user-select: none !important; -webkit-user-select: none !important;
+    user-select: none !important;
     pointer-events: none !important;
     border: none !important; box-shadow: none !important;
     outline: none !important;
-    position: absolute !important; width: 1px !important;
-    height: 1px !important; opacity: 0 !important;
+    position: absolute !important;
+    width: 1px !important; height: 1px !important; opacity: 0 !important;
 }}
 
 /* ══ NUMBER INPUT ═════════════════════════════════════════════════════ */
@@ -157,9 +139,8 @@ def _inject_module_css(dark: bool, c: dict):
     -webkit-appearance: none !important; margin: 0 !important;
 }}
 [data-testid="stNumberInput"] > div:nth-child(2) > div:last-child {{
-    display: flex !important; flex-direction: row !important;
-    align-items: center !important; align-self: stretch !important;
-    height: 100% !important; gap: 0 !important;
+    display: flex !important; align-items: center !important;
+    align-self: stretch !important; height: 100% !important;
     background: transparent !important; border: none !important;
 }}
 [data-testid="stNumberInput-StepDown"],
@@ -204,7 +185,7 @@ def _inject_module_css(dark: bool, c: dict):
     color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
     font-family: 'Inter', sans-serif !important;
     font-weight: 600 !important; font-size: 0.95rem !important;
-    padding: 0.72rem 1rem !important; width: 100% !important;
+    padding: 0.72rem 1.4rem !important;
     box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
     transition: box-shadow .25s ease, transform .18s ease !important;
     cursor: pointer !important;
@@ -219,77 +200,40 @@ def _inject_module_css(dark: bool, c: dict):
     transform: scale(0.98) !important;
 }}
 
-/* ══ NOTICIAS ═════════════════════════════════════════════════════════ */
-.oram-news-wrapper {{
-    background: {bg_card};
-    border: 1px solid {border};
-    border-left: 3px solid {accent2};
-    border-radius: 12px;
-    padding: 0.85rem 1.2rem 0.75rem 1.2rem;
-    margin-bottom: 1.25rem;
+/* ══ FIX 2: eliminar espacio blanco antes de la gráfica ══════════════ */
+/* El stPlotlyChart agrega margin-top que crea el espacio vacío */
+[data-testid="stPlotlyChart"] {{
+    margin-top: 0 !important;
+    padding-top: 0 !important;
 }}
-.oram-news-label {{
-    font-family: 'JetBrains Mono', monospace; font-size: 0.58rem;
-    text-transform: uppercase; letter-spacing: 2.5px;
-    color: {text_muted}; margin-bottom: 0.55rem;
-}}
-.oram-news-cards {{ display: flex; gap: 0.55rem; flex-wrap: wrap; }}
-.oram-news-card {{
-    flex: 1; min-width: 148px; max-width: 230px;
-    border-radius: 8px; padding: 0.5rem 0.75rem;
-    border: 1px solid transparent;
-}}
-.oram-news-link {{
-    display: inline-block; margin-top: 0.5rem;
-    font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
-    text-decoration: none; opacity: 0.75; color: {accent2};
-    transition: opacity 0.2s;
-}}
-.oram-news-link:hover {{ opacity: 1; }}
-.oram-alert-high {{
-    display: flex; align-items: center; gap: 0.75rem;
-    border-radius: 10px; padding: 0.65rem 1.1rem; margin-bottom: 0.65rem;
-}}
-
-/* ══ GRÁFICA ══════════════════════════════════════════════════════════ */
-.oram-chart-card {{
-    background: {bg_card};
-    border: 1px solid #1f2937;
-    border-radius: 14px;
-    padding: 0.75rem 0.25rem 0.5rem 0.25rem;
-    margin-bottom: 1.25rem;
-    box-shadow: {c["shadow"]};
-    overflow: hidden;
+/* El elemento vacío que Streamlit agrega entre alertas y el chart */
+.element-container:has([data-testid="stPlotlyChart"]) {{
+    margin-top: 0 !important;
 }}
 </style>
 """, unsafe_allow_html=True)
 
     # ── JS: inyectar CSS del dropdown en window.parent.document ──────────
-    # FIX 1: El ID incluye el tema actual. Al cambiar de oscuro a claro,
-    # el ID cambia → se elimina el viejo style y se inyecta el nuevo.
+    # FIX 1: SIEMPRE eliminar el style anterior y crear uno nuevo.
+    # Sin el "return si ya existe" que causaba el bug al cambiar de tema.
     st.markdown(f"""
 <script>
 (function() {{
-    var THEME_ID = 'oram-portal-css-{theme_id}';
-    var OLD_ID   = 'oram-portal-css-{"light" if dark else "dark"}';
-
-    function removeOldStyle() {{
-        var doc = window.parent.document;
-        var old = doc.getElementById(OLD_ID);
-        if (old) old.parentNode.removeChild(old);
-    }}
+    var STYLE_ID = 'oram-portal-dropdown';
 
     function injectDropdownCSS() {{
         var doc = window.parent.document;
-        removeOldStyle();
-        if (doc.getElementById(THEME_ID)) return;
+        // SIEMPRE eliminar el anterior (fix: no cachear por tema)
+        var old = doc.getElementById(STYLE_ID);
+        if (old) old.parentNode.removeChild(old);
+
         var style = doc.createElement('style');
-        style.id = THEME_ID;
+        style.id = STYLE_ID;
         style.textContent = `
             [data-baseweb="layer"],
             [data-baseweb="layer"] > * {{
                 background-color: {dd_bg} !important;
-                color-scheme: {theme_id} !important;
+                color-scheme: {theme_key} !important;
             }}
             [data-baseweb="layer"] *,
             [data-baseweb="layer"] [data-baseweb="popover"],
@@ -339,7 +283,7 @@ def _inject_module_css(dark: bool, c: dict):
 
     try {{ injectDropdownCSS(); }} catch(e) {{}}
 
-    // MutationObserver: re-inyectar cuando aparece un portal nuevo
+    // Re-inyectar cuando aparece un nuevo portal (apertura de dropdown)
     try {{
         var observer = new MutationObserver(function(muts) {{
             muts.forEach(function(m) {{
@@ -358,140 +302,21 @@ def _inject_module_css(dark: bool, c: dict):
 """, unsafe_allow_html=True)
 
 
-def _grafica_velas(df, ticker, smc):
-    c    = get_colors()
-    dark = get_theme() == "dark"
-    grid_color = c["grid"]
-
-    fig = make_subplots(
-        rows=3, cols=1, shared_xaxes=True,
-        row_heights=[0.60, 0.20, 0.20],
-        vertical_spacing=0.06,
-        subplot_titles=["", "RSI (14)", "MACD"],
-    )
-    fig.add_trace(go.Candlestick(
-        x=df.index, open=df["Open"], high=df["High"],
-        low=df["Low"], close=df["Close"], name=ticker,
-        increasing_line_color=c["green"], decreasing_line_color=c["red"],
-        increasing_fillcolor="rgba(34,197,94,0.7)",
-        decreasing_fillcolor="rgba(239,68,68,0.7)",
-        whiskerwidth=0.3,
-    ), row=1, col=1)
-    for col_name, color, label in [
-        ("EMA20", c["accent2"], "EMA20"), ("EMA50", c["accent"], "EMA50"),
-        ("EMA200", c["purple"], "EMA200"),
-    ]:
-        if col_name in df.columns:
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df[col_name],
-                line=dict(color=color, width=1.3), name=label, opacity=0.90,
-            ), row=1, col=1)
-    if "BB_upper" in df.columns:
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df["BB_upper"],
-            line=dict(color="rgba(139,92,246,0.35)", width=1, dash="dot"),
-            name="BB", showlegend=False,
-        ), row=1, col=1)
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df["BB_lower"],
-            line=dict(color="rgba(139,92,246,0.35)", width=1, dash="dot"),
-            fill="tonexty", fillcolor="rgba(139,92,246,0.04)",
-            showlegend=False, name="BB Lower",
-        ), row=1, col=1)
-    for ob in smc.get("order_blocks", [])[:3]:
-        fc = "rgba(34,197,94,0.12)" if ob.tipo == "OB_alcista" else "rgba(239,68,68,0.12)"
-        lc = c["green"] if ob.tipo == "OB_alcista" else c["red"]
-        fig.add_hrect(
-            y0=ob.precio_bot, y1=ob.precio_top, fillcolor=fc,
-            line=dict(color=lc, width=1, dash="dot"),
-            annotation_text="OB↑" if ob.tipo == "OB_alcista" else "OB↓",
-            annotation_font_size=9, annotation_font_color=lc, row=1, col=1,
-        )
-    for fvg in smc.get("fvgs", [])[:2]:
-        fc = "rgba(61,155,233,0.10)" if fvg.tipo == "FVG_alcista" else "rgba(201,162,39,0.10)"
-        lc = c["accent2"] if fvg.tipo == "FVG_alcista" else c["accent"]
-        fig.add_hrect(
-            y0=fvg.precio_bot, y1=fvg.precio_top, fillcolor=fc,
-            line=dict(color=lc, width=1, dash="dot"),
-            annotation_text="FVG", annotation_font_size=8, annotation_font_color=lc, row=1, col=1,
-        )
-    liq = smc.get("liquidez", {})
-    for lvl in liq.get("resistance_levels", [])[:2]:
-        fig.add_hline(y=lvl, line=dict(color="rgba(239,68,68,0.4)", width=1, dash="dash"), row=1, col=1)
-    for lvl in liq.get("support_levels", [])[:2]:
-        fig.add_hline(y=lvl, line=dict(color="rgba(34,197,94,0.4)", width=1, dash="dash"), row=1, col=1)
-    if "RSI" in df.columns:
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df["RSI"],
-            line=dict(color=c["accent2"], width=1.5), name="RSI", showlegend=False,
-        ), row=2, col=1)
-        for lvl, col_ in [(70, "rgba(239,68,68,0.5)"), (30, "rgba(34,197,94,0.5)"), (50, "rgba(107,127,153,0.3)")]:
-            fig.add_hline(y=lvl, line=dict(color=col_, width=1, dash="dot"), row=2, col=1)
-    if "MACD" in df.columns:
-        hist = df["MACD_hist"]
-        fig.add_trace(go.Bar(
-            x=df.index, y=hist,
-            marker_color=[c["green"] if v >= 0 else c["red"] for v in hist],
-            name="Hist", showlegend=False, opacity=0.7,
-        ), row=3, col=1)
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df["MACD"],
-            line=dict(color=c["accent"], width=1.2), name="MACD", showlegend=False,
-        ), row=3, col=1)
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df["MACD_signal"],
-            line=dict(color=c["purple"], width=1.2), name="Signal", showlegend=False,
-        ), row=3, col=1)
-
-    tf_font = dict(color=c["text_muted"], size=10, family="JetBrains Mono")
-    for ann in fig.layout.annotations:
-        ann.update(font=tf_font)
-
-    layout = get_plot_layout(height=740)
-    layout.update(
-        xaxis=dict(gridcolor=grid_color, color=c["text_muted"],
-                   tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                   showline=False, zeroline=False, rangeslider=dict(visible=False)),
-        yaxis=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
-                   tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                   showline=False, zeroline=False),
-        xaxis2=dict(gridcolor=grid_color, color=c["text_muted"],
-                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                    showline=False, zeroline=False),
-        yaxis2=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
-                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                    range=[0, 100], showline=False, zeroline=False),
-        xaxis3=dict(gridcolor=grid_color, color=c["text_muted"],
-                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                    showline=False, zeroline=False),
-        yaxis3=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
-                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                    showline=False, zeroline=False),
-        margin=dict(l=12, r=72, t=32, b=36),
-        legend=dict(
-            orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0,
-            font=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-            bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)",
-        ),
-        shapes=[
-            dict(type="line", xref="paper", x0=0, x1=1, yref="paper", y0=0.405, y1=0.405,
-                 line=dict(color=c["border2"], width=1, dash="dot")),
-            dict(type="line", xref="paper", x0=0, x1=1, yref="paper", y0=0.205, y1=0.205,
-                 line=dict(color=c["border2"], width=1, dash="dot")),
-        ],
-    )
-    fig.update_layout(**layout)
-    return fig
-
-
 def _render_news_banner(dark: bool, c: dict):
     """
-    Noticias al tope — siempre visible.
-    FIX 4: se llama ANTES de _inject_module_css en render_live_analysis,
-    así ocupa la primera posición visual tras el header.
+    FIX 3: Noticias con INLINE STYLES — no depende de clases CSS externas.
+    Se llama antes de _inject_module_css para aparecer al tope.
     """
     hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=90)
     proximos = obtener_proximos_eventos(5)
+
+    if not proximos and not hay_ev:
+        return
+
+    bg_card    = c["bg_card"]
+    border     = c["border"]
+    accent2    = c["accent2"]
+    text_muted = c["text_muted"]
 
     alert_html = ""
     if hay_ev and ev_info:
@@ -499,20 +324,20 @@ def _render_news_banner(dark: bool, c: dict):
         abd = "rgba(239,68,68,0.55)" if dark else "rgba(200,30,30,0.40)"
         at  = "#f87171" if dark else "#c81e1e"
         alert_html = f"""
-        <div class="oram-alert-high" style="background:{ab};border:1.5px solid {abd};">
+        <div style="display:flex;align-items:center;gap:0.75rem;border-radius:10px;
+            padding:0.65rem 1.1rem;margin-bottom:0.65rem;
+            background:{ab};border:1.5px solid {abd};">
             <span style="font-size:1.2rem">⚠️</span>
             <div>
-                <span style="color:{at};font-weight:700;font-family:'Space Grotesk',sans-serif;font-size:0.88rem;">
+                <span style="color:{at};font-weight:700;
+                    font-family:'Space Grotesk',sans-serif;font-size:0.88rem;">
                     Evento de alto impacto en {ev_info['minutos_restantes']} min
                 </span>
-                <span style="color:{c['text_muted']};font-size:0.80rem;margin-left:0.5rem;">
+                <span style="color:{text_muted};font-size:0.80rem;margin-left:0.5rem;">
                     — {ev_info['titulo']} ({ev_info['moneda']}) · {ev_info['hora_mx']} CDMX
                 </span>
             </div>
         </div>"""
-
-    if not proximos and not alert_html:
-        return
 
     cards_html = ""
     for ev in proximos:
@@ -527,9 +352,11 @@ def _render_news_banner(dark: bool, c: dict):
             "rgba(80,100,120,0.05)"
         )
         cards_html += f"""
-        <div class="oram-news-card" style="background:{imp_bg};border-color:{imp_color}33;">
+        <div style="flex:1;min-width:140px;max-width:220px;border-radius:8px;
+            padding:0.5rem 0.75rem;background:{imp_bg};
+            border:1px solid {imp_color}33;">
             <div style="font-family:'JetBrains Mono',monospace;font-size:0.59rem;
-                color:{c['text_muted']};margin-bottom:0.18rem;">
+                color:{text_muted};margin-bottom:0.18rem;">
                 {ev['dia']} · {ev['hora_mx']} CDMX
             </div>
             <div style="font-size:0.77rem;font-weight:700;color:{imp_color};
@@ -537,22 +364,218 @@ def _render_news_banner(dark: bool, c: dict):
                 {impacto_emoji(ev['impacto'])} {ev['titulo']}
             </div>
             <div style="font-family:'JetBrains Mono',monospace;font-size:0.62rem;
-                color:{c['text_muted']};margin-top:0.12rem;">{ev['moneda']}</div>
+                color:{text_muted};margin-top:0.12rem;">{ev['moneda']}</div>
         </div>"""
 
-    # Nota: las clases oram-news-* se definen en _inject_module_css
-    # pero como el CSS de Streamlit se inyecta en el head, las clases
-    # funcionan aunque el HTML aparezca antes en el DOM.
     st.markdown(f"""
     {alert_html}
-    <div class="oram-news-wrapper">
-        <div class="oram-news-label">📰 &nbsp;Próximos eventos de mercado</div>
-        <div class="oram-news-cards">{cards_html}</div>
-        <a href="{FOREX_FACTORY_URL}" target="_blank" class="oram-news-link">
+    <div style="background:{bg_card};border:1px solid {border};
+        border-left:3px solid {accent2};border-radius:12px;
+        padding:0.85rem 1.2rem 0.75rem 1.2rem;margin-bottom:1.25rem;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:0.58rem;
+            text-transform:uppercase;letter-spacing:2.5px;
+            color:{text_muted};margin-bottom:0.55rem;">
+            📰 &nbsp;Próximos eventos de mercado
+        </div>
+        <div style="display:flex;gap:0.55rem;flex-wrap:wrap;">
+            {cards_html}
+        </div>
+        <a href="{FOREX_FACTORY_URL}" target="_blank"
+           style="display:inline-block;margin-top:0.5rem;
+           font-family:'JetBrains Mono',monospace;font-size:0.65rem;
+           text-decoration:none;opacity:0.75;color:{accent2};
+           transition:opacity 0.2s;">
             🔗 Ver calendario completo en Forex Factory →
         </a>
     </div>
     """, unsafe_allow_html=True)
+
+
+def _grafica_velas(df, ticker, smc):
+    """
+    FIX 4: 3 subplots separados visualmente.
+    - vertical_spacing=0.12 (más espacio entre paneles)
+    - row_heights ajustados para dar más aire al RSI y MACD
+    - Cada panel con plot_bgcolor diferenciado sutilmente
+    - Líneas separadoras más visibles
+    - subplot_titles con fuente premium
+    """
+    c    = get_colors()
+    dark = get_theme() == "dark"
+    grid_color = c["grid"]
+
+    # Fondo levemente diferente para RSI y MACD
+    bg_rsi  = "rgba(61,155,233,0.03)"  if dark else "rgba(22,96,168,0.025)"
+    bg_macd = "rgba(201,162,39,0.03)"  if dark else "rgba(154,117,16,0.025)"
+
+    fig = make_subplots(
+        rows=3, cols=1, shared_xaxes=True,
+        row_heights=[0.58, 0.21, 0.21],
+        vertical_spacing=0.09,          # FIX: más espacio entre paneles
+        subplot_titles=["", "RSI (14)", "MACD"],
+    )
+
+    # ── Velas ──────────────────────────────────────────────────────────────
+    fig.add_trace(go.Candlestick(
+        x=df.index, open=df["Open"], high=df["High"],
+        low=df["Low"], close=df["Close"], name=ticker,
+        increasing_line_color=c["green"], decreasing_line_color=c["red"],
+        increasing_fillcolor="rgba(34,197,94,0.75)",
+        decreasing_fillcolor="rgba(239,68,68,0.75)",
+        whiskerwidth=0.3,
+    ), row=1, col=1)
+
+    # EMAs
+    for col_name, color, label in [
+        ("EMA20", c["accent2"], "EMA20"), ("EMA50", c["accent"], "EMA50"),
+        ("EMA200", c["purple"], "EMA200"),
+    ]:
+        if col_name in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[col_name],
+                line=dict(color=color, width=1.3), name=label, opacity=0.90,
+            ), row=1, col=1)
+
+    # Bollinger Bands
+    if "BB_upper" in df.columns:
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df["BB_upper"],
+            line=dict(color="rgba(139,92,246,0.35)", width=1, dash="dot"),
+            name="BB", showlegend=False,
+        ), row=1, col=1)
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df["BB_lower"],
+            line=dict(color="rgba(139,92,246,0.35)", width=1, dash="dot"),
+            fill="tonexty", fillcolor="rgba(139,92,246,0.04)",
+            showlegend=False, name="BB Lower",
+        ), row=1, col=1)
+
+    # Order Blocks
+    for ob in smc.get("order_blocks", [])[:3]:
+        fc = "rgba(34,197,94,0.12)" if ob.tipo == "OB_alcista" else "rgba(239,68,68,0.12)"
+        lc = c["green"] if ob.tipo == "OB_alcista" else c["red"]
+        fig.add_hrect(
+            y0=ob.precio_bot, y1=ob.precio_top, fillcolor=fc,
+            line=dict(color=lc, width=1, dash="dot"),
+            annotation_text="OB↑" if ob.tipo == "OB_alcista" else "OB↓",
+            annotation_font_size=9, annotation_font_color=lc, row=1, col=1,
+        )
+
+    # FVGs
+    for fvg in smc.get("fvgs", [])[:2]:
+        fc = "rgba(61,155,233,0.10)" if fvg.tipo == "FVG_alcista" else "rgba(201,162,39,0.10)"
+        lc = c["accent2"] if fvg.tipo == "FVG_alcista" else c["accent"]
+        fig.add_hrect(
+            y0=fvg.precio_bot, y1=fvg.precio_top, fillcolor=fc,
+            line=dict(color=lc, width=1, dash="dot"),
+            annotation_text="FVG", annotation_font_size=8, annotation_font_color=lc, row=1, col=1,
+        )
+
+    # Liquidez
+    liq = smc.get("liquidez", {})
+    for lvl in liq.get("resistance_levels", [])[:2]:
+        fig.add_hline(y=lvl, line=dict(color="rgba(239,68,68,0.4)", width=1, dash="dash"), row=1, col=1)
+    for lvl in liq.get("support_levels", [])[:2]:
+        fig.add_hline(y=lvl, line=dict(color="rgba(34,197,94,0.4)", width=1, dash="dash"), row=1, col=1)
+
+    # ── RSI ────────────────────────────────────────────────────────────────
+    if "RSI" in df.columns:
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df["RSI"],
+            line=dict(color=c["accent2"], width=1.6), name="RSI", showlegend=False,
+        ), row=2, col=1)
+        # Zona sobrecompra/sobreventa rellenada
+        fig.add_hrect(y0=70, y1=100, fillcolor="rgba(239,68,68,0.06)",
+                      line_width=0, row=2, col=1)
+        fig.add_hrect(y0=0, y1=30, fillcolor="rgba(34,197,94,0.06)",
+                      line_width=0, row=2, col=1)
+        for lvl, col_ in [(70, "rgba(239,68,68,0.45)"), (30, "rgba(34,197,94,0.45)"), (50, "rgba(107,127,153,0.25)")]:
+            fig.add_hline(y=lvl, line=dict(color=col_, width=1, dash="dot"), row=2, col=1)
+
+    # ── MACD ───────────────────────────────────────────────────────────────
+    if "MACD" in df.columns:
+        hist = df["MACD_hist"]
+        fig.add_trace(go.Bar(
+            x=df.index, y=hist,
+            marker_color=[c["green"] if v >= 0 else c["red"] for v in hist],
+            name="Hist", showlegend=False, opacity=0.75,
+        ), row=3, col=1)
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df["MACD"],
+            line=dict(color=c["accent"], width=1.3), name="MACD", showlegend=False,
+        ), row=3, col=1)
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df["MACD_signal"],
+            line=dict(color=c["purple"], width=1.3), name="Signal", showlegend=False,
+        ), row=3, col=1)
+
+    # ── Estilo de subtítulos de paneles ────────────────────────────────────
+    tf_font = dict(color=c["text_muted"], size=10, family="JetBrains Mono")
+    for ann in fig.layout.annotations:
+        ann.update(font=tf_font, x=0.01, xanchor="left")
+
+    # ── Layout premium ─────────────────────────────────────────────────────
+    layout = get_plot_layout(height=780)
+    layout.update(
+        # Panel 1 — Velas (fondo base)
+        xaxis=dict(gridcolor=grid_color, color=c["text_muted"],
+                   tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                   showline=True, linecolor=c["border2"],
+                   zeroline=False, rangeslider=dict(visible=False)),
+        yaxis=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
+                   tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                   showline=False, zeroline=False),
+
+        # Panel 2 — RSI (fondo azul tenue)
+        xaxis2=dict(gridcolor=grid_color, color=c["text_muted"],
+                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                    showline=True, linecolor=c["border2"], zeroline=False),
+        yaxis2=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
+                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                    range=[0, 100], showline=False, zeroline=False,
+                    tickvals=[0, 30, 50, 70, 100]),
+
+        # Panel 3 — MACD (fondo dorado tenue)
+        xaxis3=dict(gridcolor=grid_color, color=c["text_muted"],
+                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                    showline=True, linecolor=c["border2"], zeroline=False),
+        yaxis3=dict(gridcolor=grid_color, color=c["text_muted"], side="right",
+                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+                    showline=False, zeroline=True,
+                    zerolinecolor=c["border2"], zerolinewidth=1),
+
+        margin=dict(l=8, r=68, t=28, b=32),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0,
+            font=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
+            bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)",
+        ),
+
+        # Fondos diferenciados por panel
+        plot_bgcolor=c["plot_bg"],
+
+        # Líneas separadoras sólidas y más visibles entre paneles
+        shapes=[
+            # Separador velas/RSI
+            dict(type="line", xref="paper", x0=0, x1=1,
+                 yref="paper", y0=0.42, y1=0.42,
+                 line=dict(color=c["border2"], width=1.5)),
+            # Separador RSI/MACD
+            dict(type="line", xref="paper", x0=0, x1=1,
+                 yref="paper", y0=0.21, y1=0.21,
+                 line=dict(color=c["border2"], width=1.5)),
+            # Fondo RSI (rectángulo)
+            dict(type="rect", xref="paper", x0=0, x1=1,
+                 yref="paper", y0=0.21, y1=0.42,
+                 fillcolor=bg_rsi, line_width=0, layer="below"),
+            # Fondo MACD (rectángulo)
+            dict(type="rect", xref="paper", x0=0, x1=1,
+                 yref="paper", y0=0, y1=0.21,
+                 fillcolor=bg_macd, line_width=0, layer="below"),
+        ],
+    )
+    fig.update_layout(**layout)
+    return fig
 
 
 def render_live_analysis():
@@ -563,12 +586,10 @@ def render_live_analysis():
     # [1] Header
     page_header("📡", "Análisis en Vivo", "Smart Money Concepts · Order Blocks · FVG · Liquidez")
 
-    # [2] NOTICIAS AL TOPE — inmediatamente tras el header
-    # FIX 4: se renderizan ANTES del CSS del módulo para garantizar
-    # que ocupen la primera posición visual
+    # [2] NOTICIAS AL TOPE — inline styles, sin depender de clases CSS
     _render_news_banner(dark, c)
 
-    # [3] CSS + JS del módulo (inputs, dropdown, botón, gráfica)
+    # [3] CSS + JS (inputs, dropdown, botón)
     _inject_module_css(dark, c)
 
     # [4] Controles
@@ -583,34 +604,23 @@ def render_live_analysis():
             format_func=lambda x: TIMEFRAME_LABELS[x], index=2, key="tf_live",
         )
     with col4:
-        # FIX 3: step=1, format="%d" → enteros, sin .00
         capital = st.number_input(
             "Capital USD",
             value=int(user.get("capital_inicial", 1000)),
-            min_value=100,
-            step=500,
-            format="%d",
-            key="cap_live",
+            min_value=100, step=500, format="%d", key="cap_live",
         )
     with col5:
         riesgo_pct = st.number_input(
             "Riesgo %", value=1.0, min_value=0.1, max_value=5.0, step=0.1, key="rsk_live",
         )
 
-    # [5] Botón "Actualizar análisis"
-    # FIX 5: Al clicar, muestra el overlay de confirmación idéntico al de
-    # "Crear cuenta" usando oram_bienvenida() de styles.py
+    # [5] Botón con overlay de confirmación
     actualizar = st.button(
-        "🔄 Actualizar análisis",
-        key="btn_actualizar_live",
-        type="primary",
-        use_container_width=False,
+        "🔄 Actualizar análisis", key="btn_actualizar_live",
+        type="primary", use_container_width=False,
     )
 
     if actualizar:
-        # Mostrar overlay de confirmación premium (igual que crear cuenta)
-        # oram_bienvenida() muestra el overlay, espera delay seg y hace st.rerun()
-        # Guardamos la señal en session_state para que el rerun ejecute la descarga
         st.session_state["_live_actualizar"] = True
         oram_bienvenida(
             titulo="🔄 Analizando mercado",
@@ -618,12 +628,11 @@ def render_live_analysis():
             spinner_label="Actualizando análisis…",
             delay=1.8,
         )
-        # oram_bienvenida hace st.rerun() internamente — lo de abajo no se ejecuta
 
-    # [6] Datos (se ejecuta en el rerun posterior al overlay)
-    forzar = st.session_state.pop("_live_actualizar", False)
+    # [6] Datos
+    forzar    = st.session_state.pop("_live_actualizar", False)
     theme_key = get_theme()
-    cache_key  = f"df_{ticker}_{tf}_{theme_key}"
+    cache_key = f"df_{ticker}_{tf}_{theme_key}"
     if cache_key not in st.session_state or forzar:
         with st.spinner(f"Descargando {ticker} ({TIMEFRAME_LABELS[tf]})..."):
             df, status_msg = obtener_datos(ticker, tf)
@@ -641,8 +650,20 @@ def render_live_analysis():
 
     smc = analisis_completo(df, ticker)
 
-    # [7] Gráfica con tarjeta institucional
-    st.markdown('<div class="oram-chart-card">', unsafe_allow_html=True)
+    # [7] Gráfica — 3 paneles separados con estilo premium
+    # FIX 2: CSS inline en el wrapper para eliminar el espacio superior
+    st.markdown(f"""
+    <div style="
+        background:{c['bg_card']};
+        border:1px solid {c['border2']};
+        border-radius:14px;
+        padding:1rem 0.25rem 0.5rem 0.25rem;
+        margin-top:0;
+        margin-bottom:1.25rem;
+        box-shadow:{c['shadow']};
+        overflow:hidden;
+    ">
+    """, unsafe_allow_html=True)
     st.plotly_chart(_grafica_velas(df, ticker, smc), use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
