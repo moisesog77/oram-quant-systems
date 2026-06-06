@@ -1616,99 +1616,108 @@ div[data-testid="stAlert"].st-info {{
 </style>
 """, unsafe_allow_html=True)
 
-    # ── JavaScript: controla el dropdown 100% via JS (CSS estático se acumula entre renders) ──
-    # Pre-calcular todos los valores en Python para evitar bugs de f-string con {{ }}
-    _bg       = c["bg_card"]
-    _text     = c["text"]
-    _hover    = c["nav_hover"]
-    _bdr2     = c["border2"]
-    _shadow   = "0 8px 32px rgba(0,0,0,0.45)" if dark else "0 8px 24px rgba(0,0,0,0.12)"
-    # IDs calculados en Python (sin expresiones dentro de {{ }} del f-string)
-    _sid      = "oram-dd-d" if dark else "oram-dd-l"
-    _opp_sid  = "oram-dd-l" if dark else "oram-dd-d"
-    _scheme   = "dark" if dark else "light"
+    # ── Dropdown portal: CSS en :root + JS setProperty (doble garantía) ──────────
+    # El portal [data-baseweb="layer"] de Base Web hereda --secondary-background-color
+    # de Streamlit. Sobreescribir esa variable en :root cambia el color del portal.
+    # Adicionalmente, el JS con setProperty sobrescribe inline styles de Base Web.
+    _bg      = c["bg_card"]
+    _text    = c["text"]
+    _hover   = c["nav_hover"]
+    _bdr2    = c["border2"]
+    _scheme  = "dark" if dark else "light"
+    _sid     = "oram-dd-d" if dark else "oram-dd-l"
+    _opp_sid = "oram-dd-l" if dark else "oram-dd-d"
 
+    # Parte 1: CSS con máxima especificidad posible (sobreescribe CSS de Streamlit)
+    st.markdown(f"""
+<style>
+/* Sobreescribir la variable CSS nativa de Streamlit que controla el portal */
+:root,
+:root body,
+html,
+html body {{
+    --secondary-background-color: {_bg} !important;
+    --background-color: {c['bg']} !important;
+    color-scheme: {_scheme} !important;
+}}
+/* Máxima especificidad CSS: html body + selector */
+html body [data-baseweb="layer"],
+html body [data-baseweb="layer"] > div,
+html body [data-baseweb="layer"] div,
+html body [data-baseweb="layer"] ul,
+html body [data-baseweb="layer"] li,
+html body [data-baseweb="layer"] span,
+html body [data-baseweb="layer"] [role="option"],
+html body [data-baseweb="layer"] [role="listbox"],
+html body [data-baseweb="layer"] [data-baseweb="menu"],
+html body [data-baseweb="layer"] [data-baseweb="popover"] {{
+    background-color: {_bg} !important;
+    color: {_text} !important;
+    color-scheme: {_scheme} !important;
+}}
+html body [data-baseweb="layer"] li:hover,
+html body [data-baseweb="layer"] [role="option"]:hover,
+html body [data-baseweb="layer"] [aria-selected="true"] {{
+    background-color: {_hover} !important;
+    color: {_text} !important;
+}}
+html body [data-baseweb="layer"] > div > div {{
+    border-radius: 10px !important;
+    border: 1px solid {_bdr2} !important;
+    overflow: hidden !important;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+    # Parte 2: JS que elimina el estilo del tema opuesto Y aplica setProperty
+    # para sobrescribir inline styles de Base Web (mayor especificidad que CSS)
     st.markdown(f"""
 <script>
 (function() {{
-    var BG      = '{_bg}';
-    var TEXT    = '{_text}';
-    var HOVER   = '{_hover}';
-    var BDR2    = '{_bdr2}';
-    var SHADOW  = '{_shadow}';
-    var STYLE_ID = '{_sid}';
-    var OPP_ID   = '{_opp_sid}';
-    var SCHEME   = '{_scheme}';
+    var BG   = '{_bg}';
+    var TEXT = '{_text}';
+    var HOV  = '{_hover}';
+    var SID  = '{_sid}';
+    var OPP  = '{_opp_sid}';
+    var SCH  = '{_scheme}';
 
-    // Eliminar el <style> del tema opuesto para evitar acumulación
-    var opp = document.getElementById(OPP_ID);
-    if (opp) {{ opp.parentNode.removeChild(opp); }}
+    // Limpiar estilo del tema opuesto
+    var opp = document.getElementById(OPP);
+    if (opp) opp.parentNode.removeChild(opp);
 
-    // Siempre recrear el <style> del tema actual (garantiza colores frescos)
-    var old = document.getElementById(STYLE_ID);
-    if (old) {{ old.parentNode.removeChild(old); }}
-
+    // Recrear el <style> del tema actual con la variable CSS nativa de Streamlit
+    var old = document.getElementById(SID);
+    if (old) old.parentNode.removeChild(old);
     var s = document.createElement('style');
-    s.id = STYLE_ID;
+    s.id = SID;
     s.textContent =
-        '[data-baseweb="layer"],' +
-        '[data-baseweb="layer"] > *,' +
-        '[data-baseweb="layer"] *,' +
-        '[data-baseweb="layer"] [data-baseweb="popover"],' +
-        '[data-baseweb="layer"] [data-baseweb="popover"] > *,' +
-        '[data-baseweb="layer"] [data-baseweb="menu"],' +
-        '[data-baseweb="layer"] [data-baseweb="menu"] *,' +
-        '[data-baseweb="layer"] [role=\"listbox\"],' +
-        '[data-baseweb="layer"] [role=\"listbox\"] *,' +
-        '[data-baseweb="layer"] ul,' +
-        '[data-baseweb="layer"] li,' +
-        '[data-baseweb="layer"] [role=\"option\"]' +
-        ' {{ background-color: ' + BG + ' !important;' +
-        ' color: ' + TEXT + ' !important;' +
-        ' color-scheme: ' + SCHEME + ' !important; }}' +
-        '[data-baseweb="layer"] [data-baseweb="popover"] > div,' +
-        '[data-baseweb="layer"] [role=\"listbox\"] > div' +
-        ' {{ border-radius: 10px !important;' +
-        ' border: 1px solid ' + BDR2 + ' !important;' +
-        ' box-shadow: ' + SHADOW + ' !important;' +
-        ' overflow: hidden !important; }}' +
-        '[data-baseweb="layer"] li:hover,' +
-        '[data-baseweb="layer"] [role=\"option\"]:hover,' +
-        '[data-baseweb="layer"] [aria-selected=\"true\"]' +
-        ' {{ background-color: ' + HOVER + ' !important;' +
-        ' color: ' + TEXT + ' !important; }}';
+        ':root {{ --secondary-background-color: ' + BG + ' !important; color-scheme: ' + SCH + ' !important; }}' +
+        'html body [data-baseweb="layer"] * {{ background-color: ' + BG + ' !important; color: ' + TEXT + ' !important; }}' +
+        'html body [data-baseweb="layer"] li:hover, html body [data-baseweb="layer"] [role="option"]:hover {{ background-color: ' + HOV + ' !important; }}';
     document.head.appendChild(s);
 
-    // MutationObserver: aplica inline styles DIRECTAMENTE al portal
-    // (los inline styles de Base Web se sobrescriben con setProperty 'important')
-    function stylePortal(node) {{
-        if (!node || !node.getAttribute) return;
-        if (node.getAttribute('data-baseweb') === 'layer') {{
-            node.style.setProperty('background-color', BG, 'important');
-            node.style.setProperty('color', TEXT, 'important');
-            node.querySelectorAll('*').forEach(function(el) {{
-                el.style.setProperty('background-color', BG, 'important');
-                el.style.setProperty('color', TEXT, 'important');
-            }});
-        }}
+    // MutationObserver: forzar inline styles en el portal cuando aparece
+    function paint(node) {{
+        if (!node || !node.getAttribute || node.getAttribute('data-baseweb') !== 'layer') return;
+        node.style.setProperty('background-color', BG, 'important');
+        node.style.setProperty('color', TEXT, 'important');
+        node.querySelectorAll('div, ul, li, span').forEach(function(el) {{
+            el.style.setProperty('background-color', BG, 'important');
+            el.style.setProperty('color', TEXT, 'important');
+        }});
     }}
-
-    var obs = new MutationObserver(function(muts) {{
-        muts.forEach(function(m) {{
+    new MutationObserver(function(ms) {{
+        ms.forEach(function(m) {{
             m.addedNodes.forEach(function(n) {{
                 if (n.nodeType !== 1) return;
-                stylePortal(n);
-                if (n.querySelectorAll) {{
-                    n.querySelectorAll('[data-baseweb="layer"]').forEach(stylePortal);
-                }}
+                paint(n);
+                if (n.querySelectorAll) n.querySelectorAll('[data-baseweb="layer"]').forEach(paint);
             }});
         }});
-    }});
-    obs.observe(document.body, {{ childList: true, subtree: true }});
+    }}).observe(document.body, {{ childList: true, subtree: true }});
 }})();
 </script>
 """, unsafe_allow_html=True)
-
 
 def page_header(icon: str, title: str, subtitle: str = ""):
     display = f"{icon} {title}" if icon else title
