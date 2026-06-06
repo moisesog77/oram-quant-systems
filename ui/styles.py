@@ -204,6 +204,25 @@ body {{
     border-radius: 6px !important;
 }}
 
+/* ── VARIABLES CSS GLOBALES — usadas por módulos externos ── */
+:root {{
+    --oram-input-bg:   {c['input_bg']};
+    --oram-input-bdr:  {c['border']};
+    --oram-input-bdr2: {c['border2']};
+    --oram-label-col:  {c['text_muted']};
+    --oram-text:       {c['text']};
+    --oram-text-muted: {c['text_muted']};
+    --oram-bg-card:    {c['bg_card']};
+    --oram-accent:     {c['accent']};
+    --oram-accent2:    {c['accent2']};
+    --oram-green:      {c['green']};
+    --oram-focus-clr:  {c['green']};
+    --oram-focus-glow: rgba(34,197,94,0.15);
+    --oram-icon-col:   {c['text_muted']};
+    --oram-shadow:     {c['shadow']};
+    --oram-border:     {c['border']};
+}}
+
 /* ── RESET ─────────────────────────────────────────── */
 *,*::before,*::after{{box-sizing:border-box}}
 html,body{{
@@ -964,6 +983,37 @@ section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:last-ch
     -webkit-text-fill-color: #fc5c65 !important;
 }}
 
+/* ── EXCEPCIÓN: botones de ACCIÓN PRINCIPAL (type=primary) dentro de stHorizontalBlock ──
+   El btn "Actualizar análisis" vive en st.columns → stHorizontalBlock pero
+   debe mantener el estilo verde premium, no el rojo de watchlist.
+   El selector [data-testid="stBaseButton-primary"] identifica type="primary". ── */
+[data-testid="stHorizontalBlock"] .stButton>[data-testid="stBaseButton-primary"],
+[data-testid="stHorizontalBlock"] [data-testid="stBaseButton-primary"] {{
+    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+    padding: 0.72rem 1rem !important;
+    box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39) !important;
+    transition: box-shadow 0.25s ease, transform 0.18s ease !important;
+    width: 100% !important;
+}}
+[data-testid="stHorizontalBlock"] [data-testid="stBaseButton-primary"]:hover {{
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+    box-shadow: 0 6px 22px 0 rgba(16, 185, 129, 0.58) !important;
+    transform: translateY(-1px) !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}}
+[data-testid="stHorizontalBlock"] [data-testid="stBaseButton-primary"]:active {{
+    box-shadow: 0 2px 8px 0 rgba(16, 185, 129, 0.30) !important;
+    transform: translateY(0) !important;
+}}
+
 .stFormSubmitButton>button{{
     background:linear-gradient(135deg,#16a34a 0%,#14743d 100%)!important;
     border:none!important;
@@ -992,6 +1042,50 @@ section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > div:last-ch
 .stFormSubmitButton>button:active{{
     transform:scale(.98)!important;
     box-shadow:0 2px 8px rgba(22,163,74,0.3)!important;
+}}
+
+/* ── BOTÓN PRIMARY (type="primary") — glow institucional ORAM ──────────
+   Aplica a st.button(..., type="primary") en cualquier contexto.
+   Especificidad mayor que el selector genérico de arriba.           ── */
+[data-testid="stBaseButton-primary"] {{
+    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+    letter-spacing: 0.3px !important;
+    padding: 0.72rem 1rem !important;
+    box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39) !important;
+    transition: box-shadow 0.25s ease, transform 0.18s ease, background 0.18s ease !important;
+    cursor: pointer !important;
+    width: 100% !important;
+}}
+[data-testid="stBaseButton-primary"] * {{
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}}
+[data-testid="stBaseButton-primary"]:hover {{
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+    box-shadow: 0 6px 22px 0 rgba(16, 185, 129, 0.58) !important;
+    transform: translateY(-1px) !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}}
+[data-testid="stBaseButton-primary"]:active {{
+    box-shadow: 0 2px 8px 0 rgba(16, 185, 129, 0.30) !important;
+    transform: scale(0.98) !important;
+}}
+@keyframes oram-btn-confirm {{
+    0%   {{ box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39); }}
+    30%  {{ box-shadow: 0 0 0 6px rgba(34,197,94,0.45), 0 4px 22px 0 rgba(16,185,129,0.70); }}
+    70%  {{ box-shadow: 0 0 0 12px rgba(34,197,94,0.10), 0 4px 18px 0 rgba(16,185,129,0.50); }}
+    100% {{ box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39); }}
+}}
+.oram-btn-confirming {{
+    animation: oram-btn-confirm 0.7s cubic-bezier(0.22,1,0.36,1) both !important;
 }}
 
 /* ── FORM ───────────────────────────────────────────── */
