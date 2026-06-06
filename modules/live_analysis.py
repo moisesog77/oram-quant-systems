@@ -518,7 +518,8 @@ def render_live_analysis():
 
     st.markdown("")
     col_senal, col_niveles, col_riesgo = st.columns([2, 2, 1])
-
+    st.markdown("")
+    st.markdown("")
     with col_senal:
         st.markdown(signal_box(tipo, est.get("descripcion", ""), confianza), unsafe_allow_html=True)
         if "Alcista" in tipo or "LONG" in tipo:
