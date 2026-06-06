@@ -145,7 +145,35 @@ def obtener_eventos_hoy() -> list[dict]:
 
 
 def obtener_proximos_eventos(n: int = 3) -> list[dict]:
-    return [e for e in obtener_eventos_semana() if not e["ya_paso"]][:n]
+    """
+    Retorna hasta n eventos proximos (no pasados).
+    Si la semana actual ya termino (fin de semana), muestra los
+    eventos de la siguiente semana para que el banner siempre tenga contenido.
+    """
+    esta_semana = [e for e in obtener_eventos_semana() if not e["ya_paso"]]
+    if esta_semana:
+        return esta_semana[:n]
+    # Fin de semana o semana completamente pasada: calcular proxima semana
+    hoy   = date.today()
+    lunes = hoy - timedelta(days=hoy.weekday()) + timedelta(weeks=1)
+    out = []
+    for ev in EVENTOS_RECURRENTES:
+        fecha_ev = lunes + timedelta(days=ev.dia_semana)
+        hora_mx  = _utc_a_mx(ev.hora_utc, fecha_ev)
+        dia_en   = fecha_ev.strftime("%A")
+        out.append({
+            "fecha":       fecha_ev.strftime("%Y-%m-%d"),
+            "dia":         DIAS_ES.get(dia_en, dia_en),
+            "hora_utc":    ev.hora_utc,
+            "hora_mx":     hora_mx,
+            "titulo":      ev.titulo,
+            "moneda":      ev.moneda,
+            "impacto":     ev.impacto,
+            "descripcion": ev.descripcion,
+            "es_hoy":      False,
+            "ya_paso":     False,
+        })
+    return sorted(out, key=lambda x: (x["fecha"], x["hora_utc"]))[:n]
 
 
 def hay_evento_alto_impacto_pronto(minutos: int = 60) -> tuple[bool, Optional[dict]]:
