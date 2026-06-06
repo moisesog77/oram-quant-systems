@@ -518,16 +518,20 @@ def render_live_analysis():
 
     st.markdown("")
     col_senal, col_niveles, col_riesgo = st.columns([2, 2, 1])
-    st.markdown("")
-    st.markdown("")
+
     with col_senal:
         st.markdown(signal_box(tipo, est.get("descripcion", ""), confianza), unsafe_allow_html=True)
+        
+        # Agregamos un contenedor con el margen consistente
+        st.markdown('<div style="margin-bottom: 0.5rem;">', unsafe_allow_html=True)
         if "Alcista" in tipo or "LONG" in tipo:
             st.success("✅ **SEÑAL: COMPRA (LONG)**\nBusca entrada en OB o FVG alcista.")
         elif "Bajista" in tipo or "SHORT" in tipo:
             st.error("❌ **SEÑAL: VENTA (SHORT)**\nBusca entrada en OB o FVG bajista.")
         else:
             st.warning("⚠️ **ESPERA / RANGO**\nSin tendencia clara definida.")
+        st.markdown('</div>', unsafe_allow_html=True) # Cierre del div
+
         if factores:
             st.markdown(
                 f'<div class="oram-card oram-card-blue" style="margin-top:0.5rem">'
