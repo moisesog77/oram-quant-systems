@@ -8,8 +8,9 @@ gatherUsageStats = false
 serverAddress = "0.0.0.0"
 
 [theme]
-# No forzar base dark/light — el código Python gestiona el tema dinámicamente
-# vía inject_styles() en ui/styles.py que inyecta color-scheme + bg_card
-# para html, body y [data-baseweb="layer"] (portals de dropdown).
+base = "dark"
 primaryColor = "#c9a227"
+backgroundColor = "#06090f"
+secondaryBackgroundColor = "#0c1219"
+textColor = "#c8d8ea"
 font = "sans serif"

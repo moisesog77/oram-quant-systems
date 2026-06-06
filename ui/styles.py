@@ -1180,10 +1180,34 @@ pre,[data-testid="stCode"]>div{{
 .stCaption,.stCaption p,small{{color:{c['text_muted']}!important}}
 
 /* ── PLOTLY ─────────────────────────────────────────── */
+/* ── Chart card: estilo premium directamente sobre el contenedor de Plotly ── */
+/* Elimina la necesidad del div wrapper HTML que genera el elemento en blanco */
+.element-container:has([data-testid="stPlotlyChart"]) {{
+    background: {c['bg_card']} !important;
+    border: 1.5px solid {c['border2']} !important;
+    border-radius: 14px !important;
+    padding: 0.75rem 0.25rem 0.5rem 0.25rem !important;
+    box-shadow: {c['shadow']} !important;
+    overflow: hidden !important;
+    margin-top: 0 !important;
+}}
 [data-testid="stPlotlyChart"]>div{{
-    background:transparent!important;border-radius:12px;overflow:hidden;
+    background:transparent!important;border-radius:0;overflow:hidden;
 }}
 .js-plotly-plot,.plotly{{background:transparent!important}}
+
+/* ── Eliminar espacio entre st.success/warning/error y lo que sigue ── */
+/* El elemento en blanco entre alert y gráfica */
+.element-container:has([data-testid="stAlert"]) + .element-container {{
+    margin-top: 0 !important;
+}}
+.element-container:empty,
+div[data-testid="stVerticalBlockBorderWrapper"]:empty {{
+    display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}}
 
 /* ── CONF BAR ───────────────────────────────────────── */
 .conf-bar-container{{

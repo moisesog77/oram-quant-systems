@@ -492,15 +492,10 @@ def render_live_analysis():
 
     smc = analisis_completo(df, ticker)
 
-    # Gráfica — sin margin-top extra
-    st.markdown(
-        f'<div style="background:{c["bg_card"]};border:1.5px solid {c["border2"]};'
-        f'border-radius:14px;padding:1rem 0.2rem 0.6rem 0.2rem;'
-        f'margin-top:0;margin-bottom:1.25rem;'
-        f'box-shadow:{c["shadow"]};overflow:hidden;">',
-        unsafe_allow_html=True)
+    # Gráfica — el estilo premium (borde, bg, shadow) lo aplica el CSS en styles.py
+    # directamente sobre .element-container:has([data-testid="stPlotlyChart"])
+    # Sin div wrapper HTML para evitar el elemento en blanco entre alert y gráfica
     st.plotly_chart(_grafica_velas(df, ticker, smc), use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
     precio    = smc.get("precio", 0)
     atr       = smc.get("atr", 0)
