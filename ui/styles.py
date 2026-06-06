@@ -157,45 +157,7 @@ body {{
     background-color: {c['bg']} !important;
     color: {c['text']} !important;
 }}
-/* Portals de Base Web — contenedor raíz de popups/dropdowns
-   Se montan fuera de la jerarquía del iframe de Streamlit */
-[data-baseweb="layer"],
-[data-baseweb="layer"] > * {{
-    color-scheme: {'dark' if dark else 'light'} !important;
-    background-color: {c['bg_card']} !important;
-}}
-/* Cobertura total del portal de dropdowns — incluyendo wrapper raíz */
-[data-baseweb="layer"] *,
-[data-baseweb="layer"] [data-baseweb="popover"],
-[data-baseweb="layer"] [data-baseweb="popover"] > *,
-[data-baseweb="layer"] [data-baseweb="menu"],
-[data-baseweb="layer"] [data-baseweb="menu"] *,
-[data-baseweb="layer"] [data-baseweb="calendar"],
-[data-baseweb="layer"] [data-baseweb="calendar"] *,
-[data-baseweb="layer"] [role="listbox"],
-[data-baseweb="layer"] [role="listbox"] *,
-[data-baseweb="layer"] ul,
-[data-baseweb="layer"] li,
-[data-baseweb="layer"] [role="option"] {{
-    background-color: {c['bg_card']} !important;
-    color: {c['text']} !important;
-    border-color: {c['border']} !important;
-}}
-/* Dropdown container box shadow + border radius */
-[data-baseweb="layer"] [data-baseweb="popover"] > div,
-[data-baseweb="layer"] [role="listbox"] > div {{
-    border-radius: 10px !important;
-    border: 1px solid {c['border2']} !important;
-    box-shadow: {'0 8px 32px rgba(0,0,0,0.45)' if dark else '0 8px 24px rgba(0,0,0,0.12)'} !important;
-    overflow: hidden !important;
-}}
-[data-baseweb="layer"] li:hover,
-[data-baseweb="layer"] [role="option"]:hover,
-[data-baseweb="layer"] [aria-selected="true"],
-[data-baseweb="layer"] [data-highlighted="true"] {{
-    background-color: {c['nav_hover']} !important;
-    color: {c['text']} !important;
-}}
+/* Portals [data-baseweb="layer"] — controlados via JS en bloque <script> al final de inject_styles() */
 /* Tooltip popups */
 [data-baseweb="tooltip"] {{
     background-color: {c['bg_card2']} !important;
@@ -1650,114 +1612,94 @@ div[data-testid="stAlert"].st-info {{
     margin-top: 0 !important; padding-top: 0 !important;
 }}
 
-/* ══ REFUERZO DROPDOWN — especificidad maxima para tema claro/oscuro ══════
-   :root prefix garantiza que este CSS gane sobre el color-scheme del OS/config */
-:root {{
-    color-scheme: {'dark' if dark else 'light'} !important;
-}}
-:root [data-baseweb="layer"],
-:root [data-baseweb="layer"] > *,
-:root [data-baseweb="layer"] * {{
-    background-color: {c['bg_card']} !important;
-    color: {c['text']} !important;
-    color-scheme: {'dark' if dark else 'light'} !important;
-}}
-:root [data-baseweb="menu"],
-:root [data-baseweb="menu"] *,
-:root [data-baseweb="menu"] li,
-:root [data-baseweb="menu"] [role="option"] {{
-    background-color: {c['bg_card']} !important;
-    color: {c['text']} !important;
-}}
-:root [data-baseweb="menu"] li:hover,
-:root [data-baseweb="menu"] [role="option"]:hover,
-:root [data-baseweb="layer"] [aria-selected="true"] {{
-    background-color: {c['nav_hover']} !important;
-    color: {c['text']} !important;
-}}
+/* :root [data-baseweb] — movido a JS (ver bloque <script> en inject_styles) */
 </style>
 """, unsafe_allow_html=True)
 
-    # ── JavaScript: forzar colores del dropdown portal en tiempo de ejecución ──
-    # Base Web aplica inline styles al portal cuando se abre.
-    # El único override 100% efectivo es modificar los inline styles via JS
-    # usando MutationObserver que detecta la apertura del portal.
-    _bg   = c["bg_card"]
-    _text = c["text"]
-    _hover = c["nav_hover"]
-    _bdr2  = c["border2"]
-    _bdr   = c["border"]
-    _shadow = "0 8px 32px rgba(0,0,0,0.45)" if dark else "0 8px 24px rgba(0,0,0,0.12)"
+    # ── JavaScript: controla el dropdown 100% via JS (CSS estático se acumula entre renders) ──
+    # Pre-calcular todos los valores en Python para evitar bugs de f-string con {{ }}
+    _bg       = c["bg_card"]
+    _text     = c["text"]
+    _hover    = c["nav_hover"]
+    _bdr2     = c["border2"]
+    _shadow   = "0 8px 32px rgba(0,0,0,0.45)" if dark else "0 8px 24px rgba(0,0,0,0.12)"
+    # IDs calculados en Python (sin expresiones dentro de {{ }} del f-string)
+    _sid      = "oram-dd-d" if dark else "oram-dd-l"
+    _opp_sid  = "oram-dd-l" if dark else "oram-dd-d"
+    _scheme   = "dark" if dark else "light"
 
     st.markdown(f"""
 <script>
 (function() {{
-    var BG    = '{_bg}';
-    var TEXT  = '{_text}';
-    var HOVER = '{_hover}';
-    var BDR2  = '{_bdr2}';
-    var STYLE_ID = 'oram-dd-{{"d" if dark else "l"}}';
+    var BG      = '{_bg}';
+    var TEXT    = '{_text}';
+    var HOVER   = '{_hover}';
+    var BDR2    = '{_bdr2}';
+    var SHADOW  = '{_shadow}';
+    var STYLE_ID = '{_sid}';
+    var OPP_ID   = '{_opp_sid}';
+    var SCHEME   = '{_scheme}';
 
-    // Eliminar estilo del tema opuesto si existe
-    var opposite = document.getElementById('oram-dd-{{"l" if dark else "d"}}');
-    if (opposite) opposite.parentNode.removeChild(opposite);
+    // Eliminar el <style> del tema opuesto para evitar acumulación
+    var opp = document.getElementById(OPP_ID);
+    if (opp) {{ opp.parentNode.removeChild(opp); }}
 
-    // Inyectar CSS con máxima especificidad si no existe
-    if (!document.getElementById(STYLE_ID)) {{
-        var s = document.createElement('style');
-        s.id = STYLE_ID;
-        s.textContent = [
-            '[data-baseweb="layer"],' +
-            '[data-baseweb="layer"] > *,' +
-            '[data-baseweb="layer"] *,' +
-            '[data-baseweb="layer"] [data-baseweb="popover"],' +
-            '[data-baseweb="layer"] [data-baseweb="popover"] > *,' +
-            '[data-baseweb="layer"] [data-baseweb="menu"],' +
-            '[data-baseweb="layer"] [data-baseweb="menu"] *,' +
-            '[data-baseweb="layer"] [role="listbox"],' +
-            '[data-baseweb="layer"] [role="listbox"] *,' +
-            '[data-baseweb="layer"] ul,' +
-            '[data-baseweb="layer"] li,' +
-            '[data-baseweb="layer"] [role="option"]' +
-            '{{ background-color: ' + BG + ' !important; color: ' + TEXT + ' !important; }}',
-            '[data-baseweb="layer"] [data-baseweb="popover"] > div,' +
-            '[data-baseweb="layer"] [role="listbox"] > div' +
-            '{{ border-radius: 10px !important; border: 1px solid ' + BDR2 + ' !important;' +
-            ' box-shadow: {_shadow} !important; overflow: hidden !important; }}',
-            '[data-baseweb="layer"] li:hover,' +
-            '[data-baseweb="layer"] [role="option"]:hover,' +
-            '[data-baseweb="layer"] [aria-selected="true"]' +
-            '{{ background-color: ' + HOVER + ' !important; color: ' + TEXT + ' !important; }}'
-        ].join('\n');
-        document.head.appendChild(s);
-    }}
+    // Siempre recrear el <style> del tema actual (garantiza colores frescos)
+    var old = document.getElementById(STYLE_ID);
+    if (old) {{ old.parentNode.removeChild(old); }}
 
-    // MutationObserver: cuando el portal aparece en el DOM,
-    // forzar los inline styles del elemento raíz
-    function applyPortalStyles(node) {{
-        if (node && node.getAttribute && node.getAttribute('data-baseweb') === 'layer') {{
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent =
+        '[data-baseweb="layer"],' +
+        '[data-baseweb="layer"] > *,' +
+        '[data-baseweb="layer"] *,' +
+        '[data-baseweb="layer"] [data-baseweb="popover"],' +
+        '[data-baseweb="layer"] [data-baseweb="popover"] > *,' +
+        '[data-baseweb="layer"] [data-baseweb="menu"],' +
+        '[data-baseweb="layer"] [data-baseweb="menu"] *,' +
+        '[data-baseweb="layer"] [role=\"listbox\"],' +
+        '[data-baseweb="layer"] [role=\"listbox\"] *,' +
+        '[data-baseweb="layer"] ul,' +
+        '[data-baseweb="layer"] li,' +
+        '[data-baseweb="layer"] [role=\"option\"]' +
+        ' {{ background-color: ' + BG + ' !important;' +
+        ' color: ' + TEXT + ' !important;' +
+        ' color-scheme: ' + SCHEME + ' !important; }}' +
+        '[data-baseweb="layer"] [data-baseweb="popover"] > div,' +
+        '[data-baseweb="layer"] [role=\"listbox\"] > div' +
+        ' {{ border-radius: 10px !important;' +
+        ' border: 1px solid ' + BDR2 + ' !important;' +
+        ' box-shadow: ' + SHADOW + ' !important;' +
+        ' overflow: hidden !important; }}' +
+        '[data-baseweb="layer"] li:hover,' +
+        '[data-baseweb="layer"] [role=\"option\"]:hover,' +
+        '[data-baseweb="layer"] [aria-selected=\"true\"]' +
+        ' {{ background-color: ' + HOVER + ' !important;' +
+        ' color: ' + TEXT + ' !important; }}';
+    document.head.appendChild(s);
+
+    // MutationObserver: aplica inline styles DIRECTAMENTE al portal
+    // (los inline styles de Base Web se sobrescriben con setProperty 'important')
+    function stylePortal(node) {{
+        if (!node || !node.getAttribute) return;
+        if (node.getAttribute('data-baseweb') === 'layer') {{
             node.style.setProperty('background-color', BG, 'important');
             node.style.setProperty('color', TEXT, 'important');
-            // Aplicar a todos los hijos
-            var children = node.querySelectorAll('*');
-            children.forEach(function(el) {{
-                var tag = el.tagName;
-                if (tag === 'LI' || tag === 'UL' || tag === 'DIV' || tag === 'SPAN') {{
-                    el.style.setProperty('background-color', BG, 'important');
-                    el.style.setProperty('color', TEXT, 'important');
-                }}
+            node.querySelectorAll('*').forEach(function(el) {{
+                el.style.setProperty('background-color', BG, 'important');
+                el.style.setProperty('color', TEXT, 'important');
             }});
         }}
     }}
 
-    // Observar adición de portals al body
-    var obs = new MutationObserver(function(mutations) {{
-        mutations.forEach(function(m) {{
-            m.addedNodes.forEach(function(node) {{
-                if (node.nodeType !== 1) return;
-                applyPortalStyles(node);
-                if (node.querySelectorAll) {{
-                    node.querySelectorAll('[data-baseweb="layer"]').forEach(applyPortalStyles);
+    var obs = new MutationObserver(function(muts) {{
+        muts.forEach(function(m) {{
+            m.addedNodes.forEach(function(n) {{
+                if (n.nodeType !== 1) return;
+                stylePortal(n);
+                if (n.querySelectorAll) {{
+                    n.querySelectorAll('[data-baseweb="layer"]').forEach(stylePortal);
                 }}
             }});
         }});
