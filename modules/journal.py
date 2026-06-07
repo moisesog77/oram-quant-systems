@@ -33,16 +33,15 @@ def _inject_journal_css():
     font-family: Inter, sans-serif !important;
     font-size: 0.72rem !important; font-weight: 600 !important;
     letter-spacing: 1px !important; text-transform: uppercase !important;
-    margin-bottom: 0.3rem !important;
+    margin-bottom: 0.3rem !important; display: block !important;
 }}
 
-/* ══ SELECTBOX — NO tocar el input interno para no romper el dropdown ═══ */
-.stSelectbox > div,
-.stSelectbox > div > div {{
+/* ══ SELECTBOX — COPIA EXACTA de live_analysis ═══════════════════════════ */
+.stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
     background: transparent !important;
     border: none !important; box-shadow: none !important;
-    padding: 0 !important; margin: 0 !important;
 }}
+.stSelectbox [data-baseweb="select"] {{ cursor: pointer !important; }}
 .stSelectbox [data-baseweb="select"] > div {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
@@ -61,28 +60,25 @@ def _inject_journal_css():
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
     font-family: Inter, sans-serif !important;
-    font-size: 0.93rem !important;
+    font-size: 0.93rem !important; pointer-events: none !important;
 }}
 .stSelectbox [data-baseweb="select"] svg {{
     fill: {eye_col} !important; opacity: 0.7 !important;
-    flex-shrink: 0 !important;
+    flex-shrink: 0 !important; pointer-events: none !important;
 }}
-/* Input interno: visible para que BaseWeb pueda abrir el dropdown */
 .stSelectbox [data-baseweb="select"] input {{
-    caret-color: transparent !important;
-    background: transparent !important;
-    border: none !important; outline: none !important;
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
+    position: absolute !important; width: 1px !important;
+    height: 1px !important; opacity: 0 !important;
+    pointer-events: none !important; caret-color: transparent !important;
+    user-select: none !important; border: none !important;
 }}
 
-/* ══ NUMBER INPUT — sin tooltip/recuadro emergente ════════════════════════ */
+/* ══ NUMBER INPUT — COPIA EXACTA de live_analysis ═══════════════════════ */
 [data-testid="stNumberInput"] {{
     background: transparent !important; border: none !important;
 }}
 [data-testid="stNumberInput"] > div:nth-child(1) {{
     background: transparent !important; border: none !important;
-    box-shadow: none !important;
 }}
 [data-testid="stNumberInput"] > div:nth-child(2) {{
     background: {input_bg} !important;
@@ -90,7 +86,7 @@ def _inject_journal_css():
     border-radius: 10px !important; box-shadow: none !important;
     display: flex !important; align-items: center !important;
     min-height: 46px !important; overflow: hidden !important;
-    transition: border-color .18s, box-shadow .18s !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
     padding: 0 !important;
 }}
 [data-testid="stNumberInput"] > div:nth-child(2):focus-within {{
@@ -110,10 +106,10 @@ def _inject_journal_css():
 [data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
     -webkit-appearance: none !important; margin: 0 !important;
 }}
-/* Ocultar SOLO el recuadro flotante de instrucciones, no el dropdown del select */
-[data-testid="InputInstructions"] {{
-    display: none !important; visibility: hidden !important;
-    height: 0 !important; opacity: 0 !important;
+[data-testid="stNumberInput"] > div:nth-child(2) > div:last-child {{
+    display: flex !important; align-items: center !important;
+    align-self: stretch !important; height: 100% !important;
+    background: transparent !important; border: none !important;
 }}
 [data-testid="stNumberInput-StepDown"],
 [data-testid="stNumberInput-StepUp"] {{
@@ -134,7 +130,20 @@ def _inject_journal_css():
     width: 17px !important; height: 17px !important;
     fill: none !important; stroke: {eye_col} !important;
     stroke-width: 1.8 !important; pointer-events: none !important;
-    display: block !important;
+    display: block !important; flex-shrink: 0 !important;
+}}
+/* Eliminar el cuadro extra (3er hijo en adelante del number input) */
+[data-testid="stNumberInput"] > input:last-child,
+[data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
+[data-testid="stNumberInput"] > *:nth-child(n+3) {{
+    display: none !important; visibility: hidden !important;
+    height: 0 !important; margin: 0 !important; padding: 0 !important;
+    border: none !important; opacity: 0 !important;
+    position: absolute !important; pointer-events: none !important;
+}}
+[data-testid="InputInstructions"] {{
+    display: none !important; visibility: hidden !important;
+    height: 0 !important; margin: 0 !important;
 }}
 
 /* ══ DATE INPUT ═══════════════════════════════════════════════════════════ */
@@ -143,7 +152,7 @@ def _inject_journal_css():
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important; overflow: hidden !important;
     min-height: 46px !important;
-    transition: border-color .18s, box-shadow .18s !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
 }}
 [data-testid="stDateInput"] > div > div {{
     background: transparent !important; border: none !important;
@@ -161,20 +170,55 @@ def _inject_journal_css():
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
+/* Calendario — verde en lugar de dorado, sin espacios blancos */
+[data-baseweb="calendar"] {{
+    background: {input_bg} !important;
+    border: 1px solid {input_bdr} !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+}}
+[data-baseweb="calendar"] * {{
+    background: {input_bg} !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+}}
+[data-baseweb="calendar"] [aria-selected="true"] > div {{
+    background: {focus_clr} !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    border-radius: 50% !important;
+}}
+[data-baseweb="calendar"] button:hover > div {{
+    background: {focus_glow} !important;
+    border-radius: 50% !important;
+}}
+/* Eliminar celdas vacías/blancas del calendario */
+[data-baseweb="calendar"] div[aria-hidden="true"],
+[data-baseweb="calendar"] [data-testid="CalendarDay--outside-month"] {{
+    background: {input_bg} !important;
+    color: transparent !important;
+    visibility: hidden !important;
+}}
+[data-baseweb="calendar"] [role="gridcell"]:empty {{
+    background: {input_bg} !important;
+}}
 
-/* ══ TEXT INPUT (Tags) ════════════════════════════════════════════════════ */
+/* ══ TEXT INPUT (Tags) — con borde completo ══════════════════════════════ */
 .stTextInput > div {{
     border: none !important; background: transparent !important;
     box-shadow: none !important; padding: 0 !important; margin: 0 !important;
 }}
+.stTextInput [data-baseweb="input"],
 .stTextInput > div > div {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important; box-shadow: none !important;
     min-height: 46px !important; overflow: hidden !important;
-    transition: border-color .18s, box-shadow .18s !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
     display: flex !important; align-items: center !important;
+    padding: 0 !important;
 }}
+.stTextInput [data-baseweb="input"]:focus-within,
 .stTextInput > div > div:focus-within {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
@@ -193,7 +237,7 @@ def _inject_journal_css():
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important; box-shadow: none !important;
-    transition: border-color .18s, box-shadow .18s !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
     overflow: hidden !important;
 }}
 .stTextArea > div > div:focus-within {{
@@ -209,17 +253,15 @@ def _inject_journal_css():
     padding: 0.65rem 0.75rem !important;
 }}
 
-/* ══ RADIO — FORZAR VERDE con especificidad máxima, neutralizar dorado ═══
-   El global usa [data-testid="stRadio"] label:hover con accent=#c9a227.
-   Usamos :is() + !important con selectores más largos para ganar. ════════ */
-[data-testid="stRadio"] > div {{
+/* ══ RADIO — SOLO dentro del form, sin tocar el menú lateral ═════════════
+   Usamos [data-testid="stForm"] como padre para NO afectar el sidebar.     */
+[data-testid="stForm"] [data-testid="stRadio"] > div {{
     background: transparent !important;
     display: flex !important; gap: 0.5rem !important;
     flex-wrap: wrap !important; align-items: center !important;
-    margin-top: 0.3rem !important;
 }}
-/* Label base — sobreescribe el global que pone border: 1px */
-body [data-testid="stRadio"] label {{
+/* Resetear borde que pone el global y reemplazar con estilo premium */
+[data-testid="stForm"] [data-testid="stRadio"] label {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important;
@@ -228,43 +270,37 @@ body [data-testid="stRadio"] label {{
     -webkit-text-fill-color: {input_text} !important;
     font-family: Inter, sans-serif !important;
     font-size: 0.88rem !important; font-weight: 500 !important;
-    transition: border-color .18s ease, box-shadow .18s ease,
-                color .18s ease !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
     cursor: pointer !important;
-    display: flex !important; align-items: center !important;
-    gap: 0.5rem !important;
+    display: flex !important; align-items: center !important; gap: 0.5rem !important;
 }}
-/* HOVER — verde, nunca dorado (especificidad: body + data-testid + label:hover) */
-body [data-testid="stRadio"] label:hover {{
+/* Hover verde — especificidad mayor que el global (stForm + stRadio + label:hover) */
+[data-testid="stForm"] [data-testid="stRadio"] label:hover {{
     border-color: {focus_clr} !important;
-    background: {focus_glow} !important;
+    background: {input_bg} !important;
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
 }}
-/* Seleccionado */
-body [data-testid="stRadio"] [data-checked="true"] label,
-body [data-testid="stRadio"] label[data-checked="true"] {{
+/* Seleccionado verde */
+[data-testid="stForm"] [data-testid="stRadio"] [data-checked="true"] label,
+[data-testid="stForm"] [data-testid="stRadio"] label[data-checked="true"] {{
     border-color: {focus_clr} !important;
     color: {focus_clr} !important;
     -webkit-text-fill-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
-/* Círculo radio nativo — verde */
-body [data-testid="stRadio"] div[role="radio"],
-body div[role="radiogroup"] div[role="radio"] {{
+/* Círculo radio — verde */
+[data-testid="stForm"] [data-testid="stRadio"] div[role="radio"] {{
     border-color: {input_bdr} !important;
     background: {input_bg} !important;
     box-shadow: none !important;
 }}
-body [data-testid="stRadio"] div[role="radio"][aria-checked="true"],
-body div[role="radiogroup"] div[role="radio"][aria-checked="true"] {{
+[data-testid="stForm"] [data-testid="stRadio"] div[role="radio"][aria-checked="true"] {{
     border-color: {focus_clr} !important;
     background: {focus_clr} !important;
 }}
-body [data-testid="stRadio"] div[role="radio"] > div,
-body [data-testid="stRadio"] div[role="radio"] svg,
-body div[role="radiogroup"] div[role="radio"] > div,
-body div[role="radiogroup"] div[role="radio"] svg {{
+[data-testid="stForm"] [data-testid="stRadio"] div[role="radio"] > div,
+[data-testid="stForm"] [data-testid="stRadio"] div[role="radio"] svg {{
     background: transparent !important;
     fill: {focus_clr} !important; color: {focus_clr} !important;
 }}
@@ -285,7 +321,7 @@ body div[role="radiogroup"] div[role="radio"] svg {{
     transition: color .18s ease !important; letter-spacing: 0.3px !important;
 }}
 .stTabs [data-baseweb="tab"]:hover {{ color: {input_text} !important; }}
-body .stTabs [aria-selected="true"] {{
+.stTabs [aria-selected="true"] {{
     color: {focus_clr} !important;
     border-bottom: 2px solid {focus_clr} !important;
     font-weight: 700 !important;
@@ -293,8 +329,7 @@ body .stTabs [aria-selected="true"] {{
 .stTabs [data-baseweb="tab"] p {{ color: inherit !important; }}
 
 /* ══ BOTÓN GUARDAR TRADE ══════════════════════════════════════════════════ */
-[data-testid="stFormSubmitButton"] button,
-[data-testid="stBaseButton-primary"] {{
+[data-testid="stFormSubmitButton"] button {{
     background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
     border: none !important; border-radius: 10px !important;
     color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
@@ -305,19 +340,17 @@ body .stTabs [aria-selected="true"] {{
     transition: box-shadow .25s ease, transform .18s ease !important;
     cursor: pointer !important; width: 100% !important;
 }}
-[data-testid="stFormSubmitButton"] button:hover,
-[data-testid="stBaseButton-primary"]:hover {{
+[data-testid="stFormSubmitButton"] button:hover {{
     background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
     box-shadow: 0 6px 22px 0 rgba(16,185,129,0.58) !important;
     transform: translateY(-1px) !important;
 }}
-[data-testid="stFormSubmitButton"] button:active,
-[data-testid="stBaseButton-primary"]:active {{
+[data-testid="stFormSubmitButton"] button:active {{
     box-shadow: 0 2px 8px 0 rgba(16,185,129,0.30) !important;
     transform: scale(0.98) !important;
 }}
 
-/* ══ DATAFRAME ════════════════════════════════════════════════════════════ */
+/* ══ DATAFRAME historial ══════════════════════════════════════════════════ */
 [data-testid="stDataFrame"] {{
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important; overflow: hidden !important;
@@ -417,14 +450,14 @@ def render_journal():
             with r2c3:
                 estado = st.selectbox("Estado del trade", ["Cerrado", "Abierto", "Breakeven"])
 
-            # Fila 3: Dirección (radio pills) | Estado emocional
+            # Fila 3: Dirección | Estado emocional
             r3c1, r3c2 = st.columns([1, 1])
             with r3c1:
                 direccion = st.radio("Dirección", ["LONG", "SHORT"], horizontal=True)
             with r3c2:
                 emocion   = st.selectbox("Estado emocional", EMOCIONES)
 
-            st.markdown('<div style="margin-top:0.25rem"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="margin-top:0.1rem"></div>', unsafe_allow_html=True)
 
             # Fila 4: Entrada | SL | TP | Riesgo
             c4, c5, c6, c7 = st.columns(4)
