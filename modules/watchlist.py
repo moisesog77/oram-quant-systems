@@ -247,6 +247,22 @@ def render_watchlist():
                 var_color = c["green"] if var_pct >= 0 else c["red"]
                 var_sign  = "▲" if var_pct >= 0 else "▼"
 
+                # Detectar mercado cerrado: sin variación + última vela > 24h
+                import pandas as _pd
+                mercado_cerrado = False
+                try:
+                    ultima_vela = df.index[-1]
+                    if hasattr(ultima_vela, 'tzinfo') and ultima_vela.tzinfo is not None:
+                        ahora = _pd.Timestamp.utcnow().tz_localize(None)
+                        ultima_naive = ultima_vela.tz_convert("UTC").tz_localize(None)
+                    else:
+                        ahora = _pd.Timestamp.utcnow().tz_localize(None)
+                        ultima_naive = ultima_vela
+                    horas_sin_datos = (ahora - ultima_naive).total_seconds() / 3600
+                    mercado_cerrado = horas_sin_datos > 6
+                except Exception:
+                    pass
+
                 dir_emoji = "🟢" if dir_=="LONG" else "🔴" if dir_=="SHORT" else "⚪"
                 border_color = c["green"] if dir_=="LONG" else c["red"] if dir_=="SHORT" else c["border"]
 
@@ -285,9 +301,28 @@ def render_watchlist():
                 </div>
                 """, unsafe_allow_html=True)
 
-                # Sparkline
-                fig = _sparkline(df, c)
-                st.plotly_chart(fig, width='stretch', key=f"spark_{tk}_{i}{j}")
+                # Sparkline o badge de mercado cerrado
+                if mercado_cerrado:
+                    bg_closed  = "#0c1219" if dark else "#f1f5f9"
+                    bdr_closed = "#1b2a40" if dark else "#dde5ef"
+                    txt_muted  = c["text_muted"]
+                    st.markdown(f"""
+                    <div style="background:{bg_closed};border:1px solid {bdr_closed};
+                                border-radius:10px;padding:0.55rem 1rem;
+                                display:flex;align-items:center;gap:0.6rem;
+                                margin-bottom:0.25rem">
+                        <span style="font-size:1rem">🔒</span>
+                        <span style="font-family:Inter,sans-serif;font-size:0.78rem;
+                                     color:{txt_muted};font-weight:500">
+                            Mercado cerrado · Último precio hace
+                            <b style="color:{c['text']}">{horas_sin_datos:.0f}h</b>
+                            · Reabre el lunes
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    fig = _sparkline(df, c)
+                    st.plotly_chart(fig, width='stretch', key=f"spark_{tk}_{i}{j}")
 
                 # Botón eliminar
                 if st.button(f"🗑️ Quitar {al}", key=f"rm_{tk}", width='stretch'):
