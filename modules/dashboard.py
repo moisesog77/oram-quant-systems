@@ -177,40 +177,7 @@ def render_dashboard():
     box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3) !important;
 }}
 
-/* ═══════════════════════════════════════════════════════════════
-   NUMBER INPUT premium — expander scoped
-   El styles.py global ya maneja la base premium de todos los
-   number inputs. Aquí solo añadimos el borde más prominente
-   específico del expander del Dashboard.
-   ═══════════════════════════════════════════════════════════════ */
-[data-testid="stExpander"] [data-testid="stNumberInput"] > div {{
-    border: 2px solid {input_bdr} !important;
-    background: {input_bg} !important;
-    border-radius: 10px !important;
-    min-height: 46px !important;
-}}
-[data-testid="stExpander"] [data-testid="stNumberInput"] > div:focus-within {{
-    border-color: {focus_clr} !important;
-    box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-[data-testid="stExpander"] [data-testid="stNumberInput"] input {{
-    font-family: 'Inter', sans-serif !important;
-    font-size: 0.93rem !important;
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    padding: 0 0.75rem !important;
-    height: 46px !important;
-}}
-[data-testid="stExpander"] [data-testid="stNumberInput-StepDown"],
-[data-testid="stExpander"] [data-testid="stNumberInput-StepUp"] {{
-    border-left: 1px solid {input_bdr} !important;
-    opacity: 0.6 !important;
-}}
-[data-testid="stExpander"] [data-testid="stNumberInput-StepDown"]:hover,
-[data-testid="stExpander"] [data-testid="stNumberInput-StepUp"]:hover {{
-    opacity: 1 !important;
-    background: rgba(34,197,94,0.08) !important;
-}}
+/* Number input styled globally by _inject_dashboard_css */
 
 /* ═══════════════════════════════════════════════════════════════
    RECUADRO FANTASMA — Dashboard / stExpander
