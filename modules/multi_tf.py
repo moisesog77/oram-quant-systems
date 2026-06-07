@@ -17,7 +17,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from utils.multi_timeframe import analisis_mtf, MTF_COMBOS
 from utils.market_data import ACTIVOS_DEFAULT, obtener_datos
-from ui.styles import get_colors, page_header, signal_box, get_theme
+from ui.styles import get_colors, page_header, signal_box, get_theme, oram_bienvenida
 
 
 def _mini_chart(df, tf_label, ema_col, c):
@@ -212,9 +212,19 @@ def render_multi_tf():
     """, unsafe_allow_html=True)
 
     # ── Análisis ───────────────────────────────────────────────────────────
+    if analizar:
+        st.session_state["_mtf_analizar"] = True
+        oram_bienvenida(
+            titulo="🔭 Analizando confluencia MTF",
+            subtitulo=f"{ticker} · {tf_alto} (estructura) → {tf_bajo} (entrada)",
+            spinner_label="Calculando alineación de timeframes…",
+            delay=1.8,
+        )
+
+    forzar    = st.session_state.pop("_mtf_analizar", False)
     cache_key = f"mtf_{ticker}_{tf_alto}_{tf_bajo}"
-    if analizar or cache_key in st.session_state:
-        if analizar or cache_key not in st.session_state:
+    if forzar or cache_key in st.session_state:
+        if forzar or cache_key not in st.session_state:
             with st.spinner(f"Analizando {ticker} en {tf_alto} y {tf_bajo}..."):
                 res = analisis_mtf(ticker, tf_alto, tf_bajo)
                 st.session_state[cache_key] = res
