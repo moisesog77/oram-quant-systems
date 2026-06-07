@@ -426,30 +426,43 @@ def render_admin():
                                 st.session_state["admin_confirm_delete"][uid] = True
                                 st.rerun()
 
-                # Confirmación premium — aparece debajo como card de pantalla completa
+                # Overlay premium único — confirmación + éxito en un solo mensaje
                 confirming = st.session_state["admin_confirm_delete"].get(uid, False)
                 if confirming:
                     bg    = "#0c1219" if dark else "#ffffff"
                     bdr   = "#7c2626" if dark else "#fecaca"
                     muted = "#637a94" if dark else "#7a8fa0"
+                    overlay_bg = "rgba(6,9,15,0.93)" if dark else "rgba(238,242,247,0.95)"
 
-                    confirm_ph = st.empty()
-                    confirm_ph.markdown(f"""
-<div style="
-    background:{bg};border:1.5px solid {bdr};
-    border-left:4px solid #f87171;border-radius:16px;
-    padding:1.8rem 2rem;margin-top:0.75rem;text-align:center;">
-  <div style="font-size:2.4rem;margin-bottom:0.6rem">⚠️</div>
-  <div style="font-family:'Space Grotesk',sans-serif;font-size:0.6rem;
-              letter-spacing:2px;color:#f87171;font-weight:700;margin-bottom:0.3rem">
-    ACCIÓN IRREVERSIBLE
-  </div>
-  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.1rem;
-              font-weight:700;color:#fbbf24;margin-bottom:0.5rem">
-    ¿Eliminar a <b>{uname}</b>?
-  </div>
-  <div style="font-family:Inter,sans-serif;font-size:0.85rem;color:{muted};line-height:1.7">
-    Se borrarán permanentemente: trades, alertas,<br>watchlist y configuración del bot.
+                    overlay_ph = st.empty()
+                    overlay_ph.markdown(f"""
+<style>
+@keyframes oad-in {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
+#oad-conf-overlay{{position:fixed;inset:0;background:{overlay_bg};
+backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+z-index:99999;display:flex;align-items:center;justify-content:center;pointer-events:none}}
+#oad-conf-card{{background:{bg};border:1.5px solid {bdr};border-radius:20px;
+padding:2.8rem 3.2rem 2.4rem;text-align:center;max-width:460px;width:92%;
+animation:oad-in 0.42s cubic-bezier(0.22,1,0.36,1) both;
+box-shadow:0 24px 60px rgba(0,0,0,0.45)}}
+</style>
+<div id="oad-conf-overlay">
+  <div id="oad-conf-card">
+    <div style="font-size:3rem;margin-bottom:0.8rem">⚠️</div>
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.6rem;
+                letter-spacing:2px;color:#f87171;font-weight:700;margin-bottom:0.4rem">
+      ACCIÓN IRREVERSIBLE
+    </div>
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;
+                font-weight:700;color:#fbbf24;margin-bottom:0.6rem">
+      ¿Eliminar a <b>{uname}</b>?
+    </div>
+    <div style="font-family:Inter,sans-serif;font-size:0.88rem;color:{muted};line-height:1.7">
+      Se borrarán permanentemente:<br>
+      trades · alertas · watchlist · configuración del bot.
+    </div>
+    <div style="margin-top:1.2rem;font-family:Inter,sans-serif;font-size:0.75rem;
+                color:{muted};opacity:0.7">Confirma o cancela con los botones de abajo ↓</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -457,20 +470,64 @@ def render_admin():
                     col_yes, col_no = st.columns(2)
                     with col_yes:
                         if st.button("✅ Sí, eliminar", key=f"del_yes_{uid}", use_container_width=True):
+                            overlay_ph.empty()
                             ok = admin_eliminar_usuario(uid)
                             st.session_state["admin_confirm_delete"].pop(uid, None)
-                            # Limpiar la card de confirmación antes del overlay
-                            confirm_ph.empty()
                             if ok:
-                                oram_bienvenida(
-                                    titulo="🗑️ Usuario eliminado",
-                                    subtitulo=f"<b>{uname}</b> y todos sus datos han sido eliminados permanentemente.",
-                                    spinner_label="Actualizando base de datos…", delay=1.8,
-                                )
+                                # Overlay de éxito único — sin card detrás
+                                success_ph = st.empty()
+                                success_ph.markdown(f"""
+<style>
+@keyframes oad-ok {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
+@keyframes oram-spin {{to{{transform:rotate(360deg)}}}}
+#oad-ok-overlay{{position:fixed;inset:0;background:{overlay_bg};
+backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+z-index:99999;display:flex;align-items:center;justify-content:center}}
+#oad-ok-card{{background:{bg};border:1px solid #1b3a24;border-radius:20px;
+padding:2.8rem 3.2rem 2.4rem;text-align:center;max-width:440px;width:92%;
+animation:oad-ok 0.42s cubic-bezier(0.22,1,0.36,1) both;
+box-shadow:0 24px 60px rgba(0,0,0,0.45)}}
+.oad-ring{{width:72px;height:72px;border-radius:50%;border:3px solid #22c55e;
+display:flex;align-items:center;justify-content:center;
+margin:0 auto 1.2rem;box-shadow:0 0 0 8px rgba(34,197,94,0.12)}}
+.oad-spinner{{width:18px;height:18px;border:2.5px solid rgba(34,197,94,0.25);
+border-top-color:#22c55e;border-radius:50%;display:inline-block;
+animation:oram-spin 0.8s linear infinite;vertical-align:middle;margin-right:0.5rem}}
+</style>
+<div id="oad-ok-overlay"><div id="oad-ok-card">
+  <div class="oad-ring">
+    <svg width="32" height="32" fill="none" stroke="#22c55e" stroke-width="2.5"
+         stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  </div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;
+              letter-spacing:2px;color:#22c55e;font-weight:600;margin-bottom:0.4rem">
+    ORAM Quant Systems
+  </div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;
+              font-weight:700;color:{'#edf4ff' if dark else '#0b1824'};margin-bottom:0.6rem">
+    🗑️ Usuario eliminado
+  </div>
+  <div style="font-family:Inter,sans-serif;font-size:0.88rem;color:{muted};line-height:1.6">
+    <b style="color:{'#edf4ff' if dark else '#0b1824'}">{uname}</b> y todos sus datos<br>
+    han sido eliminados permanentemente.
+  </div>
+  <div style="margin-top:1.3rem;font-family:Inter,sans-serif;font-size:0.72rem;
+              letter-spacing:1.5px;text-transform:uppercase;color:{muted}">
+    <span class="oad-spinner"></span>Actualizando base de datos…
+  </div>
+</div></div>
+""", unsafe_allow_html=True)
+                                import time
+                                time.sleep(2.2)
+                                success_ph.empty()
+                                st.rerun()
                             else:
                                 _overlay_error(f"No se pudo eliminar a <b>{uname}</b>. Puede tener permisos de administrador.", dark=dark)
                     with col_no:
                         if st.button("❌ Cancelar", key=f"del_no_{uid}", use_container_width=True, type="secondary"):
+                            overlay_ph.empty()
                             st.session_state["admin_confirm_delete"].pop(uid, None)
                             st.rerun()
 
