@@ -80,17 +80,35 @@ def _inject_sp_css(dark: bool, c: dict):
 /* Tags de categorías seleccionadas */
 .stMultiSelect [data-baseweb="tag"] {{
     background: {tag_bg} !important;
-    border: 1px solid {focus_clr}55 !important;
+    border: 1px solid {focus_clr}66 !important;
     border-radius: 6px !important;
+    padding: 2px 4px 2px 8px !important;
+    margin: 2px !important;
 }}
-.stMultiSelect [data-baseweb="tag"] span {{
+/* Texto del tag */
+.stMultiSelect [data-baseweb="tag"] span,
+.stMultiSelect [data-baseweb="tag"] > div > span,
+.stMultiSelect [data-baseweb="tag"] [class*="content"],
+.stMultiSelect [data-baseweb="tag"] > div {{
     color: {tag_text} !important;
     -webkit-text-fill-color: {tag_text} !important;
-    font-family: Inter, sans-serif !important; font-size: 0.82rem !important;
-    font-weight: 600 !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.82rem !important; font-weight: 600 !important;
+    background: transparent !important;
 }}
-.stMultiSelect [data-baseweb="tag"] [role="presentation"] svg {{
-    fill: {tag_text} !important; opacity: 0.7 !important;
+/* Icono X del tag */
+.stMultiSelect [data-baseweb="tag"] [role="presentation"],
+.stMultiSelect [data-baseweb="tag"] button,
+.stMultiSelect [data-baseweb="tag"] [aria-label*="Delete"],
+.stMultiSelect [data-baseweb="tag"] [aria-label*="delete"] {{
+    background: transparent !important;
+    border: none !important;
+    color: {tag_text} !important;
+    opacity: 0.7 !important;
+}}
+.stMultiSelect [data-baseweb="tag"] [role="presentation"] svg,
+.stMultiSelect [data-baseweb="tag"] button svg {{
+    fill: {tag_text} !important;
 }}
 .stMultiSelect [data-baseweb="select"] svg:not([role="presentation"]) {{
     fill: {eye_col} !important; opacity: 0.7 !important;
