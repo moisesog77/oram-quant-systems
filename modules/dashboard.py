@@ -20,7 +20,7 @@ from ui.styles import get_colors, page_header, oram_bienvenida, get_theme
 
 
 
-def _inject_css(dark: bool, c: dict):
+def _inject_dashboard_css(dark: bool, c: dict):
     """CSS premium unificado — igual a live_analysis, multi_tf, journal, etc."""
     input_bg   = "#080d14"  if dark else "#f0f4f8"
     input_text = "#c8d8ea"  if dark else "#1a2b3c"
@@ -128,21 +128,10 @@ def render_dashboard():
     user = st.session_state.user
     c = get_colors()
     dark = get_theme() == 'dark'
-    _inject_css(dark, c)
+    _inject_dashboard_css(dark, c)
     page_header("📈", "Dashboard", f"Bienvenido, {user['username'].upper()}")
-    dark = st.session_state.get("theme", "dark") == "dark"
 
-    # ── Variables de color para inputs premium (consistentes con auth.py) ──
-    input_bg  = "#080d14" if dark else "#f0f4f8"
-    input_bdr = "#2a4560" if dark else "#94a3b8"
-    focus_clr = "#22c55e"
-    focus_glow = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
-    eye_col   = "#64748b"
-    input_text = "#c8d8ea" if dark else "#1a2b3c"
-    input_ph   = "#3a5068" if dark else "#9baab8"
-    label_col  = "#4a6a84" if dark else "#6b7f94"
-
-    # ── CSS: botón verde + inputs premium ──────────────────────────────────
+    # ── CSS: botón verde dentro del expander ─────────────────────────────
     # NOTA TÉCNICA: st.button() NO genera data-testid="stButton-KEY".
     # Streamlit solo genera data-testid="stBaseButton-secondary" para todos
     # los st.button. La única forma segura es buscar el botón por texto

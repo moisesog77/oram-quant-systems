@@ -16,7 +16,7 @@ import streamlit as st
 import json
 from database.db import obtener_bot_config, actualizar_bot_config, obtener_alertas, crear_alerta, eliminar_alerta, obtener_señales_recientes
 from utils.market_data import ACTIVOS_DEFAULT
-from ui.styles import get_colors, page_header, oram_notify, oram_bienvenida, get_theme
+from ui.styles import get_colors, page_header, oram_bienvenida, get_theme
 
 
 def _inject_bot_css(dark: bool, c: dict):

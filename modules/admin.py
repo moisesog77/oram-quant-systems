@@ -5,7 +5,6 @@ import streamlit as st
 import pandas as pd
 import json
 import time
-from datetime import datetime
 from database.db import (
     obtener_todos_usuarios, admin_stats_globales,
     admin_crear_usuario, admin_eliminar_usuario,
@@ -220,34 +219,6 @@ box-shadow:0 24px 60px rgba(0,0,0,0.35)}}
     time.sleep(2.2)
     ph.empty()
 
-
-def _overlay_confirm_delete(uname: str, dark: bool = True):
-    """Overlay de advertencia — se muestra brevemente y luego aparecen botones inline."""
-    overlay_bg = "rgba(6,9,15,0.93)" if dark else "rgba(238,242,247,0.95)"
-    card_bg    = "#0c1219"           if dark else "#ffffff"
-    text_muted = "#637a94"           if dark else "#7a8fa0"
-    ph = st.empty()
-    ph.markdown(f"""
-<style>
-@keyframes oad-warn {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
-#oad-warn-overlay{{position:fixed;inset:0;background:{overlay_bg};backdrop-filter:blur(8px);
-z-index:99999;display:flex;align-items:center;justify-content:center}}
-#oad-warn-card{{background:{card_bg};border:1px solid #7c2626;border-radius:20px;
-padding:2.6rem 3rem 2.2rem;text-align:center;max-width:440px;width:92%;
-animation:oad-warn 0.4s cubic-bezier(0.22,1,0.36,1) both;
-box-shadow:0 24px 60px rgba(0,0,0,0.4)}}
-</style>
-<div id="oad-warn-overlay"><div id="oad-warn-card">
-<div style="font-size:2.8rem;margin-bottom:0.8rem">⚠️</div>
-<div style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;font-weight:700;color:#fbbf24;margin-bottom:0.5rem">¿Eliminar permanentemente?</div>
-<div style="font-family:Inter,sans-serif;font-size:0.9rem;color:{text_muted};line-height:1.6">
-Se eliminarán todos los datos de <b style="color:#edf4ff">{uname}</b>.<br>
-Trades, alertas, watchlist y configuración.<br><br>
-<b style="color:#edf4ff">Confirma o cancela en el panel de abajo.</b>
-</div>
-</div></div>""", unsafe_allow_html=True)
-    time.sleep(2.5)
-    ph.empty()
 
 
 def render_admin():
@@ -550,7 +521,7 @@ animation:oad-spin 0.8s linear infinite;vertical-align:middle;margin-right:0.5re
   </div>
 </div></div>
 """, unsafe_allow_html=True)
-                                import time as _t; _t.sleep(2.2)
+                                time.sleep(2.2)
                                 success_ph.empty()
                                 st.rerun()
                             else:
