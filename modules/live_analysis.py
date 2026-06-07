@@ -517,20 +517,21 @@ def render_live_analysis():
     m5.metric("Confianza", f"{confianza:.0f}%")
 
     st.markdown("")
+    # ── Layout: Señal | Niveles (3 cards apiladas) | Riesgo ─────────────────────
+    # col_niveles contiene Order Blocks, Fair Value Gaps y Zonas de Liquidez
+    # apiladas verticalmente como cards premium, en orden:
+    #   1. Order Blocks  2. Fair Value Gaps  3. Zonas de Liquidez  4. SL/TP
     col_senal, col_niveles, col_riesgo = st.columns([2, 2, 1])
 
     with col_senal:
         st.markdown(signal_box(tipo, est.get("descripcion", ""), confianza), unsafe_allow_html=True)
-        
-        # Agregamos un contenedor con el margen consistente
-        st.markdown('<div style="margin-bottom: 0.5rem;">', unsafe_allow_html=True)
+
         if "Alcista" in tipo or "LONG" in tipo:
             st.success("✅ **SEÑAL: COMPRA (LONG)**\nBusca entrada en OB o FVG alcista.")
         elif "Bajista" in tipo or "SHORT" in tipo:
             st.error("❌ **SEÑAL: VENTA (SHORT)**\nBusca entrada en OB o FVG bajista.")
         else:
             st.warning("⚠️ **ESPERA / RANGO**\nSin tendencia clara definida.")
-        st.markdown('</div>', unsafe_allow_html=True) # Cierre del div
 
         if factores:
             st.markdown(
@@ -543,31 +544,52 @@ def render_live_analysis():
         obs  = smc.get("order_blocks", [])
         fvgs = smc.get("fvgs", [])
         liq  = smc.get("liquidez", {})
-        st.markdown("**🧱 Order Blocks**")
-        if obs:
-            for ob in obs[:4]:
-                badge = "badge-ob-bull" if ob.tipo == "OB_alcista" else "badge-ob-bear"
-                label = "OB↑" if ob.tipo == "OB_alcista" else "OB↓"
-                st.markdown(f'<span class="level-badge {badge}">{label} {ob.precio_bot:.5f}–{ob.precio_top:.5f}</span>', unsafe_allow_html=True)
-        else:
-            st.caption("Sin OBs detectados.")
-        st.markdown("**⚡ Fair Value Gaps**")
-        if fvgs:
-            for fvg in fvgs[:4]:
-                badge = "badge-fvg-bull" if fvg.tipo == "FVG_alcista" else "badge-fvg-bear"
-                label = "FVG↑" if fvg.tipo == "FVG_alcista" else "FVG↓"
-                st.markdown(f'<span class="level-badge {badge}">{label} {fvg.precio_bot:.5f}–{fvg.precio_top:.5f}</span>', unsafe_allow_html=True)
-        else:
-            st.caption("Sin FVGs activos.")
-        st.markdown("**💧 Zonas de Liquidez**")
-        for lvl in liq.get("resistance_levels", [])[:2]:
-            st.markdown(f'<span class="level-badge badge-ob-bear">Res {lvl:.5f}</span>', unsafe_allow_html=True)
-        for lvl in liq.get("support_levels", [])[:2]:
-            st.markdown(f'<span class="level-badge badge-ob-bull">Sop {lvl:.5f}</span>', unsafe_allow_html=True)
+
+        # ── Card 1: Order Blocks ──────────────────────────────────────────────
+        obs_items = "".join(
+            f'<div style="margin-bottom:0.28rem">'
+            f'<span class="level-badge {"badge-ob-bull" if ob.tipo == "OB_alcista" else "badge-ob-bear"}">'
+            f'{"OB↑" if ob.tipo == "OB_alcista" else "OB↓"} {ob.precio_bot:.5f}–{ob.precio_top:.5f}'
+            f'</span></div>'
+            for ob in obs[:5]
+        ) if obs else '<div class="card-sub">Sin OBs detectados.</div>'
+        st.markdown(
+            f'<div class="oram-card oram-card-red">'
+            f'<div class="card-title">&#129523; Order Blocks</div>'
+            f'{obs_items}</div>',
+            unsafe_allow_html=True)
+
+        # ── Card 2: Fair Value Gaps ───────────────────────────────────────────
+        fvg_items = "".join(
+            f'<div style="margin-bottom:0.28rem">'
+            f'<span class="level-badge {"badge-fvg-bull" if fvg.tipo == "FVG_alcista" else "badge-fvg-bear"}">'
+            f'{"FVG↑" if fvg.tipo == "FVG_alcista" else "FVG↓"} {fvg.precio_bot:.5f}–{fvg.precio_top:.5f}'
+            f'</span></div>'
+            for fvg in fvgs[:5]
+        ) if fvgs else '<div class="card-sub">Sin FVGs activos.</div>'
+        st.markdown(
+            f'<div class="oram-card oram-card-blue">'
+            f'<div class="card-title">&#9889; Fair Value Gaps</div>'
+            f'{fvg_items}</div>',
+            unsafe_allow_html=True)
+
+        # ── Card 3: Zonas de Liquidez ─────────────────────────────────────────
+        liq_items = ""
+        for lvl in liq.get("resistance_levels", [])[:3]:
+            liq_items += f'<div style="margin-bottom:0.28rem"><span class="level-badge badge-ob-bear">Res {lvl:.5f}</span></div>'
+        for lvl in liq.get("support_levels", [])[:3]:
+            liq_items += f'<div style="margin-bottom:0.28rem"><span class="level-badge badge-ob-bull">Sop {lvl:.5f}</span></div>'
         if liq.get("equal_highs"):
-            st.markdown('<span class="level-badge badge-fvg-bear">&#9888;&#65039; Equal Highs</span>', unsafe_allow_html=True)
+            liq_items += '<div style="margin-bottom:0.28rem"><span class="level-badge badge-fvg-bear">&#9888;&#65039; Equal Highs</span></div>'
         if liq.get("equal_lows"):
-            st.markdown('<span class="level-badge badge-fvg-bull">&#9888;&#65039; Equal Lows</span>', unsafe_allow_html=True)
+            liq_items += '<div style="margin-bottom:0.28rem"><span class="level-badge badge-fvg-bull">&#9888;&#65039; Equal Lows</span></div>'
+        if not liq_items:
+            liq_items = '<div class="card-sub">Sin zonas detectadas.</div>'
+        st.markdown(
+            f'<div class="oram-card oram-card-teal">'
+            f'<div class="card-title">&#128167; Zonas de Liquidez</div>'
+            f'{liq_items}</div>',
+            unsafe_allow_html=True)
 
     with col_riesgo:
         sl_s = smc.get("sl_sugerido", 0)

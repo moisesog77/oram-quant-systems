@@ -1616,10 +1616,10 @@ div[data-testid="stAlert"].st-info {{
 </style>
 """, unsafe_allow_html=True)
 
-    # ── Dropdown portal: CSS en :root + JS setProperty (doble garantía) ──────────
-    # El portal [data-baseweb="layer"] de Base Web hereda --secondary-background-color
-    # de Streamlit. Sobreescribir esa variable en :root cambia el color del portal.
-    # Adicionalmente, el JS con setProperty sobrescribe inline styles de Base Web.
+    # ── Dropdown portal: CSS + JS triple garantía ────────────────────────────────
+    # CAUSA RAÍZ: config.toml con base="dark" forzaba --secondary-background-color
+    # oscuro en los portals [data-baseweb="layer"] sin importar el tema activo.
+    # SOLUCIÓN: config.toml → base="light" + CSS variables + JS deepPaint recursivo.
     _bg      = c["bg_card"]
     _text    = c["text"]
     _hover   = c["nav_hover"]
@@ -1628,49 +1628,54 @@ div[data-testid="stAlert"].st-info {{
     _sid     = "oram-dd-d" if dark else "oram-dd-l"
     _opp_sid = "oram-dd-l" if dark else "oram-dd-d"
 
-    # Parte 1: CSS con máxima especificidad posible (sobreescribe CSS de Streamlit)
+    # ── CSS: variables Streamlit + portal con especificidad máxima ────────────
     st.markdown(f"""
 <style>
-/* Sobreescribir la variable CSS nativa de Streamlit que controla el portal */
-:root,
-:root body,
-html,
-html body {{
+:root {{
     --secondary-background-color: {_bg} !important;
     --background-color: {c['bg']} !important;
     color-scheme: {_scheme} !important;
 }}
-/* Máxima especificidad CSS: html body + selector */
+html, body {{ color-scheme: {_scheme} !important; }}
 html body [data-baseweb="layer"],
+html body [data-baseweb="layer"] *,
 html body [data-baseweb="layer"] > div,
-html body [data-baseweb="layer"] div,
+html body [data-baseweb="layer"] > div > div,
+html body [data-baseweb="layer"] [data-baseweb="popover"],
+html body [data-baseweb="layer"] [data-baseweb="menu"],
 html body [data-baseweb="layer"] ul,
 html body [data-baseweb="layer"] li,
-html body [data-baseweb="layer"] span,
 html body [data-baseweb="layer"] [role="option"],
 html body [data-baseweb="layer"] [role="listbox"],
-html body [data-baseweb="layer"] [data-baseweb="menu"],
-html body [data-baseweb="layer"] [data-baseweb="popover"] {{
+html body [data-baseweb="layer"] span {{
     background-color: {_bg} !important;
     color: {_text} !important;
     color-scheme: {_scheme} !important;
+    -webkit-text-fill-color: {_text} !important;
 }}
 html body [data-baseweb="layer"] li:hover,
 html body [data-baseweb="layer"] [role="option"]:hover,
+html body [data-baseweb="layer"] [data-highlighted],
 html body [data-baseweb="layer"] [aria-selected="true"] {{
     background-color: {_hover} !important;
     color: {_text} !important;
 }}
-html body [data-baseweb="layer"] > div > div {{
+html body [data-baseweb="layer"] > div > div:first-child {{
     border-radius: 10px !important;
-    border: 1px solid {_bdr2} !important;
+    border: 1.5px solid {_bdr2} !important;
     overflow: hidden !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,{'0.40' if dark else '0.12'}) !important;
+}}
+html body [data-baseweb="layer"] [style*="background"] {{
+    background-color: {_bg} !important;
+    background: {_bg} !important;
 }}
 </style>
 """, unsafe_allow_html=True)
 
-    # Parte 2: JS que elimina el estilo del tema opuesto Y aplica setProperty
-    # para sobrescribir inline styles de Base Web (mayor especificidad que CSS)
+    # ── JS: observer recursivo con setProperty 'important' ───────────────────
+    # setProperty con 'important' es el único mecanismo que supera inline styles
+    # que Base Web inyecta directamente en cada elemento del portal.
     st.markdown(f"""
 <script>
 (function() {{
@@ -1681,40 +1686,71 @@ html body [data-baseweb="layer"] > div > div {{
     var OPP  = '{_opp_sid}';
     var SCH  = '{_scheme}';
 
-    // Limpiar estilo del tema opuesto
+    // 1. Eliminar <style> del tema opuesto
     var opp = document.getElementById(OPP);
     if (opp) opp.parentNode.removeChild(opp);
 
-    // Recrear el <style> del tema actual con la variable CSS nativa de Streamlit
+    // 2. Inyectar <style> con variables CSS Streamlit corregidas
     var old = document.getElementById(SID);
     if (old) old.parentNode.removeChild(old);
     var s = document.createElement('style');
     s.id = SID;
-    s.textContent =
-        ':root {{ --secondary-background-color: ' + BG + ' !important; color-scheme: ' + SCH + ' !important; }}' +
-        'html body [data-baseweb="layer"] * {{ background-color: ' + BG + ' !important; color: ' + TEXT + ' !important; }}' +
-        'html body [data-baseweb="layer"] li:hover, html body [data-baseweb="layer"] [role="option"]:hover {{ background-color: ' + HOV + ' !important; }}';
+    s.textContent = [
+        ':root {{--secondary-background-color:' + BG + ' !important;--background-color:{c['bg']} !important;color-scheme:' + SCH + ' !important;}}',
+        'html body [data-baseweb="layer"] * {{background-color:' + BG + ' !important;color:' + TEXT + ' !important;-webkit-text-fill-color:' + TEXT + ' !important;}}',
+        'html body [data-baseweb="layer"] li:hover,html body [data-baseweb="layer"] [role="option"]:hover,html body [data-baseweb="layer"] [aria-selected="true"] {{background-color:' + HOV + ' !important;}}'
+    ].join('');
     document.head.appendChild(s);
 
-    // MutationObserver: forzar inline styles en el portal cuando aparece
-    function paint(node) {{
-        if (!node || !node.getAttribute || node.getAttribute('data-baseweb') !== 'layer') return;
-        node.style.setProperty('background-color', BG, 'important');
-        node.style.setProperty('color', TEXT, 'important');
-        node.querySelectorAll('div, ul, li, span').forEach(function(el) {{
-            el.style.setProperty('background-color', BG, 'important');
-            el.style.setProperty('color', TEXT, 'important');
-        }});
+    // 3. deepPaint: setProperty 'important' en todos los descendientes
+    var SKIP = {{'SCRIPT':1,'STYLE':1,'INPUT':1}};
+    function deepPaint(root) {{
+        if (!root || !root.style) return;
+        try {{
+            root.style.setProperty('background-color', BG, 'important');
+            root.style.setProperty('color', TEXT, 'important');
+            root.style.setProperty('-webkit-text-fill-color', TEXT, 'important');
+            root.style.setProperty('color-scheme', SCH, 'important');
+        }} catch(e) {{}}
+        var ch = root.querySelectorAll ? root.querySelectorAll('*') : [];
+        for (var i=0; i<ch.length; i++) {{
+            if (SKIP[ch[i].tagName]) continue;
+            try {{
+                ch[i].style.setProperty('background-color', BG, 'important');
+                ch[i].style.setProperty('color', TEXT, 'important');
+                ch[i].style.setProperty('-webkit-text-fill-color', TEXT, 'important');
+            }} catch(e) {{}}
+        }}
     }}
+
+    // 4. Manejar portals al montarse + observer interno para lazy render
+    function handleLayer(node) {{
+        if (!node || !node.getAttribute) return;
+        if (node.getAttribute('data-baseweb') === 'layer') {{
+            deepPaint(node);
+            new MutationObserver(function(ms2) {{
+                ms2.forEach(function(m2) {{
+                    m2.addedNodes.forEach(function(n2) {{
+                        if (n2.nodeType === 1) deepPaint(n2);
+                    }});
+                }});
+            }}).observe(node, {{childList:true, subtree:true}});
+        }}
+    }}
+
+    // 5. Observer principal sobre body (subtree:false = solo hijos directos, más eficiente)
     new MutationObserver(function(ms) {{
         ms.forEach(function(m) {{
             m.addedNodes.forEach(function(n) {{
                 if (n.nodeType !== 1) return;
-                paint(n);
-                if (n.querySelectorAll) n.querySelectorAll('[data-baseweb="layer"]').forEach(paint);
+                handleLayer(n);
+                if (n.querySelectorAll) n.querySelectorAll('[data-baseweb="layer"]').forEach(handleLayer);
             }});
         }});
-    }}).observe(document.body, {{ childList: true, subtree: true }});
+    }}).observe(document.body, {{childList:true, subtree:false}});
+
+    // 6. Portals ya existentes al cargar
+    document.querySelectorAll('[data-baseweb="layer"]').forEach(deepPaint);
 }})();
 </script>
 """, unsafe_allow_html=True)
