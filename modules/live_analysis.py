@@ -439,10 +439,10 @@ def _grafica_velas(df, ticker, smc):
         # RSI — eje x y y
         xaxis2=dict(
             gridcolor=gc, color=c["text_muted"], tickfont=tick_font,
-            showline=False, zeroline=False, showgrid=False,
+            showline=False, zeroline=False, showgrid=True,
         ),
         yaxis2=dict(
-            gridcolor="rgba(0,0,0,0)", color=c["text_muted"], side="right",
+            gridcolor=gc, color=c["text_muted"], side="right",
             tickfont=tick_font, range=[0, 100], showline=False, zeroline=False,
             tickvals=[30, 50, 70],
             ticktext=["30", "50", "70"],
@@ -453,7 +453,7 @@ def _grafica_velas(df, ticker, smc):
             showline=False, zeroline=False, showgrid=True,
         ),
         yaxis3=dict(
-            gridcolor="rgba(0,0,0,0)", color=c["text_muted"], side="right",
+            gridcolor=gc, color=c["text_muted"], side="right",
             tickfont=tick_font, showline=False,
             zerolinecolor=c["border2"], zerolinewidth=1, zeroline=True,
         ),
