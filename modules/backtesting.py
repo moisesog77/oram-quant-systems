@@ -302,7 +302,7 @@ def render_backtesting():
                     "success",
                     f"✅ Backtest completado: **{res['total_trades']}** operaciones "
                     f"de {res.get('señales_analizadas', 0)} señales analizadas",
-                    toast=True, banner=True
+                    toast=True, banner=False
                 )
 
                 # ── KPIs ──────────────────────────────────────────────────
@@ -377,14 +377,17 @@ def render_backtesting():
                             width='stretch', height=300
                         )
 
-                guardar_backtest(user["id"], {
-                    "ticker": ticker, "timeframe": tf,
-                    "fecha_inicio": res["fecha_inicio"], "fecha_fin": res["fecha_fin"],
-                    "total_trades": res["total_trades"], "win_rate": res["win_rate"],
-                    "profit_factor": res["profit_factor"], "total_pnl": res["total_pnl"],
-                    "max_drawdown": res["max_drawdown"], "sharpe": res["sharpe"],
-                    "parametros": res["parametros"],
-                })
+                try:
+                    guardar_backtest(user["id"], {
+                        "ticker": ticker, "timeframe": tf,
+                        "fecha_inicio": res["fecha_inicio"], "fecha_fin": res["fecha_fin"],
+                        "total_trades": res["total_trades"], "win_rate": res["win_rate"],
+                        "profit_factor": res["profit_factor"], "total_pnl": res["total_pnl"],
+                        "max_drawdown": res["max_drawdown"], "sharpe": res["sharpe"],
+                        "parametros": res["parametros"],
+                    })
+                except Exception:
+                    pass  # La tabla puede no existir en ciertos entornos; no crashear la UI
 
     with tab_historial:
         backtests = obtener_backtests(user["id"])
