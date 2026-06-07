@@ -427,37 +427,32 @@ def render_bot_config():
                 estado_txt = "✅ Disparada" if disparada else "⏳ Activa"
                 emoji_dir  = "📈" if al["tipo"] == "above" else "📉"
                 dir_txt    = "sube sobre" if al["tipo"] == "above" else "baja bajo"
-                bdr_color  = c['text_muted'] if disparada else c['green']
-                bg_extra   = f"background:rgba(34,197,94,0.06);" if not disparada else ""
-                msg_txt    = f" &nbsp;·&nbsp; <i>{al['mensaje']}</i>" if al.get('mensaje') else ""
+                msg_txt    = f" · <i>{al['mensaje']}</i>" if al.get('mensaje') else ""
+                card_class = "smc-card" if disparada else "smc-card smc-card-green"
+                estado_color = c['text_muted'] if disparada else c['green']
+
                 col1, col2 = st.columns([5, 1])
                 with col1:
                     st.markdown(f"""
-<div style="border-left:3px solid {bdr_color};padding:0.65rem 1rem;
-            border-radius:0 10px 10px 0;margin-bottom:0.4rem;
-            background:{c['bg_card']};{bg_extra}">
-    <div style="font-family:Inter,sans-serif;font-size:0.78rem;
-                color:{c['text_muted']};margin-bottom:0.15rem;
-                letter-spacing:0.5px;text-transform:uppercase;font-weight:600">
-        {estado_txt}
-    </div>
-    <div style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;color:{c['text']}">
+<div class="{card_class}" style="padding:0.8rem 1rem;margin-bottom:0.4rem">
+    <div class="card-title" style="color:{estado_color}">{estado_txt}</div>
+    <div class="card-sub" style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;margin-top:0.2rem">
         {emoji_dir} <b style="color:{c['text_strong']}">{al['ticker']}</b>
         &nbsp;<span style="color:{c['text_muted']}">{dir_txt}</span>&nbsp;
-        <b style="color:{bdr_color}">{al['precio']:.5f}</b>{msg_txt}
+        <b style="color:{estado_color}">{al['precio']:.5f}</b>{msg_txt}
     </div>
 </div>
 """, unsafe_allow_html=True)
                 with col2:
-                    if not disparada:
-                        if st.button("🗑️", key=f"del_al_{al['id']}", use_container_width=True):
-                            eliminar_alerta(al["id"], user["id"])
-                            oram_bienvenida(
-                                titulo        = "🗑️ Alerta eliminada",
-                                subtitulo     = f"La alerta de <b>{al['ticker']}</b> ha sido cancelada.",
-                                spinner_label = "Actualizando alertas…",
-                                delay         = 1.5,
-                            )
+                    st.markdown('<div style="margin-top:0.5rem"></div>', unsafe_allow_html=True)
+                    if st.button("🗑️", key=f"del_al_{al['id']}", use_container_width=True):
+                        eliminar_alerta(al["id"], user["id"])
+                        oram_bienvenida(
+                            titulo        = "🗑️ Alerta eliminada",
+                            subtitulo     = f"La alerta de <b>{al['ticker']}</b> ha sido eliminada del historial.",
+                            spinner_label = "Actualizando alertas…",
+                            delay         = 1.5,
+                        )
 
     # ── HISTORIAL DE SEÑALES ──────────────────────────────────────────────
     with tab_historial:
