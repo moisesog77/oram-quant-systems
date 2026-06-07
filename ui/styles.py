@@ -738,6 +738,22 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 .stRadio>div>div>label{{color:{c['text']}!important}}
 .stToggle>label{{color:{c['text']}!important}}
 .stSlider p{{color:{c['text']}!important}}
+/* Slider — pista activa y pulgar en verde, nunca dorado */
+[data-testid="stSlider"] [data-baseweb="slider"] [role="slider"] {{
+    background:{c['green']}!important;
+    border-color:{c['green']}!important;
+    box-shadow:0 0 0 3px rgba(34,197,94,0.18)!important;
+}}
+[data-testid="stSlider"] [data-baseweb="slider"] div[class*="Track"] > div:first-child,
+[data-testid="stSlider"] [data-baseweb="slider"] div[class*="track"] > div:first-child,
+[data-testid="stSlider"] [data-baseweb="slider"] div[style*="background"] {{
+    background:{c['green']}!important;
+}}
+/* Override CSS variable de acento que Streamlit inyecta en sliders */
+[data-testid="stSlider"] * {{
+    --primary:{c['green']} !important;
+    accent-color:{c['green']} !important;
+}}
 
 /* ── BOTONES ────────────────────────────────────────── */
 .stButton>button{{

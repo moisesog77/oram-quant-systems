@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from utils.backtesting import ejecutar_backtest
 from utils.market_data import ACTIVOS_DEFAULT
 from database.db import guardar_backtest, obtener_backtests
-from ui.styles import get_colors, page_header, oram_notify, oram_bienvenida, get_theme
+from ui.styles import get_colors, page_header, oram_notify, get_theme
 
 
 def _inject_bt_css(dark: bool, c: dict):
@@ -139,19 +139,6 @@ def _inject_bt_css(dark: bool, c: dict):
     height: 0 !important; margin: 0 !important;
 }}
 
-/* ══ SLIDER — pista y pulgar verdes ══════════════════════════════════════ */
-[data-testid="stSlider"] [data-baseweb="slider"] {{
-    padding: 0 !important;
-}}
-[data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"] {{
-    background: {focus_clr} !important;
-    border: 2px solid {focus_clr} !important;
-    box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-[data-testid="stSlider"] [data-baseweb="slider"] div[class*="Track"] > div:first-child {{
-    background: {focus_clr} !important;
-}}
-
 /* ══ BOTÓN EJECUTAR BACKTEST ══════════════════════════════════════════════ */
 [data-testid="stBaseButton-primary"] {{
     background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
@@ -183,6 +170,80 @@ def _inject_bt_css(dark: bool, c: dict):
 """, unsafe_allow_html=True)
 
 
+def _bt_overlay(ticker: str, tf: str, umbral: int, capital: float, dark: bool):
+    """Muestra overlay premium de carga SIN rerun — se limpia al terminar."""
+    overlay_bg = "rgba(6,9,15,0.93)"  if dark else "rgba(238,242,247,0.95)"
+    card_bg    = "#0c1219"            if dark else "#ffffff"
+    card_bdr   = "#1b3a24"           if dark else "#d1fae5"
+    text_col   = "#edf4ff"           if dark else "#0b1824"
+    text_muted = "#637a94"           if dark else "#7a8fa0"
+
+    ph = st.empty()
+    ph.markdown(f"""
+<style>
+@keyframes oram-bt-in {{
+    from {{ opacity:0; transform:translateY(16px) scale(0.96); }}
+    to   {{ opacity:1; transform:translateY(0) scale(1); }}
+}}
+@keyframes oram-spin {{
+    to {{ transform: rotate(360deg); }}
+}}
+#oram-bt-overlay {{
+    position:fixed; inset:0; background:{overlay_bg};
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    z-index:99999; display:flex; align-items:center; justify-content:center;
+}}
+#oram-bt-card {{
+    background:{card_bg}; border:1px solid {card_bdr};
+    border-radius:20px; padding:2.8rem 3.2rem 2.6rem;
+    text-align:center; max-width:440px; width:92%;
+    animation:oram-bt-in 0.42s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow:0 24px 60px rgba(0,0,0,0.38);
+}}
+.oram-bt-icon {{
+    width:72px; height:72px; border-radius:50%;
+    border:3px solid #22c55e;
+    display:flex; align-items:center; justify-content:center;
+    margin:0 auto 1.2rem;
+    box-shadow:0 0 0 8px rgba(34,197,94,0.12);
+}}
+.oram-bt-spinner {{
+    width:20px; height:20px;
+    border:2.5px solid rgba(34,197,94,0.25);
+    border-top-color:#22c55e;
+    border-radius:50%;
+    display:inline-block;
+    animation:oram-spin 0.8s linear infinite;
+    vertical-align:middle; margin-right:0.5rem;
+}}
+</style>
+<div id="oram-bt-overlay"><div id="oram-bt-card">
+  <div class="oram-bt-icon">
+    <svg width="32" height="32" fill="none" stroke="#22c55e" stroke-width="2.5"
+         stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <polygon points="5 3 19 12 5 21 5 3"/>
+    </svg>
+  </div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:0.65rem;
+              letter-spacing:2px;color:#22c55e;font-weight:600;margin-bottom:0.5rem">
+    ORAM Quant Systems
+  </div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.3rem;
+              font-weight:700;color:{text_col};margin-bottom:0.5rem">
+    🧪 Ejecutando Backtest
+  </div>
+  <div style="font-family:Inter,sans-serif;font-size:0.88rem;color:{text_muted};margin-bottom:1.4rem">
+    <b style="color:{text_col}">{ticker}</b> · {tf} · Umbral {umbral}% · Capital ${capital:,.0f}
+  </div>
+  <div style="font-family:Inter,sans-serif;font-size:0.78rem;
+              letter-spacing:1.5px;text-transform:uppercase;color:{text_muted}">
+    <span class="oram-bt-spinner"></span>Analizando señales históricas…
+  </div>
+</div></div>
+""", unsafe_allow_html=True)
+    return ph
+
+
 def render_backtesting():
     user = st.session_state.user
     c    = get_colors()
@@ -212,7 +273,7 @@ def render_backtesting():
         with col2:
             tf     = st.selectbox("Temporalidad", ["15m","30m","1h","4h","1d"],  key="bt_tf")
             umbral = st.slider("Umbral confianza (%)", 30, 85, 50, key="bt_umb",
-                               help="Bájalo a 40-50% para ver más señales. Súbelo para señales de mayor calidad.")
+                               help="Bájalo a 40-50% para ver más señales.")
         with col3:
             capital    = st.number_input("Capital (USD)", value=float(user.get("capital_inicial", 10000)),
                                           min_value=100.0, step=500.0, key="bt_cap")
@@ -223,19 +284,15 @@ def render_backtesting():
             "El timeframe 15m tiene menos historia disponible en yfinance."
         )
 
-        ejecutar = st.button("▶️ Ejecutar Backtest", width='stretch', key="bt_run")
+        if st.button("▶️ Ejecutar Backtest", width='stretch', key="bt_run"):
+            # 1. Mostrar overlay premium mientras trabaja
+            overlay_ph = _bt_overlay(ticker, tf, umbral, capital, dark)
 
-        if ejecutar:
-            oram_bienvenida(
-                titulo        = "🧪 Ejecutando Backtest",
-                subtitulo     = f"<b>{ticker}</b> · {tf} · Umbral {umbral}% · Capital ${capital:,.0f}",
-                spinner_label = "Analizando señales históricas…",
-                delay         = 1.6,
-            )
+            # 2. Ejecutar el backtest (con overlay visible)
+            res = ejecutar_backtest(ticker, tf, riesgo_pct, umbral, capital)
 
-        if ejecutar:
-            with st.spinner(f"Ejecutando backtest {ticker} {tf} (puede tardar 30-90 seg)..."):
-                res = ejecutar_backtest(ticker, tf, riesgo_pct, umbral, capital)
+            # 3. Limpiar overlay al terminar
+            overlay_ph.empty()
 
             if "error" in res:
                 oram_notify("error", f"❌ {res['error']}", toast=True, banner=True)
@@ -248,6 +305,7 @@ def render_backtesting():
                     toast=True, banner=True
                 )
 
+                # ── KPIs ──────────────────────────────────────────────────
                 k1, k2, k3, k4, k5, k6 = st.columns(6)
                 k1.metric("Trades",        res["total_trades"])
                 k2.metric("Win Rate",      f"{res['win_rate']:.1f}%",
