@@ -425,21 +425,71 @@ def render_admin():
                             if st.button("🗑️ Eliminar", key=f"del1_{uid}", use_container_width=True):
                                 st.session_state["admin_confirm_delete"][uid] = True
                                 st.rerun()
-                        else:
-                            if st.button("✅ Confirmar", key=f"del_yes_{uid}", use_container_width=True):
-                                ok = admin_eliminar_usuario(uid)
-                                st.session_state["admin_confirm_delete"].pop(uid, None)
-                                if ok:
-                                    oram_bienvenida(
-                                        titulo="🗑️ Usuario eliminado",
-                                        subtitulo=f"<b>{uname}</b> y todos sus datos han sido eliminados permanentemente.",
-                                        spinner_label="Actualizando base de datos…", delay=1.8,
-                                    )
-                                else:
-                                    _overlay_error(f"No se pudo eliminar a <b>{uname}</b>. Verifica que no sea administrador en la base de datos.", dark=dark)
-                            if st.button("❌ Cancelar", key=f"del_no_{uid}", use_container_width=True, type="secondary"):
-                                st.session_state["admin_confirm_delete"].pop(uid, None)
-                                st.rerun()
+
+                # Overlay de confirmación — fuera de las columnas para ocupar pantalla completa
+                confirming = st.session_state["admin_confirm_delete"].get(uid, False)
+                if confirming:
+                    overlay_bg = "rgba(6,9,15,0.93)" if dark else "rgba(238,242,247,0.95)"
+                    card_bg    = "#0c1219"           if dark else "#ffffff"
+                    text_muted = "#637a94"           if dark else "#7a8fa0"
+                    text_col   = "#edf4ff"           if dark else "#0b1824"
+                    # Overlay sin botones — los botones van encima via CSS fixed
+                    st.markdown(f"""
+<style>
+@keyframes oad-warn {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
+#oad-del-overlay{{position:fixed;inset:0;background:{overlay_bg};backdrop-filter:blur(8px);
+-webkit-backdrop-filter:blur(8px);z-index:99990;display:flex;align-items:center;justify-content:center}}
+#oad-del-card{{background:{card_bg};border:1px solid #7c2626;border-radius:20px;
+padding:2.8rem 3.2rem 2rem;text-align:center;max-width:460px;width:92%;
+animation:oad-warn 0.42s cubic-bezier(0.22,1,0.36,1) both;
+box-shadow:0 24px 60px rgba(0,0,0,0.45)}}
+/* Botones Streamlit sobre el overlay */
+#oad-del-btns{{
+    position:fixed;bottom:calc(50% - 160px);left:50%;transform:translateX(-50%);
+    z-index:99999;display:flex;gap:1rem;width:360px;max-width:90vw;
+}}
+</style>
+<div id="oad-del-overlay">
+  <div id="oad-del-card">
+    <div style="font-size:3rem;margin-bottom:1rem">⚠️</div>
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;
+                letter-spacing:2px;color:#f87171;font-weight:600;margin-bottom:0.4rem">
+      ACCIÓN IRREVERSIBLE
+    </div>
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;
+                font-weight:700;color:#fbbf24;margin-bottom:0.7rem">
+      ¿Eliminar a {uname}?
+    </div>
+    <div style="font-family:Inter,sans-serif;font-size:0.9rem;color:{text_muted};line-height:1.7">
+      Se borrarán permanentemente todos sus datos:<br>
+      trades, alertas, watchlist y configuración de bot.
+    </div>
+    <div style="margin-top:1.6rem;display:flex;gap:1rem;justify-content:center">
+      <div style="font-family:Inter,sans-serif;font-size:0.78rem;
+                  color:{text_muted};opacity:0.8">
+        ↓ Usa los botones de abajo para confirmar o cancelar
+      </div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+                    col_yes, col_no = st.columns(2)
+                    with col_yes:
+                        if st.button("✅ Sí, eliminar definitivamente", key=f"del_yes_{uid}", use_container_width=True):
+                            ok = admin_eliminar_usuario(uid)
+                            st.session_state["admin_confirm_delete"].pop(uid, None)
+                            if ok:
+                                oram_bienvenida(
+                                    titulo="🗑️ Usuario eliminado",
+                                    subtitulo=f"<b>{uname}</b> y todos sus datos han sido eliminados permanentemente.",
+                                    spinner_label="Actualizando base de datos…", delay=1.8,
+                                )
+                            else:
+                                _overlay_error(f"No se pudo eliminar a <b>{uname}</b>. Puede tener permisos de administrador en la base de datos.", dark=dark)
+                    with col_no:
+                        if st.button("❌ Cancelar, mantener usuario", key=f"del_no_{uid}", use_container_width=True, type="secondary"):
+                            st.session_state["admin_confirm_delete"].pop(uid, None)
+                            st.rerun()
 
     # ── CONFIG BOT ────────────────────────────────────────────────────────
     with tab_bot:
