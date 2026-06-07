@@ -1636,85 +1636,92 @@ div[data-testid="stAlert"].st-info {{
     _scheme  = "dark" if dark else "light"
     _shadow  = "0 8px 32px rgba(0,0,0,0.45)" if dark else "0 8px 24px rgba(0,0,0,0.10)"
 
-    # CSS @layer con !important — gana sobre inline styles en Chrome 99+, Firefox 97+, Safari 15.4+
-    # Streamlit Cloud usa Chrome moderno → compatibilidad total
+    # ── Dropdown portal: selector [style*] con color fijo — SOLUCIÓN DEFINITIVA ──
+    # DIAGNÓSTICO RAÍZ CONFIRMADO:
+    #   • Base Web escribe inline style="background: var(--secondary-background-color)"
+    #     en el <ul> del portal (y otros elementos).
+    #   • CSS custom properties (variables) NO soportan !important → ignorado por Chrome.
+    #   • @layer + !important NO puede sobreescribir :root custom properties.
+    #   • window.parent bloqueado en Streamlit Cloud por same-origin policy.
+    #
+    # SOLUCIÓN: selector [style*="secondary-background-color"] + color FIJO hardcoded.
+    #   • No depende de variables CSS → !important sí funciona.
+    #   • st.markdown inyecta en el <head> del documento principal (no iframe).
+    #   • El color fijo viene de Python (dark/light) → cambia con el tema.
+    #   • Especificidad: selector de atributo (0,1,0) + !important = máxima prioridad.
+    _bg      = c["bg_card"]
+    _text    = c["text"]
+    _hover   = c["nav_hover"]
+    _bdr2    = c["border2"]
+    _scheme  = "dark" if dark else "light"
+    _shadow  = "0 8px 32px rgba(0,0,0,0.45)" if dark else "0 8px 24px rgba(0,0,0,0.10)"
+
     st.markdown(f"""
 <style>
-/* ══ ORAM DROPDOWN PORTAL — @layer con !important supera inline styles ══════
-   Base Web escribe: style="background: var(--secondary-background-color)"
-   @layer + !important tiene la mayor especificidad posible en CSS moderno.
-   Funciona en el documento principal (st.markdown no usa iframe sandboxed). */
+/* ══ DROPDOWN PORTAL — color fijo, sin variables CSS ══════════════════════════
+   Selector [style*="secondary-background-color"] captura exactamente el <ul>
+   y demás elementos donde Base Web escribe el inline style con la variable.
+   Color fijo = !important sí funciona = gana sobre el inline style.          */
 
-@layer oram-dd {{
-    /* Sobrescribir la variable raíz que Base Web lee para el inline style */
-    :root {{
-        --secondary-background-color: {_bg} !important;
-        --background-color: {c["bg"]} !important;
-    }}
-
-    /* Portal container */
-    [data-baseweb="layer"] {{
-        color-scheme: {_scheme} !important;
-    }}
-
-    /* Todos los elementos dentro del portal */
-    [data-baseweb="layer"] * {{
-        background-color: {_bg} !important;
-        background: {_bg} !important;
-        color: {_text} !important;
-        -webkit-text-fill-color: {_text} !important;
-    }}
-
-    /* Elemento con inline style (los que Base Web escribe directamente) */
-    [data-baseweb="layer"] [style] {{
-        background-color: {_bg} !important;
-        background: {_bg} !important;
-        color: {_text} !important;
-        -webkit-text-fill-color: {_text} !important;
-    }}
-
-    /* Lista y opciones */
-    [data-baseweb="layer"] ul,
-    [data-baseweb="layer"] li,
-    [data-baseweb="layer"] [role="option"],
-    [data-baseweb="layer"] [role="listbox"] {{
-        background-color: {_bg} !important;
-        background: {_bg} !important;
-        color: {_text} !important;
-        -webkit-text-fill-color: {_text} !important;
-    }}
-
-    /* Hover y seleccionado */
-    [data-baseweb="layer"] li:hover,
-    [data-baseweb="layer"] [role="option"]:hover,
-    [data-baseweb="layer"] [aria-selected="true"],
-    [data-baseweb="layer"] [data-highlighted] {{
-        background-color: {_hover} !important;
-        background: {_hover} !important;
-        color: {_text} !important;
-    }}
-
-    /* Contenedor del popup — bordes y sombra premium */
-    [data-baseweb="layer"] > div > div:first-child {{
-        border-radius: 10px !important;
-        border: 1.5px solid {_bdr2} !important;
-        overflow: hidden !important;
-        box-shadow: {_shadow} !important;
-    }}
-}}
-
-/* Regla extra fuera de @layer para máxima compatibilidad con browsers sin soporte @layer */
-html body [data-baseweb="layer"] [style],
-html body [data-baseweb="layer"] [style*="background"],
-html body [data-baseweb="layer"] [style*="color"] {{
+/* 1. El elemento con inline style que usa la variable (el <ul> del portal) */
+[data-baseweb="layer"] [style*="secondary-background-color"],
+[data-baseweb="layer"] [style*="background-color"],
+[data-baseweb="layer"] [style*="background:"] {{
     background-color: {_bg} !important;
-    background: {_bg} !important;
+    background:       {_bg} !important;
     color: {_text} !important;
     -webkit-text-fill-color: {_text} !important;
 }}
+
+/* 2. Todos los descendientes del portal — cobertura base */
+[data-baseweb="layer"],
+[data-baseweb="layer"] > div,
+[data-baseweb="layer"] > div > div,
+[data-baseweb="layer"] ul,
+[data-baseweb="layer"] li,
+[data-baseweb="layer"] [role="option"],
+[data-baseweb="layer"] [role="listbox"],
+[data-baseweb="layer"] span {{
+    background-color: {_bg} !important;
+    background:       {_bg} !important;
+    color: {_text} !important;
+    -webkit-text-fill-color: {_text} !important;
+    color-scheme: {_scheme} !important;
+}}
+
+/* 3. Hover + seleccionado */
+[data-baseweb="layer"] li:hover,
+[data-baseweb="layer"] [role="option"]:hover,
+[data-baseweb="layer"] [aria-selected="true"],
+[data-baseweb="layer"] [data-highlighted] {{
+    background-color: {_hover} !important;
+    background:       {_hover} !important;
+    color: {_text} !important;
+}}
+
+/* 4. Contenedor del popup — bordes premium */
+[data-baseweb="layer"] > div > div {{
+    border-radius: 10px !important;
+    border: 1.5px solid {_bdr2} !important;
+    overflow: hidden !important;
+    box-shadow: {_shadow} !important;
+}}
+
+/* 5. Especificidad máxima con html body para ganar a Streamlit Emotion CSS */
+html body [data-baseweb="layer"] [style] {{
+    background-color: {_bg} !important;
+    background:       {_bg} !important;
+    color: {_text} !important;
+    -webkit-text-fill-color: {_text} !important;
+}}
+html body [data-baseweb="layer"] ul,
+html body [data-baseweb="layer"] li,
+html body [data-baseweb="layer"] [role="option"] {{
+    background-color: {_bg} !important;
+    color: {_text} !important;
+}}
 </style>
 """, unsafe_allow_html=True)
-
 
 def page_header(icon: str, title: str, subtitle: str = ""):
     display = f"{icon} {title}" if icon else title

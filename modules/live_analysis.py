@@ -426,35 +426,43 @@ def _grafica_velas(df, ticker, smc):
     tick_font = dict(color=c["text_muted"], size=9, family="JetBrains Mono")
 
     layout.update(
-        # eje x compartido (velas) — sin rangeslider
+        # ── Panel 1: Velas ────────────────────────────────────────────────
         xaxis=dict(
             gridcolor=gc, color=c["text_muted"], tickfont=tick_font,
             showline=False, zeroline=False, rangeslider=dict(visible=False),
-            showgrid=True,
+            showgrid=True, griddash="solid",
         ),
         yaxis=dict(
             gridcolor=gc, color=c["text_muted"], side="right", tickfont=tick_font,
-            showline=False, zeroline=False,
+            showline=False, zeroline=False, showgrid=True, griddash="solid",
         ),
-        # RSI — eje x y y
+        # ── Panel 2: RSI ─────────────────────────────────────────────────
         xaxis2=dict(
             gridcolor=gc, color=c["text_muted"], tickfont=tick_font,
-            showline=False, zeroline=False, showgrid=True,
+            showline=False, zeroline=False, showgrid=True, griddash="solid",
         ),
         yaxis2=dict(
             gridcolor=gc, color=c["text_muted"], side="right",
-            tickfont=tick_font, range=[0, 100], showline=False, zeroline=False,
-            tickvals=[30, 50, 70],
-            ticktext=["30", "50", "70"],
+            tickfont=tick_font, range=[0, 100],
+            showline=False, zeroline=False,
+            showgrid=True, griddash="solid",
+            # dtick=20 → líneas en 0,20,40,60,80,100 — mismo espaciado visual que velas
+            dtick=20, tick0=0,
+            tickvals=[20, 40, 60, 80],
+            ticktext=["20", "40", "60", "80"],
         ),
-        # MACD — eje x y y
+        # ── Panel 3: MACD ────────────────────────────────────────────────
         xaxis3=dict(
             gridcolor=gc, color=c["text_muted"], tickfont=tick_font,
-            showline=False, zeroline=False, showgrid=True,
+            showline=False, zeroline=False, showgrid=True, griddash="solid",
         ),
         yaxis3=dict(
             gridcolor=gc, color=c["text_muted"], side="right",
             tickfont=tick_font, showline=False,
+            showgrid=True, griddash="solid",
+            # autoticksuffix — Plotly calcula el dtick según el rango MACD
+            # nticks fuerza un número similar al de los otros paneles
+            nticks=5,
             zerolinecolor=c["border2"], zerolinewidth=1, zeroline=True,
         ),
         margin=dict(l=8, r=68, t=28, b=32),
