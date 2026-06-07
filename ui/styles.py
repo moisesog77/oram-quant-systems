@@ -1323,16 +1323,48 @@ div[data-testid="stVerticalBlockBorderWrapper"]:empty {{
     background: {c['bg_card']} !important;
     color: transparent !important; pointer-events: none !important;
 }}
-/* Tags multiselect — sin amarillo */
+/* Tags multiselect — verde premium */
 [data-baseweb="tag"] {{
-    background: {c['bg_card2']} !important;
-    border: 1px solid {c['border2']} !important;
-    color: {c['text']} !important;
-    border-radius: 5px !important;
+    background: {'#0f2a1a' if dark else '#dcfce7'} !important;
+    border: 1px solid {c['green']}55 !important;
+    color: {c['green']} !important;
+    border-radius: 6px !important;
+    padding: 2px 8px !important;
 }}
 [data-baseweb="tag"] span {{
+    color: {c['green']} !important;
+    -webkit-text-fill-color: {c['green']} !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.82rem !important; font-weight: 600 !important;
+    background: transparent !important;
+}}
+[data-baseweb="tag"] * {{
+    background: transparent !important;
+    background-color: transparent !important;
+}}
+/* Dropdown portal del multiselect — dark theme */
+[data-baseweb="menu"] {{
+    background: {c['bg_card']} !important;
+    border: 1px solid {c['border']} !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+}}
+[data-baseweb="menu"] li,
+[data-baseweb="option"] {{
+    background: {c['bg_card']} !important;
     color: {c['text']} !important;
-    -webkit-text-fill-color: {c['text']} !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.9rem !important;
+}}
+[data-baseweb="menu"] li:hover,
+[data-baseweb="option"]:hover {{
+    background: {c['bg_card2']} !important;
+    color: {c['green']} !important;
+}}
+[data-baseweb="menu"] [aria-selected="true"],
+[data-baseweb="option"][aria-selected="true"] {{
+    background: {'#0f2a1a' if dark else '#dcfce7'} !important;
+    color: {c['green']} !important;
 }}
 /* Todos los inputs — cobertura total */
 input:not([type="range"]):not([type="checkbox"]):not([type="radio"]) {{
@@ -1396,29 +1428,7 @@ section[data-testid="stSidebar"] div[role="radio"] {{
     background-color: {c['bg_card']} !important;
 }}
 
-/* ═══ MULTISELECT TAGS — texto completo, sin corte ══════════ */
-[data-baseweb="tag"] {{
-    max-width: none !important;
-    white-space: nowrap !important;
-    overflow: visible !important;
-    background: {'#0f2a1a' if dark else '#dcfce7'} !important;
-    border: 1px solid {'#22c55e55' if dark else '#22c55e66'} !important;
-    color: {'#22c55e' if dark else '#15803d'} !important;
-    border-radius: 6px !important;
-    padding: 2px 8px !important;
-    font-family: Inter, sans-serif !important;
-    font-size: 0.82rem !important; font-weight: 600 !important;
-}}
-[data-baseweb="tag"] span {{
-    color: {'#22c55e' if dark else '#15803d'} !important;
-    -webkit-text-fill-color: {'#22c55e' if dark else '#15803d'} !important;
-    font-family: Inter, sans-serif !important;
-    background: transparent !important;
-}}
-[data-baseweb="tag"] [role="button"] {{
-    color: {'#22c55e' if dark else '#15803d'} !important;
-    opacity: 0.7 !important;
-}}
+/* ═══ MULTISELECT TAGS — bloque unificado arriba ════════════ */
 /* ── PASSWORD INPUT — eliminar espacio extra junto al ojo ── */
 /* En Streamlit 1.58 el password wrapper tiene estructura:
    stTextInput > div > div[data-baseweb="input"] > div.input > input
