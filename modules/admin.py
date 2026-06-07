@@ -222,6 +222,7 @@ box-shadow:0 24px 60px rgba(0,0,0,0.35)}}
 
 
 def _overlay_confirm_delete(uname: str, dark: bool = True):
+    """Overlay de advertencia — se muestra brevemente y luego aparecen botones inline."""
     overlay_bg = "rgba(6,9,15,0.93)" if dark else "rgba(238,242,247,0.95)"
     card_bg    = "#0c1219"           if dark else "#ffffff"
     text_muted = "#637a94"           if dark else "#7a8fa0"
@@ -240,12 +241,12 @@ box-shadow:0 24px 60px rgba(0,0,0,0.4)}}
 <div style="font-size:2.8rem;margin-bottom:0.8rem">⚠️</div>
 <div style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;font-weight:700;color:#fbbf24;margin-bottom:0.5rem">¿Eliminar permanentemente?</div>
 <div style="font-family:Inter,sans-serif;font-size:0.9rem;color:{text_muted};line-height:1.6">
-Confirma en el panel de abajo para eliminar <b style="color:#edf4ff">{uname}</b>.<br>
-Trades, alertas, watchlist y configuración serán borrados.
+Se eliminarán todos los datos de <b style="color:#edf4ff">{uname}</b>.<br>
+Trades, alertas, watchlist y configuración.<br><br>
+<b style="color:#edf4ff">Confirma o cancela en el panel de abajo.</b>
 </div>
-<div style="margin-top:1.2rem;font-family:Inter,sans-serif;font-size:0.75rem;color:{text_muted};opacity:0.7">Cerrando automáticamente…</div>
 </div></div>""", unsafe_allow_html=True)
-    time.sleep(2.0)
+    time.sleep(2.5)
     ph.empty()
 
 
@@ -423,15 +424,9 @@ def render_admin():
                         if not confirming:
                             if st.button("🗑️ Eliminar", key=f"del1_{uid}", use_container_width=True):
                                 st.session_state["admin_confirm_delete"][uid] = True
-                                _overlay_confirm_delete(uname, dark=dark)
                                 st.rerun()
                         else:
-                            st.markdown(f"""
-<div class="smc-card smc-card-red" style="padding:0.6rem 0.8rem;margin-bottom:0.5rem">
-    <div class="card-sub" style="font-size:0.75rem">⚠️ Confirmar eliminación de <b>{uname}</b></div>
-</div>
-""", unsafe_allow_html=True)
-                            if st.button("✅ Sí, eliminar", key=f"del_yes_{uid}", use_container_width=True):
+                            if st.button("✅ Confirmar", key=f"del_yes_{uid}", use_container_width=True):
                                 ok = admin_eliminar_usuario(uid)
                                 st.session_state["admin_confirm_delete"].pop(uid, None)
                                 if ok:
@@ -441,7 +436,7 @@ def render_admin():
                                         spinner_label="Actualizando base de datos…", delay=1.8,
                                     )
                                 else:
-                                    _overlay_error("No se pudo eliminar. El usuario puede ser administrador.", dark=dark)
+                                    _overlay_error(f"No se pudo eliminar a <b>{uname}</b>. Verifica que no sea administrador en la base de datos.", dark=dark)
                             if st.button("❌ Cancelar", key=f"del_no_{uid}", use_container_width=True, type="secondary"):
                                 st.session_state["admin_confirm_delete"].pop(uid, None)
                                 st.rerun()
