@@ -214,6 +214,22 @@ def _inject_bot_css(dark: bool, c: dict):
 .smc-card-blue   {{ border-left: 3px solid {c['accent3']} !important; }}
 .smc-card-red    {{ border-left: 3px solid {c['red']} !important; }}
 .oram-card       {{ border-left: 3px solid {c['border']} !important; }}
+
+/* ══ FORM CONTAINERS — franja de color izquierda (sobrepone al borde del stForm) */
+[data-testid="stForm"]:has(#bot-cfg-form-marker) {{
+    border-left: 4px solid {c['accent3']} !important;
+    border-top: 1px solid {c['border']} !important;
+    border-right: 1px solid {c['border']} !important;
+    border-bottom: 1px solid {c['border']} !important;
+    border-radius: 0 16px 16px 0 !important;
+}}
+[data-testid="stForm"]:has(#bot-alerta-form-marker) {{
+    border-left: 4px solid {c['green']} !important;
+    border-top: 1px solid {c['border']} !important;
+    border-right: 1px solid {c['border']} !important;
+    border-bottom: 1px solid {c['border']} !important;
+    border-radius: 0 16px 16px 0 !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -246,10 +262,10 @@ def render_bot_config():
         """, unsafe_allow_html=True)
 
         with st.form("bot_cfg_form"):
+            # Marcador para CSS :has() — identifica este form
+            st.markdown('<div id="bot-cfg-form-marker" style="display:none"></div>', unsafe_allow_html=True)
             st.markdown("""
-            <div class="smc-card smc-card-blue" style="margin-bottom:1rem;padding:0.8rem 1rem">
-                <div class="card-title">🔗 Conexión Bot</div>
-            </div>
+            <div class="card-title" style="margin-bottom:0.75rem">🔗 Conexión Bot</div>
             """, unsafe_allow_html=True)
             chat_id = st.text_input("Telegram Chat ID", value=cfg.get("telegram_chat_id",""),
                                      placeholder="123456789", help="Ejecuta /start en tu bot para obtenerlo")
@@ -335,12 +351,12 @@ def render_bot_config():
     # ── ALERTAS DE PRECIO ──────────────────────────────────────────────────
     with tab_alertas:
         # CSS para envolver el form con borde izquierdo verde
-        st.markdown("""
-<div class="smc-card smc-card-green" style="margin-bottom:1rem;padding:0.8rem 1rem">
-    <div class="card-title">🔔 Nueva Alerta de Precio</div>
-</div>
-        """, unsafe_allow_html=True)
         with st.form("alerta_form", clear_on_submit=True):
+            # Marcador para CSS :has() — identifica este form
+            st.markdown('<div id="bot-alerta-form-marker" style="display:none"></div>', unsafe_allow_html=True)
+            st.markdown("""
+            <div class="card-title" style="margin-bottom:0.75rem">🔔 Nueva Alerta de Precio</div>
+            """, unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
             with col1:
                 cat_a   = st.selectbox("Categoría", list(ACTIVOS_DEFAULT.keys()), key="al_cat")
