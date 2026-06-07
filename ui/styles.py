@@ -25,6 +25,7 @@ Variables CSS globales (:root):
 """
 import time
 import streamlit as st
+import streamlit.components.v1 as _st_components
 
 APP_NAME    = "ORAM Quant Systems"
 APP_ABBR    = "ORAM"
@@ -1616,19 +1617,16 @@ div[data-testid="stAlert"].st-info {{
 </style>
 """, unsafe_allow_html=True)
 
-    # ── Dropdown portal: estrategia definitiva ───────────────────────────────────
-    # PROBLEMA REAL: Base Web inyecta background via CSS var(--secondary-background-color)
-    # en el style ATTRIBUTE del <ul> del portal (inline style), no como clase CSS.
-    # CSS con !important NO puede ganar contra inline styles del mismo elemento.
-    # setProperty('important') en el observer SÍ gana, pero solo si se ejecuta
-    # DESPUÉS de que Base Web escriba el inline style — por eso necesitamos
-    # MutationObserver con attributeFilter:['style'] para interceptarlo en tiempo real.
+    # ── Dropdown portal: FIX DEFINITIVO via st.components.v1.html() ─────────────
+    # DIAGNÓSTICO RAÍZ FINAL:
+    #   st.markdown(<script>) corre en un <iframe> sandboxed de Streamlit.
+    #   El JS dentro NUNCA tiene acceso a document.body del parent frame.
+    #   Por eso deepPaint/MutationObserver nunca veían ni tocaban los portals.
     #
-    # ESTRATEGIA DEFINITIVA:
-    # 1. CSS: cubre el 80% de casos donde no hay inline style
-    # 2. JS: observer con attributeFilter:['style'] que intercepta cada vez que
-    #    Base Web escribe background en un elemento del portal → lo sobreescribe
-    #    inmediatamente con setProperty('important')
+    # SOLUCIÓN: st.components.v1.html() con height=0 corre en un iframe
+    #   que SÍ puede acceder al DOM del parent via window.parent.document.
+    #   Desde ahí colocamos el <style> y el MutationObserver directamente
+    #   en el documento principal donde viven los portals de Base Web.
     _bg      = c["bg_card"]
     _text    = c["text"]
     _hover   = c["nav_hover"]
@@ -1636,133 +1634,113 @@ div[data-testid="stAlert"].st-info {{
     _scheme  = "dark" if dark else "light"
     _sid     = "oram-dd-d" if dark else "oram-dd-l"
     _opp_sid = "oram-dd-l" if dark else "oram-dd-d"
+    _shadow  = "0 8px 32px rgba(0,0,0,0.45)" if dark else "0 8px 24px rgba(0,0,0,0.10)"
 
-    st.markdown(f"""
-<style>
-/* ── Variables Streamlit corregidas al tema activo ── */
-:root {{
-    --secondary-background-color: {_bg} !important;
-    --background-color: {c['bg']} !important;
-    color-scheme: {_scheme} !important;
-}}
-html, body {{ color-scheme: {_scheme} !important; }}
-
-/* ── Portal Base Web: cobertura CSS base ── */
-html body [data-baseweb="layer"],
-html body [data-baseweb="layer"] > div,
-html body [data-baseweb="layer"] > div > div,
-html body [data-baseweb="layer"] ul,
-html body [data-baseweb="layer"] li,
-html body [data-baseweb="layer"] [role="option"],
-html body [data-baseweb="layer"] [role="listbox"],
-html body [data-baseweb="layer"] span:not([data-baseweb="menu-item-profile"]) {{
-    background-color: {_bg} !important;
-    color: {_text} !important;
-    -webkit-text-fill-color: {_text} !important;
-}}
-html body [data-baseweb="layer"] li:hover,
-html body [data-baseweb="layer"] [role="option"]:hover,
-html body [data-baseweb="layer"] [data-highlighted="true"],
-html body [data-baseweb="layer"] [aria-selected="true"] {{
-    background-color: {_hover} !important;
-    color: {_text} !important;
-}}
-html body [data-baseweb="layer"] > div > div {{
-    border-radius: 10px !important;
-    border: 1.5px solid {_bdr2} !important;
-    overflow: hidden !important;
-    box-shadow: 0 8px 32px rgba(0,0,0,{'0.45' if dark else '0.10'}) !important;
-}}
-</style>
-""", unsafe_allow_html=True)
-
-    st.markdown(f"""
+    _component_html = f"""
 <script>
 (function() {{
+    var doc  = window.parent.document;
     var BG   = '{_bg}';
     var TEXT = '{_text}';
     var HOV  = '{_hover}';
+    var BDR  = '{_bdr2}';
     var SID  = '{_sid}';
     var OPP  = '{_opp_sid}';
     var SCH  = '{_scheme}';
+    var SHA  = '{_shadow}';
 
-    /* ── 1. Limpiar estilo del tema opuesto ── */
-    var opp = document.getElementById(OPP);
+    /* 1. Eliminar style del tema opuesto */
+    var opp = doc.getElementById(OPP);
     if (opp) opp.remove();
 
-    /* ── 2. <style> con variables CSS de Streamlit sobreescritas ── */
-    var old = document.getElementById(SID);
+    /* 2. Inyectar <style> en el <head> del documento principal */
+    var old = doc.getElementById(SID);
     if (old) old.remove();
-    var styleTag = document.createElement('style');
-    styleTag.id = SID;
-    styleTag.textContent =
-        ':root {{' +
-        '  --secondary-background-color: ' + BG + ' !important;' +
-        '  color-scheme: ' + SCH + ' !important;' +
-        '}}' +
-        'html body [data-baseweb="layer"] * {{' +
-        '  background-color: ' + BG + ' !important;' +
-        '  color: ' + TEXT + ' !important;' +
-        '  -webkit-text-fill-color: ' + TEXT + ' !important;' +
-        '}}' +
-        'html body [data-baseweb="layer"] li:hover,' +
-        'html body [data-baseweb="layer"] [role="option"]:hover,' +
-        'html body [data-baseweb="layer"] [aria-selected="true"] {{' +
-        '  background-color: ' + HOV + ' !important;' +
-        '}}';
-    document.head.appendChild(styleTag);
+    var s = doc.createElement('style');
+    s.id  = SID;
+    s.textContent = [
+        ':root {{',
+        '  --secondary-background-color: ' + BG + ' !important;',
+        '  color-scheme: ' + SCH + ' !important;',
+        '}}',
+        'html body [data-baseweb="layer"] {{',
+        '  color-scheme: ' + SCH + ' !important;',
+        '}}',
+        'html body [data-baseweb="layer"] ul,',
+        'html body [data-baseweb="layer"] li,',
+        'html body [data-baseweb="layer"] [role="option"],',
+        'html body [data-baseweb="layer"] [role="listbox"] {{',
+        '  background-color: ' + BG + ' !important;',
+        '  color: ' + TEXT + ' !important;',
+        '  -webkit-text-fill-color: ' + TEXT + ' !important;',
+        '}}',
+        'html body [data-baseweb="layer"] li:hover,',
+        'html body [data-baseweb="layer"] [role="option"]:hover,',
+        'html body [data-baseweb="layer"] [aria-selected="true"] {{',
+        '  background-color: ' + HOV + ' !important;',
+        '  color: ' + TEXT + ' !important;',
+        '}}',
+        'html body [data-baseweb="layer"] > div > div {{',
+        '  border-radius: 10px !important;',
+        '  border: 1.5px solid ' + BDR + ' !important;',
+        '  overflow: hidden !important;',
+        '  box-shadow: ' + SHA + ' !important;',
+        '}}'
+    ].join('\n');
+    doc.head.appendChild(s);
 
-    /* ── 3. Función de pintura profunda con setProperty ── */
-    var SKIP = {{ SCRIPT:1, STYLE:1, SVG:1, PATH:1 }};
+    /* 3. forceBg: setProperty 'important' en el DOM del parent */
+    var SKIP = {{ SCRIPT:1, STYLE:1, SVG:1, PATH:1, INPUT:1 }};
     function forceBg(el) {{
         if (!el || !el.style || SKIP[el.tagName]) return;
-        el.style.setProperty('background-color', BG, 'important');
-        el.style.setProperty('background',       BG, 'important');
-        el.style.setProperty('color',            TEXT, 'important');
-        el.style.setProperty('-webkit-text-fill-color', TEXT, 'important');
+        try {{
+            el.style.setProperty('background-color', BG, 'important');
+            el.style.setProperty('background',       BG, 'important');
+            el.style.setProperty('color',            TEXT, 'important');
+            el.style.setProperty('-webkit-text-fill-color', TEXT, 'important');
+        }} catch(e) {{}}
     }}
     function paintAll(root) {{
         forceBg(root);
-        var all = root.querySelectorAll ? root.querySelectorAll('*') : [];
-        for (var i = 0; i < all.length; i++) forceBg(all[i]);
+        if (!root.querySelectorAll) return;
+        var all = root.querySelectorAll('ul,li,[role="option"],[role="listbox"],div,span');
+        for (var i=0; i<all.length; i++) forceBg(all[i]);
     }}
 
-    /* ── 4. Para cada elemento del portal: observer de atributo style ──
-       Base Web escribe inline style="background: var(--secondary-background-color)"
-       en el <ul> y otros elementos. attributeFilter:['style'] nos avisa
-       exactamente cuando lo hace, y lo sobreescribimos antes del repaint. */
+    /* 4. watchStyles: interceptar cuando Base Web escribe inline style */
     function watchStyles(root) {{
-        var all = root.querySelectorAll ? root.querySelectorAll('*') : [];
+        if (!root.querySelectorAll) return;
+        var all = root.querySelectorAll('ul,li,[role="option"],[role="listbox"],div');
         var targets = [root].concat(Array.prototype.slice.call(all));
         targets.forEach(function(el) {{
             if (!el || !el.tagName || SKIP[el.tagName]) return;
-            new MutationObserver(function() {{
-                forceBg(el);
-            }}).observe(el, {{ attributes: true, attributeFilter: ['style'] }});
+            new MutationObserver(function() {{ forceBg(el); }})
+                .observe(el, {{ attributes: true, attributeFilter: ['style'] }});
         }});
     }}
 
-    /* ── 5. Manejar un portal completo ── */
+    /* 5. handleLayer: gestionar un portal completo */
     function handleLayer(node) {{
         if (!node || !node.getAttribute) return;
         if (node.getAttribute('data-baseweb') !== 'layer') return;
         paintAll(node);
         watchStyles(node);
-        /* Observer de hijos nuevos (lazy render de la lista) */
         new MutationObserver(function(ms) {{
             ms.forEach(function(m) {{
                 m.addedNodes.forEach(function(n) {{
                     if (n.nodeType !== 1) return;
                     forceBg(n);
                     watchStyles(n);
-                    var sub = n.querySelectorAll ? n.querySelectorAll('*') : [];
-                    for (var i=0; i<sub.length; i++) {{ forceBg(sub[i]); }}
+                    if (n.querySelectorAll) {{
+                        var sub = n.querySelectorAll('ul,li,[role="option"],div,span');
+                        for (var i=0; i<sub.length; i++) forceBg(sub[i]);
+                    }}
                 }});
             }});
         }}).observe(node, {{ childList: true, subtree: true }});
     }}
 
-    /* ── 6. Observer principal: detectar portals nuevos en body ── */
+    /* 6. Observer en body del parent para detectar portals nuevos */
     new MutationObserver(function(ms) {{
         ms.forEach(function(m) {{
             m.addedNodes.forEach(function(n) {{
@@ -1774,13 +1752,14 @@ html body [data-baseweb="layer"] > div > div {{
                 }}
             }});
         }});
-    }}).observe(document.body, {{ childList: true, subtree: false }});
+    }}).observe(doc.body, {{ childList: true, subtree: false }});
 
-    /* ── 7. Portals ya existentes ── */
-    document.querySelectorAll('[data-baseweb="layer"]').forEach(handleLayer);
+    /* 7. Portals ya existentes en el DOM */
+    doc.querySelectorAll('[data-baseweb="layer"]').forEach(handleLayer);
 }})();
 </script>
-""", unsafe_allow_html=True)
+"""
+    _st_components.html(_component_html, height=0)
 
 def page_header(icon: str, title: str, subtitle: str = ""):
     display = f"{icon} {title}" if icon else title

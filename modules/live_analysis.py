@@ -283,23 +283,26 @@ def _render_news_banner(dark: bool, c: dict):
 
 
 def _grafica_velas(df, ticker, smc):
-    """Gráfica con 3 paneles separados visualmente."""
+    """Gráfica con 3 paneles separados visualmente — estilo premium ORAM."""
     c    = get_colors()
     dark = get_theme() == "dark"
     gc   = c["grid"]
 
-    bg_rsi  = "rgba(61,155,233,0.04)"  if dark else "rgba(22,96,168,0.03)"
-    bg_macd = "rgba(201,162,39,0.04)"  if dark else "rgba(154,117,16,0.03)"
+    # Fondos de paneles — muy sutil para no competir con las líneas
+    bg_rsi  = "rgba(61,155,233,0.05)"  if dark else "rgba(22,96,168,0.04)"
+    bg_macd = "rgba(201,162,39,0.05)"  if dark else "rgba(154,117,16,0.04)"
+    # Color de la línea separadora entre paneles
     sep_col = c["border2"]
 
     fig = make_subplots(
         rows=3, cols=1, shared_xaxes=True,
-        row_heights=[0.55, 0.225, 0.225],
-        vertical_spacing=0.04,
+        row_heights=[0.56, 0.22, 0.22],
+        # vertical_spacing=0 para controlar separación manualmente con shapes
+        vertical_spacing=0.0,
         subplot_titles=["", "", ""],
     )
 
-    # Panel 1: Velas
+    # ── Panel 1: Velas ───────────────────────────────────────────────────────
     fig.add_trace(go.Candlestick(
         x=df.index, open=df["Open"], high=df["High"],
         low=df["Low"], close=df["Close"], name=ticker,
@@ -349,87 +352,173 @@ def _grafica_velas(df, ticker, smc):
     for lvl in liq.get("support_levels", [])[:2]:
         fig.add_hline(y=lvl, line=dict(color="rgba(34,197,94,0.4)", width=1, dash="dash"), row=1, col=1)
 
-    # Panel 2: RSI
+    # ── Panel 2: RSI ─────────────────────────────────────────────────────────
     if "RSI" in df.columns:
+        # Línea RSI con gradiente suavizado
         fig.add_trace(go.Scatter(
             x=df.index, y=df["RSI"],
-            line=dict(color=c["accent2"], width=1.6),
+            line=dict(color="#3d9be9", width=2.0, shape="spline", smoothing=0.6),
             name="RSI", showlegend=False,
+            fill="tozeroy",
+            fillcolor="rgba(61,155,233,0.06)",
         ), row=2, col=1)
-        fig.add_hrect(y0=70, y1=100, fillcolor="rgba(239,68,68,0.06)", line_width=0, row=2, col=1)
-        fig.add_hrect(y0=0,  y1=30,  fillcolor="rgba(34,197,94,0.06)",  line_width=0, row=2, col=1)
-        for lvl, col_ in [(70, "rgba(239,68,68,0.45)"), (30, "rgba(34,197,94,0.45)"), (50, "rgba(107,127,153,0.25)")]:
-            fig.add_hline(y=lvl, line=dict(color=col_, width=1, dash="dot"), row=2, col=1)
+        # Zona sobrecompra (70-100)
+        fig.add_hrect(y0=70, y1=100,
+                      fillcolor="rgba(239,68,68,0.08)", line_width=0, row=2, col=1)
+        # Zona sobreventa (0-30)
+        fig.add_hrect(y0=0, y1=30,
+                      fillcolor="rgba(34,197,94,0.08)", line_width=0, row=2, col=1)
+        # Líneas de referencia RSI — sin dash, solo color sutil
+        fig.add_hline(y=70,
+                      line=dict(color="rgba(239,68,68,0.55)", width=1, dash="dash"),
+                      row=2, col=1)
+        fig.add_hline(y=30,
+                      line=dict(color="rgba(34,197,94,0.55)", width=1, dash="dash"),
+                      row=2, col=1)
+        fig.add_hline(y=50,
+                      line=dict(color="rgba(107,127,153,0.30)", width=1),
+                      row=2, col=1)
 
-    # Panel 3: MACD
+    # ── Panel 3: MACD ────────────────────────────────────────────────────────
     if "MACD" in df.columns:
         hist = df["MACD_hist"]
+        # Histograma con colores sólidos bien diferenciados
         fig.add_trace(go.Bar(
             x=df.index, y=hist,
-            marker_color=[c["green"] if v >= 0 else c["red"] for v in hist],
-            name="Hist", showlegend=False, opacity=0.75,
+            marker_color=["rgba(34,197,94,0.70)" if v >= 0 else "rgba(239,68,68,0.70)"
+                          for v in hist],
+            marker_line_width=0,
+            name="Hist", showlegend=False,
         ), row=3, col=1)
+        # Línea MACD — dorado ORAM, más gruesa y visible
         fig.add_trace(go.Scatter(
             x=df.index, y=df["MACD"],
-            line=dict(color=c["accent"], width=1.3), name="MACD", showlegend=False,
+            line=dict(color="#e8b830", width=2.0, shape="spline", smoothing=0.5),
+            name="MACD", showlegend=False,
         ), row=3, col=1)
+        # Línea Signal — violeta claro, bien diferenciada del dorado
         fig.add_trace(go.Scatter(
             x=df.index, y=df["MACD_signal"],
-            line=dict(color=c["purple"], width=1.3), name="Signal", showlegend=False,
+            line=dict(color="#c084fc", width=1.8, shape="spline", smoothing=0.5),
+            name="Signal", showlegend=False,
         ), row=3, col=1)
+        # Línea cero — referencia sutil
+        fig.add_hline(y=0,
+                      line=dict(color="rgba(107,127,153,0.35)", width=1),
+                      row=3, col=1)
 
+    # ── Layout premium ───────────────────────────────────────────────────────
     layout = get_plot_layout(height=800)
-    y_sep1, y_sep2 = 0.435, 0.215
+
+    # Posiciones de los separadores (en coordenadas paper 0-1)
+    # row_heights=[0.56, 0.22, 0.22] con spacing=0
+    # panel RSI: y de 0.44 a 0.22 → separador superior en 0.44
+    # panel MACD: y de 0.22 a 0.0  → separador superior en 0.22
+    y_sep1 = 0.44   # separador entre Velas y RSI
+    y_sep2 = 0.22   # separador entre RSI y MACD
+
+    # Ticket de colores para los labels de paneles
+    rsi_label_col  = "#3d9be9"
+    macd_label_col = "#e8b830"
+    rsi_label_bg   = "rgba(61,155,233,0.16)"  if dark else "rgba(61,155,233,0.12)"
+    macd_label_bg  = "rgba(232,184,48,0.16)"  if dark else "rgba(232,184,48,0.12)"
+
+    tick_font = dict(color=c["text_muted"], size=9, family="JetBrains Mono")
 
     layout.update(
-        xaxis=dict(gridcolor=gc, color=c["text_muted"],
-                   tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                   showline=False, zeroline=False, rangeslider=dict(visible=False)),
-        yaxis=dict(gridcolor=gc, color=c["text_muted"], side="right",
-                   tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                   showline=False, zeroline=False),
-        xaxis2=dict(gridcolor=gc, color=c["text_muted"],
-                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                    showline=False, zeroline=False),
-        yaxis2=dict(gridcolor=gc, color=c["text_muted"], side="right",
-                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                    range=[0, 100], showline=False, zeroline=False,
-                    tickvals=[0, 30, 50, 70, 100]),
-        xaxis3=dict(gridcolor=gc, color=c["text_muted"],
-                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                    showline=False, zeroline=False),
-        yaxis3=dict(gridcolor=gc, color=c["text_muted"], side="right",
-                    tickfont=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
-                    showline=False, zerolinecolor=c["border2"], zerolinewidth=1, zeroline=True),
-        margin=dict(l=8, r=68, t=24, b=32),
+        # eje x compartido (velas) — sin rangeslider
+        xaxis=dict(
+            gridcolor=gc, color=c["text_muted"], tickfont=tick_font,
+            showline=False, zeroline=False, rangeslider=dict(visible=False),
+            showgrid=True,
+        ),
+        yaxis=dict(
+            gridcolor=gc, color=c["text_muted"], side="right", tickfont=tick_font,
+            showline=False, zeroline=False,
+        ),
+        # RSI — eje x y y
+        xaxis2=dict(
+            gridcolor=gc, color=c["text_muted"], tickfont=tick_font,
+            showline=False, zeroline=False, showgrid=False,
+        ),
+        yaxis2=dict(
+            gridcolor="rgba(0,0,0,0)", color=c["text_muted"], side="right",
+            tickfont=tick_font, range=[0, 100], showline=False, zeroline=False,
+            tickvals=[30, 50, 70],
+            ticktext=["30", "50", "70"],
+        ),
+        # MACD — eje x y y
+        xaxis3=dict(
+            gridcolor=gc, color=c["text_muted"], tickfont=tick_font,
+            showline=False, zeroline=False, showgrid=True,
+        ),
+        yaxis3=dict(
+            gridcolor="rgba(0,0,0,0)", color=c["text_muted"], side="right",
+            tickfont=tick_font, showline=False,
+            zerolinecolor=c["border2"], zerolinewidth=1, zeroline=True,
+        ),
+        margin=dict(l=8, r=68, t=28, b=32),
         legend=dict(
             orientation="h", yanchor="bottom", y=1.005, xanchor="left", x=0,
             font=dict(color=c["text_muted"], size=9, family="JetBrains Mono"),
             bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)",
         ),
+        bargap=0.15,
+        # ── Labels de paneles ──────────────────────────────────────────────
         annotations=[
-            dict(text="<b>RSI</b> (14)", xref="paper", yref="paper",
-                 x=0.01, y=y_sep1 - 0.005, xanchor="left", yanchor="top",
-                 font=dict(color=c["accent2"], size=11, family="JetBrains Mono"),
-                 showarrow=False, bgcolor="rgba(61,155,233,0.14)", borderpad=4),
-            dict(text="<b>MACD</b>", xref="paper", yref="paper",
-                 x=0.01, y=y_sep2 - 0.005, xanchor="left", yanchor="top",
-                 font=dict(color=c["accent"], size=11, family="JetBrains Mono"),
-                 showarrow=False, bgcolor="rgba(201,162,39,0.14)", borderpad=4),
+            dict(
+                text="<b>RSI</b> (14)",
+                xref="paper", yref="paper",
+                x=0.01, y=y_sep1 - 0.008,
+                xanchor="left", yanchor="top",
+                font=dict(color=rsi_label_col, size=10, family="JetBrains Mono"),
+                showarrow=False,
+                bgcolor=rsi_label_bg,
+                bordercolor=rsi_label_col,
+                borderwidth=1,
+                borderpad=4,
+                opacity=0.92,
+            ),
+            dict(
+                text="<b>MACD</b>",
+                xref="paper", yref="paper",
+                x=0.01, y=y_sep2 - 0.008,
+                xanchor="left", yanchor="top",
+                font=dict(color=macd_label_col, size=10, family="JetBrains Mono"),
+                showarrow=False,
+                bgcolor=macd_label_bg,
+                bordercolor=macd_label_col,
+                borderwidth=1,
+                borderpad=4,
+                opacity=0.92,
+            ),
         ],
+        # ── Separadores y fondos de paneles ───────────────────────────────
         shapes=[
-            dict(type="line", xref="paper", x0=0, x1=1,
-                 yref="paper", y0=y_sep1, y1=y_sep1,
-                 line=dict(color=sep_col, width=2)),
-            dict(type="line", xref="paper", x0=0, x1=1,
-                 yref="paper", y0=y_sep2, y1=y_sep2,
-                 line=dict(color=sep_col, width=2)),
-            dict(type="rect", xref="paper", x0=0, x1=1,
-                 yref="paper", y0=y_sep2, y1=y_sep1,
-                 fillcolor=bg_rsi, line_width=0, layer="below"),
-            dict(type="rect", xref="paper", x0=0, x1=1,
-                 yref="paper", y0=0, y1=y_sep2,
-                 fillcolor=bg_macd, line_width=0, layer="below"),
+            # Línea separadora superior (Velas / RSI) — sólida y visible
+            dict(
+                type="line", xref="paper", x0=0, x1=1,
+                yref="paper", y0=y_sep1, y1=y_sep1,
+                line=dict(color=sep_col, width=1.5),
+            ),
+            # Línea separadora inferior (RSI / MACD)
+            dict(
+                type="line", xref="paper", x0=0, x1=1,
+                yref="paper", y0=y_sep2, y1=y_sep2,
+                line=dict(color=sep_col, width=1.5),
+            ),
+            # Fondo del panel RSI
+            dict(
+                type="rect", xref="paper", x0=0, x1=1,
+                yref="paper", y0=y_sep2, y1=y_sep1,
+                fillcolor=bg_rsi, line_width=0, layer="below",
+            ),
+            # Fondo del panel MACD
+            dict(
+                type="rect", xref="paper", x0=0, x1=1,
+                yref="paper", y0=0, y1=y_sep2,
+                fillcolor=bg_macd, line_width=0, layer="below",
+            ),
         ],
     )
     fig.update_layout(**layout)
