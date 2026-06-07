@@ -367,7 +367,7 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
 }}
 .oram-card-gold,.smc-card-accent{{border-left:3px solid {c['accent']}}}
 .oram-card-blue,.smc-card-blue  {{border-left:3px solid {c['accent2']}}}
-.oram-card-teal                  {{border-left:3px solid {c['accent3']}}}
+.oram-card-teal,.smc-card-teal  {{border-left:3px solid {c['accent3']}}}
 .oram-card-green,.smc-card-green{{border-left:3px solid {c['green']}}}
 .oram-card-red,.smc-card-red    {{border-left:3px solid {c['red']}}}
 .oram-card-purple               {{border-left:3px solid {c['purple']}}}
