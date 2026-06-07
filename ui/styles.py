@@ -1299,8 +1299,13 @@ div[data-testid="stVerticalBlockBorderWrapper"]:empty {{
     color: {c['text']} !important;
 }}
 [data-baseweb="calendar"] [aria-selected="true"] > div {{
-    background: {c['accent']} !important;
+    background: {c['green']} !important;
     color: #ffffff !important;
+    border-radius: 50% !important;
+}}
+[data-baseweb="calendar"] div[aria-hidden="true"] {{
+    background: {c['bg_card']} !important;
+    color: transparent !important; pointer-events: none !important;
 }}
 /* Tags multiselect — sin amarillo */
 [data-baseweb="tag"] {{
@@ -1325,7 +1330,7 @@ textarea {{
     -webkit-text-fill-color: {c['text']} !important;
 }}
 
-/* ═══ RADIO BUTTONS — sin fondo oscuro ══════════════════════ */
+/* ═══ RADIO BUTTONS — verde, sin dorado ══════════════════════ */
 [data-testid="stRadio"] > div {{
     background: transparent !important;
 }}
@@ -1338,15 +1343,15 @@ textarea {{
     transition: all .15s ease;
 }}
 [data-testid="stRadio"] label:hover {{
-    border-color: {c['accent']} !important;
+    border-color: {c['green']} !important;
     background: {c['glow']} !important;
 }}
 [data-testid="stRadio"] [data-checked="true"] label,
 [data-testid="stRadio"] label[data-checked="true"] {{
-    border-color: {c['accent']} !important;
-    color: {c['accent']} !important;
+    border-color: {c['green']} !important;
+    color: {c['green']} !important;
 }}
-/* Radio circle dot — override dark color — tema adaptable */
+/* Radio circle dot — verde adaptable */
 [data-testid="stRadio"] div[role="radio"],
 [data-testid="stRadio"] span[data-testid="stWidgetLabel"] ~ div div[role="radio"],
 div[role="radiogroup"] div[role="radio"] {{
@@ -1356,8 +1361,8 @@ div[role="radiogroup"] div[role="radio"] {{
 }}
 [data-testid="stRadio"] div[role="radio"][aria-checked="true"],
 div[role="radiogroup"] div[role="radio"][aria-checked="true"] {{
-    border-color: {c['accent']} !important;
-    background: {c['accent']} !important;
+    border-color: {c['green']} !important;
+    background: {c['green']} !important;
 }}
 /* SVG/círculo nativo dentro del radio */
 [data-testid="stRadio"] div[role="radio"] > div,
@@ -1365,8 +1370,8 @@ div[role="radiogroup"] div[role="radio"][aria-checked="true"] {{
 div[role="radiogroup"] div[role="radio"] > div,
 div[role="radiogroup"] div[role="radio"] svg {{
     background: transparent !important;
-    fill: {c['accent']} !important;
-    color: {c['accent']} !important;
+    fill: {c['green']} !important;
+    color: {c['green']} !important;
 }}
 /* Asegurar que el círculo exterior no sea negro en modo claro */
 [data-testid="stRadio"] label input[type="radio"] + div,
@@ -1411,7 +1416,7 @@ section[data-testid="stSidebar"] div[role="radio"] {{
     box-shadow:none!important;
 }}
 [data-testid="stTextInputRootElement"]:focus-within{{
-    border-color:{c['accent']}!important;
+    border-color:{c['green']}!important;
     box-shadow:0 0 0 3px {c['glow']}!important;
 }}
 [data-testid="stTextInputRootElement"] input{{

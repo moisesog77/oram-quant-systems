@@ -7,12 +7,11 @@ from datetime import date
 from database.db import insertar_trade, obtener_trades, eliminar_trade
 from utils.market_data import ACTIVOS_DEFAULT
 from utils.smc_engine import calcular_riesgo
-from ui.styles import get_colors, page_header, oram_notify, oram_bienvenida, get_theme
+from ui.styles import get_colors, page_header, oram_bienvenida, get_theme
 
 
-def _inject_journal_css():
-    dark = get_theme() == "dark"
-
+def _inject_journal_css(dark: bool, c: dict):
+    """CSS idéntico al de live_analysis + extras para TextInput, TextArea, DateInput."""
     input_bg   = "#080d14"  if dark else "#f0f4f8"
     input_text = "#c8d8ea"  if dark else "#1a2b3c"
     input_bdr  = "#2a4560"  if dark else "#94a3b8"
@@ -20,9 +19,6 @@ def _inject_journal_css():
     focus_clr  = "#22c55e"
     focus_glow = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
     eye_col    = "#64748b"
-    tab_bg     = "#0c1219"  if dark else "#f8fafc"
-    tab_bdr    = "#1b2a40"  if dark else "#dde5ef"
-    tab_text   = "#637a94"  if dark else "#7a8fa0"
 
     st.markdown(f"""
 <style>
@@ -36,7 +32,7 @@ def _inject_journal_css():
     margin-bottom: 0.3rem !important; display: block !important;
 }}
 
-/* ══ SELECTBOX — COPIA EXACTA de live_analysis ═══════════════════════════ */
+/* ══ SELECTBOX — igual a live_analysis ═══════════════════════════════════ */
 .stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
     background: transparent !important;
     border: none !important; box-shadow: none !important;
@@ -73,7 +69,7 @@ def _inject_journal_css():
     user-select: none !important; border: none !important;
 }}
 
-/* ══ NUMBER INPUT — COPIA EXACTA de live_analysis ═══════════════════════ */
+/* ══ NUMBER INPUT — igual a live_analysis (con supresión del cuadro extra) */
 [data-testid="stNumberInput"] {{
     background: transparent !important; border: none !important;
 }}
@@ -132,7 +128,6 @@ def _inject_journal_css():
     stroke-width: 1.8 !important; pointer-events: none !important;
     display: block !important; flex-shrink: 0 !important;
 }}
-/* Eliminar el cuadro extra (3er hijo en adelante del number input) */
 [data-testid="stNumberInput"] > input:last-child,
 [data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
 [data-testid="stNumberInput"] > *:nth-child(n+3) {{
@@ -146,69 +141,11 @@ def _inject_journal_css():
     height: 0 !important; margin: 0 !important;
 }}
 
-/* ══ DATE INPUT ═══════════════════════════════════════════════════════════ */
-[data-testid="stDateInput"] > div {{
-    background: {input_bg} !important;
-    border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; overflow: hidden !important;
-    min-height: 46px !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important;
-}}
-[data-testid="stDateInput"] > div > div {{
-    background: transparent !important; border: none !important;
-    box-shadow: none !important;
-}}
-[data-testid="stDateInput"] input {{
-    background: transparent !important; border: none !important;
-    box-shadow: none !important; outline: none !important;
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
-    padding: 0 0.75rem !important; height: 46px !important;
-}}
-[data-testid="stDateInput"]:focus-within > div {{
-    border-color: {focus_clr} !important;
-    box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-/* Calendario — verde en lugar de dorado, sin espacios blancos */
-[data-baseweb="calendar"] {{
-    background: {input_bg} !important;
-    border: 1px solid {input_bdr} !important;
-    border-radius: 10px !important;
-    overflow: hidden !important;
-}}
-[data-baseweb="calendar"] * {{
-    background: {input_bg} !important;
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-}}
-[data-baseweb="calendar"] [aria-selected="true"] > div {{
-    background: {focus_clr} !important;
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff !important;
-    border-radius: 50% !important;
-}}
-[data-baseweb="calendar"] button:hover > div {{
-    background: {focus_glow} !important;
-    border-radius: 50% !important;
-}}
-/* Eliminar celdas vacías/blancas del calendario */
-[data-baseweb="calendar"] div[aria-hidden="true"],
-[data-baseweb="calendar"] [data-testid="CalendarDay--outside-month"] {{
-    background: {input_bg} !important;
-    color: transparent !important;
-    visibility: hidden !important;
-}}
-[data-baseweb="calendar"] [role="gridcell"]:empty {{
-    background: {input_bg} !important;
-}}
-
-/* ══ TEXT INPUT (Tags) — con borde completo ══════════════════════════════ */
+/* ══ TEXT INPUT (Tags) — borde premium ════════════════════════════════════ */
 .stTextInput > div {{
     border: none !important; background: transparent !important;
     box-shadow: none !important; padding: 0 !important; margin: 0 !important;
 }}
-.stTextInput [data-baseweb="input"],
 .stTextInput > div > div {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
@@ -218,7 +155,6 @@ def _inject_journal_css():
     display: flex !important; align-items: center !important;
     padding: 0 !important;
 }}
-.stTextInput [data-baseweb="input"]:focus-within,
 .stTextInput > div > div:focus-within {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
@@ -230,6 +166,19 @@ def _inject_journal_css():
     -webkit-text-fill-color: {input_text} !important;
     font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
     padding: 0 0.75rem !important; height: 46px !important; width: 100% !important;
+}}
+/* También el root element que usa Streamlit */
+[data-testid="stTextInputRootElement"] {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    min-height: 46px !important; overflow: hidden !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    display: flex !important; align-items: center !important;
+}}
+[data-testid="stTextInputRootElement"]:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
 
 /* ══ TEXT AREA ════════════════════════════════════════════════════════════ */
@@ -253,80 +202,29 @@ def _inject_journal_css():
     padding: 0.65rem 0.75rem !important;
 }}
 
-/* ══ RADIO — SOLO dentro del form, sin tocar el menú lateral ═════════════
-   Usamos [data-testid="stForm"] como padre para NO afectar el sidebar.     */
-[data-testid="stForm"] [data-testid="stRadio"] > div {{
-    background: transparent !important;
-    display: flex !important; gap: 0.5rem !important;
-    flex-wrap: wrap !important; align-items: center !important;
-}}
-/* Resetear borde que pone el global y reemplazar con estilo premium */
-[data-testid="stForm"] [data-testid="stRadio"] label {{
+/* ══ DATE INPUT ═══════════════════════════════════════════════════════════ */
+[data-testid="stDateInput"] > div {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important;
-    padding: 0.5rem 1.2rem !important;
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important;
-    font-size: 0.88rem !important; font-weight: 500 !important;
+    border-radius: 10px !important; overflow: hidden !important;
+    min-height: 46px !important;
     transition: border-color .18s ease, box-shadow .18s ease !important;
-    cursor: pointer !important;
-    display: flex !important; align-items: center !important; gap: 0.5rem !important;
 }}
-/* Hover verde — especificidad mayor que el global (stForm + stRadio + label:hover) */
-[data-testid="stForm"] [data-testid="stRadio"] label:hover {{
-    border-color: {focus_clr} !important;
-    background: {input_bg} !important;
+[data-testid="stDateInput"] > div > div {{
+    background: transparent !important; border: none !important; box-shadow: none !important;
+}}
+[data-testid="stDateInput"] input {{
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
+    padding: 0 0.75rem !important; height: 46px !important;
 }}
-/* Seleccionado verde */
-[data-testid="stForm"] [data-testid="stRadio"] [data-checked="true"] label,
-[data-testid="stForm"] [data-testid="stRadio"] label[data-checked="true"] {{
+[data-testid="stDateInput"]:focus-within > div {{
     border-color: {focus_clr} !important;
-    color: {focus_clr} !important;
-    -webkit-text-fill-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
-/* Círculo radio — verde */
-[data-testid="stForm"] [data-testid="stRadio"] div[role="radio"] {{
-    border-color: {input_bdr} !important;
-    background: {input_bg} !important;
-    box-shadow: none !important;
-}}
-[data-testid="stForm"] [data-testid="stRadio"] div[role="radio"][aria-checked="true"] {{
-    border-color: {focus_clr} !important;
-    background: {focus_clr} !important;
-}}
-[data-testid="stForm"] [data-testid="stRadio"] div[role="radio"] > div,
-[data-testid="stForm"] [data-testid="stRadio"] div[role="radio"] svg {{
-    background: transparent !important;
-    fill: {focus_clr} !important; color: {focus_clr} !important;
-}}
-
-/* ══ TABS premium ═════════════════════════════════════════════════════════ */
-.stTabs [data-baseweb="tab-list"] {{
-    background: {tab_bg} !important;
-    border-bottom: 2px solid {tab_bdr} !important;
-    padding: 0 0.5rem !important; gap: 4px !important;
-    border-radius: 10px 10px 0 0 !important;
-}}
-.stTabs [data-baseweb="tab"] {{
-    font-family: Inter, sans-serif !important;
-    font-size: 0.82rem !important; font-weight: 500 !important;
-    color: {tab_text} !important;
-    background: transparent !important; border: none !important;
-    padding: 0.7rem 1.2rem !important;
-    transition: color .18s ease !important; letter-spacing: 0.3px !important;
-}}
-.stTabs [data-baseweb="tab"]:hover {{ color: {input_text} !important; }}
-.stTabs [aria-selected="true"] {{
-    color: {focus_clr} !important;
-    border-bottom: 2px solid {focus_clr} !important;
-    font-weight: 700 !important;
-}}
-.stTabs [data-baseweb="tab"] p {{ color: inherit !important; }}
 
 /* ══ BOTÓN GUARDAR TRADE ══════════════════════════════════════════════════ */
 [data-testid="stFormSubmitButton"] button {{
@@ -349,18 +247,12 @@ def _inject_journal_css():
     box-shadow: 0 2px 8px 0 rgba(16,185,129,0.30) !important;
     transform: scale(0.98) !important;
 }}
-
-/* ══ DATAFRAME historial ══════════════════════════════════════════════════ */
-[data-testid="stDataFrame"] {{
-    border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; overflow: hidden !important;
-}}
 </style>
 """, unsafe_allow_html=True)
 
 
 def _error_overlay(mensaje: str) -> None:
-    """Overlay premium de error — idéntico a oram_bienvenida pero en rojo."""
+    """Overlay premium de error."""
     import time
     dark = get_theme() == "dark"
     overlay_bg = "rgba(6,9,15,0.92)"  if dark else "rgba(238,242,247,0.94)"
@@ -376,8 +268,7 @@ def _error_overlay(mensaje: str) -> None:
     to   {{ opacity:1; transform:translateY(0) scale(1); }}
 }}
 #oram-err-overlay {{
-    position:fixed; inset:0;
-    background:{overlay_bg};
+    position:fixed; inset:0; background:{overlay_bg};
     backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
     z-index:99999; display:flex; align-items:center; justify-content:center;
 }}
@@ -396,13 +287,10 @@ def _error_overlay(mensaje: str) -> None:
     Campo obligatorio
   </div>
   <div style="font-family:Inter,sans-serif;font-size:0.92rem;
-              color:{text_muted};line-height:1.6">
-    {mensaje}
-  </div>
+              color:{text_muted};line-height:1.6">{mensaje}</div>
   <div style="margin-top:1.4rem;font-family:Inter,sans-serif;
               font-size:0.8rem;color:{text_muted};opacity:0.7">
-    Cerrando automáticamente…
-  </div>
+    Cerrando automáticamente…</div>
 </div></div>
 """, unsafe_allow_html=True)
     time.sleep(2.2)
@@ -423,8 +311,9 @@ EMOCIONES = ["Neutral", "Confiado", "Ansioso", "FOMO", "Revancha", "Paciente", "
 def render_journal():
     user = st.session_state.user
     c    = get_colors()
+    dark = get_theme() == "dark"
     page_header("📋", "Diario de Trades", "Registro · Análisis · Psicología")
-    _inject_journal_css()
+    _inject_journal_css(dark, c)
 
     tab_nuevo, tab_historial = st.tabs(["➕ Nuevo Trade", "📋 Historial"])
 
@@ -433,31 +322,21 @@ def render_journal():
         with st.form("trade_form", clear_on_submit=True):
 
             # Fila 1: Fecha | Categoría | Activo
-            r1c1, r1c2, r1c3 = st.columns([1, 1, 1])
-            with r1c1:
-                fecha     = st.date_input("Fecha", date.today())
-            with r1c2:
-                categoria = st.selectbox("Categoría", list(ACTIVOS_DEFAULT.keys()))
-            with r1c3:
-                activo    = st.selectbox("Activo", ACTIVOS_DEFAULT[categoria])
+            r1c1, r1c2, r1c3 = st.columns(3)
+            with r1c1: fecha     = st.date_input("Fecha", date.today())
+            with r1c2: categoria = st.selectbox("Categoría", list(ACTIVOS_DEFAULT.keys()))
+            with r1c3: activo    = st.selectbox("Activo", ACTIVOS_DEFAULT[categoria])
 
             # Fila 2: Temporalidad | Setup SMC | Estado del trade
-            r2c1, r2c2, r2c3 = st.columns([1, 1, 1])
-            with r2c1:
-                tf     = st.selectbox("Temporalidad", ["1m","5m","15m","30m","1h","4h","1d"])
-            with r2c2:
-                setup  = st.selectbox("Setup SMC", SETUPS_SMC)
-            with r2c3:
-                estado = st.selectbox("Estado del trade", ["Cerrado", "Abierto", "Breakeven"])
+            r2c1, r2c2, r2c3 = st.columns(3)
+            with r2c1: tf     = st.selectbox("Temporalidad", ["1m","5m","15m","30m","1h","4h","1d"])
+            with r2c2: setup  = st.selectbox("Setup SMC", SETUPS_SMC)
+            with r2c3: estado = st.selectbox("Estado del trade", ["Cerrado", "Abierto", "Breakeven"])
 
             # Fila 3: Dirección | Estado emocional
-            r3c1, r3c2 = st.columns([1, 1])
-            with r3c1:
-                direccion = st.radio("Dirección", ["LONG", "SHORT"], horizontal=True)
-            with r3c2:
-                emocion   = st.selectbox("Estado emocional", EMOCIONES)
-
-            st.markdown('<div style="margin-top:0.1rem"></div>', unsafe_allow_html=True)
+            r3c1, r3c2 = st.columns(2)
+            with r3c1: direccion = st.radio("Dirección", ["LONG", "SHORT"], horizontal=True)
+            with r3c2: emocion   = st.selectbox("Estado emocional", EMOCIONES)
 
             # Fila 4: Entrada | SL | TP | Riesgo
             c4, c5, c6, c7 = st.columns(4)
@@ -490,7 +369,7 @@ def render_journal():
 
             if st.form_submit_button("💾 Guardar Trade", use_container_width=True):
                 if entrada == 0 or sl == 0 or tp == 0:
-                    _error_overlay("Entrada, Stop Loss y Take Profit son campos obligatorios antes de guardar el trade.")
+                    _error_overlay("Entrada, Stop Loss y Take Profit son campos obligatorios.")
                 else:
                     insertar_trade(user["id"], {
                         "fecha": str(fecha), "activo": activo, "timeframe": tf,
@@ -519,14 +398,10 @@ def render_journal():
             df['fecha'] = pd.to_datetime(df['fecha'])
 
         fc1, fc2, fc3, fc4 = st.columns(4)
-        with fc1:
-            filtro_activo = st.selectbox("Activo", ["Todos"] + sorted(df['activo'].unique().tolist()), key="f_act")
-        with fc2:
-            filtro_dir = st.selectbox("Dirección", ["Todos", "LONG", "SHORT"], key="f_dir")
-        with fc3:
-            filtro_setup = st.selectbox("Setup", ["Todos"] + sorted(df['setup'].unique().tolist()), key="f_stp")
-        with fc4:
-            filtro_estado = st.selectbox("Estado", ["Todos", "Cerrado", "Abierto", "Breakeven"], key="f_est")
+        with fc1: filtro_activo = st.selectbox("Activo", ["Todos"] + sorted(df['activo'].unique().tolist()), key="f_act")
+        with fc2: filtro_dir    = st.selectbox("Dirección", ["Todos", "LONG", "SHORT"], key="f_dir")
+        with fc3: filtro_setup  = st.selectbox("Setup", ["Todos"] + sorted(df['setup'].unique().tolist()), key="f_stp")
+        with fc4: filtro_estado = st.selectbox("Estado", ["Todos", "Cerrado", "Abierto", "Breakeven"], key="f_est")
 
         if filtro_activo != "Todos": df = df[df['activo'] == filtro_activo]
         if filtro_dir    != "Todos": df = df[df['direccion'] == filtro_dir]
