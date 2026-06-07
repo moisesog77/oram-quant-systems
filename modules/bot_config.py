@@ -246,6 +246,14 @@ def render_bot_config():
         """, unsafe_allow_html=True)
 
         with st.form("bot_cfg_form"):
+            st.markdown(f"""
+            <div style="border-left:3px solid {c['accent3']};padding-left:1rem;margin-bottom:1rem">
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:0.65rem;
+                            letter-spacing:2px;color:{c['text_muted']};font-weight:600;margin-bottom:0.4rem">
+                    CONEXIÓN BOT
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             chat_id = st.text_input("Telegram Chat ID", value=cfg.get("telegram_chat_id",""),
                                      placeholder="123456789", help="Ejecuta /start en tu bot para obtenerlo")
             st.caption("El TOKEN del bot va en el archivo .env como TELEGRAM_BOT_TOKEN=tu_token")
@@ -329,7 +337,18 @@ def render_bot_config():
 
     # ── ALERTAS DE PRECIO ──────────────────────────────────────────────────
     with tab_alertas:
-        st.markdown("**Crear alerta de precio**")
+        st.markdown(f"""
+        <div style="border-left:3px solid {c['green']};padding-left:1rem;margin-bottom:1rem">
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:0.65rem;
+                        letter-spacing:2px;color:{c['text_muted']};font-weight:600;margin-bottom:0.2rem">
+                NUEVA ALERTA
+            </div>
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:1.05rem;
+                        font-weight:700;color:{c['text_strong']}">
+                Crear alerta de precio
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         with st.form("alerta_form", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -344,7 +363,48 @@ def render_bot_config():
 
             if st.form_submit_button("🔔 Crear Alerta", width='stretch'):
                 if precio_a == 0:
-                    oram_notify("error", "❌ El precio objetivo no puede ser 0.", toast=True, banner=False)
+                    import time
+                    overlay_bg = "rgba(6,9,15,0.92)" if dark else "rgba(238,242,247,0.94)"
+                    card_bg    = "#0c1219"           if dark else "#ffffff"
+                    text_muted = "#637a94"           if dark else "#7a8fa0"
+                    ph = st.empty()
+                    ph.markdown(f"""
+<style>
+@keyframes oram-al-err {{
+    from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
+    to   {{ opacity:1; transform:translateY(0) scale(1); }}
+}}
+#oram-al-overlay {{
+    position:fixed; inset:0; background:{overlay_bg};
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    z-index:99999; display:flex; align-items:center; justify-content:center;
+}}
+#oram-al-card {{
+    background:{card_bg}; border:1px solid #3d1a1a;
+    border-radius:20px; padding:2.8rem 3rem 2.4rem;
+    text-align:center; max-width:400px; width:90%;
+    animation:oram-al-err 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow:0 24px 60px rgba(0,0,0,0.35);
+}}
+</style>
+<div id="oram-al-overlay"><div id="oram-al-card">
+  <div style="font-size:3rem;margin-bottom:1rem">❌</div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;
+              font-weight:700;color:#f87171;margin-bottom:0.6rem">
+    Campo obligatorio
+  </div>
+  <div style="font-family:Inter,sans-serif;font-size:0.9rem;
+              color:{text_muted};line-height:1.6">
+    El precio objetivo no puede ser <b>0</b>.<br>Ingresa el nivel de precio para la alerta.
+  </div>
+  <div style="margin-top:1.2rem;font-family:Inter,sans-serif;
+              font-size:0.78rem;color:{text_muted};opacity:0.7">
+    Cerrando automáticamente…
+  </div>
+</div></div>
+""", unsafe_allow_html=True)
+                    time.sleep(2.2)
+                    ph.empty()
                 else:
                     crear_alerta(user["id"], ticker_a, tipo_a, precio_a, msg_a)
                     dir_label = "sube sobre" if tipo_a == "above" else "baja bajo"
