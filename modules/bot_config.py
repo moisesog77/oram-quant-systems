@@ -318,23 +318,32 @@ def render_bot_config():
         st.markdown(f"""
         <div class="smc-card">
             <div class="card-title">Comandos disponibles en Telegram</div>
-            <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin-bottom:0.5rem">🔍 ANÁLISIS</div>
+            <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin-bottom:0.2rem">🤖 INICIO</div>
+            <div class="card-sub"><code>/start</code> — Bienvenida y obtén tu Chat ID</div>
+            <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin:0.5rem 0 0.2rem">🔍 ANÁLISIS</div>
             <div class="card-sub"><code>/mercado</code> — Resumen de todos los pares (1H)</div>
-            <div class="card-sub"><code>/senales</code> — Señales SMC activas ≥60% confianza</div>
-            <div class="card-sub"><code>/mtf EURUSD</code> — Análisis Multi-Timeframe</div>
+            <div class="card-sub"><code>/senales</code> — Señales SMC activas con tu config</div>
+            <div class="card-sub"><code>/mtf EURUSD [swing]</code> — Multi-Timeframe</div>
             <div class="card-sub"><code>/analizar GBPUSD 1h</code> — Análisis completo de un par</div>
             <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin:0.5rem 0 0.2rem">💼 GESTIÓN DE RIESGO</div>
             <div class="card-sub"><code>/riesgo EURUSD 1.08 1.075 1.09</code> — Calcula lote y RR</div>
-            <div class="card-sub"><code>/capital</code> — Tu cuenta y métricas de trading</div>
+            <div class="card-sub"><code>/kelly 55 2.0 [10000]</code> — Kelly Criterion</div>
+            <div class="card-sub"><code>/capital</code> — Dashboard completo de tu cuenta</div>
+            <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin:0.5rem 0 0.2rem">📋 DIARIO & PERFORMANCE</div>
+            <div class="card-sub"><code>/trades [N]</code> — Últimos N trades registrados</div>
+            <div class="card-sub"><code>/performance</code> — Análisis estadístico + IA</div>
+            <div class="card-sub"><code>/backtest EURUSD [1h] [50]</code> — Backtest SMC histórico</div>
+            <div class="card-sub"><code>/watchlist</code> — Precios y señales de tus activos</div>
             <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin:0.5rem 0 0.2rem">📰 INFORMACIÓN</div>
             <div class="card-sub"><code>/noticias</code> — Eventos económicos del día</div>
             <div class="card-sub"><code>/proximos</code> — Próximos eventos (2 horas)</div>
             <div class="card-sub"><code>/sesiones</code> — Horarios de sesiones en CDMX</div>
             <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin:0.5rem 0 0.2rem">📊 HISTORIAL</div>
-            <div class="card-sub"><code>/alertas</code> — Señales de las últimas 24h</div>
+            <div class="card-sub"><code>/alertas [N]</code> — Señales de las últimas Nh</div>
             <div class="card-sub"><code>/resumen</code> — Reporte diario completo</div>
+            <div class="card-sub"><code>/ayuda</code> — Lista completa de comandos</div>
             <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin:0.5rem 0 0.2rem">🤖 AUTOMÁTICO (sin comandos)</div>
-            <div class="card-sub">🚨 Alertas compra/venta cuando confianza ≥75%</div>
+            <div class="card-sub">🚨 Alertas compra/venta cuando confianza ≥umbral</div>
             <div class="card-sub">🔭 MTF alineado → notificación automática</div>
             <div class="card-sub">🔔 Alertas de precio en tus niveles</div>
             <div class="card-sub">📰 Aviso 30 min antes de noticias de alto impacto</div>
