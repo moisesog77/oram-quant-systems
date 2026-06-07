@@ -427,54 +427,35 @@ def render_admin():
                                 st.rerun()
 
 
-                # Confirmación premium — card centrada con botones Streamlit reales debajo
+                # Confirmación premium inline — sin CSS de posicionamiento global
                 confirming = st.session_state["admin_confirm_delete"].get(uid, False)
                 if confirming:
-                    bg         = "#0c1219" if dark else "#ffffff"
-                    bdr        = "#7c2626" if dark else "#fecaca"
-                    muted      = "#637a94" if dark else "#7a8fa0"
-                    overlay_bg = "rgba(6,9,15,0.93)" if dark else "rgba(238,242,247,0.95)"
-                    text_col   = "#edf4ff" if dark else "#0b1824"
+                    bg    = "#0c1219" if dark else "#ffffff"
+                    bdr   = "#7c2626" if dark else "#fecaca"
+                    muted = "#637a94" if dark else "#7a8fa0"
+                    text_col = "#edf4ff" if dark else "#0b1824"
 
-                    # Fondo difuminado de pantalla completa
                     st.markdown(f"""
 <style>
-@keyframes oad-in {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
-#oad-backdrop{{position:fixed;inset:0;background:{overlay_bg};
-backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:100;pointer-events:none}}
-#oad-card-pos{{position:fixed;top:50%;left:50%;transform:translate(-50%,-60%);
-z-index:101;pointer-events:none;width:92%;max-width:460px}}
-#oad-card{{background:{bg};border:1.5px solid {bdr};border-radius:20px;
-padding:2.8rem 3.2rem 2.4rem;text-align:center;
-animation:oad-in 0.42s cubic-bezier(0.22,1,0.36,1) both;
-box-shadow:0 24px 60px rgba(0,0,0,0.45)}}
-/* Subir los botones Streamlit encima del overlay */
-[data-testid="stHorizontalBlock"]:last-of-type {{
-    position: fixed !important;
-    bottom: calc(50% - 60px) !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    z-index: 102 !important;
-    width: 400px !important;
-    max-width: 90vw !important;
-}}
+@keyframes oad-in {{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:translateY(0)}}}}
 </style>
-<div id="oad-backdrop"></div>
-<div id="oad-card-pos"><div id="oad-card">
-  <div style="font-size:3rem;margin-bottom:0.8rem">⚠️</div>
+<div style="background:{bg};border:1.5px solid {bdr};border-left:4px solid #f87171;
+border-radius:16px;padding:2rem 2rem 1.5rem;text-align:center;margin-top:0.5rem;
+animation:oad-in 0.35s ease both;box-shadow:0 8px 32px rgba(0,0,0,0.3)">
+  <div style="font-size:2.5rem;margin-bottom:0.6rem">⚠️</div>
   <div style="font-family:'Space Grotesk',sans-serif;font-size:0.6rem;
-              letter-spacing:2px;color:#f87171;font-weight:700;margin-bottom:0.4rem">
+              letter-spacing:2px;color:#f87171;font-weight:700;margin-bottom:0.3rem">
     ACCIÓN IRREVERSIBLE
   </div>
-  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;
-              font-weight:700;color:#fbbf24;margin-bottom:0.6rem">
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.1rem;
+              font-weight:700;color:#fbbf24;margin-bottom:0.5rem">
     ¿Eliminar a <b style="color:{text_col}">{uname}</b>?
   </div>
-  <div style="font-family:Inter,sans-serif;font-size:0.88rem;color:{muted};line-height:1.7">
+  <div style="font-family:Inter,sans-serif;font-size:0.85rem;color:{muted};line-height:1.7">
     Se borrarán permanentemente:<br>
     trades · alertas · watchlist · configuración del bot.
   </div>
-</div></div>
+</div>
 """, unsafe_allow_html=True)
 
                     col_yes, col_no = st.columns(2)
