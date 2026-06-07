@@ -429,19 +429,16 @@ def render_admin():
                 # Confirmación premium — aparece debajo como card de pantalla completa
                 confirming = st.session_state["admin_confirm_delete"].get(uid, False)
                 if confirming:
-                    bg   = "#0c1219" if dark else "#ffffff"
-                    bdr  = "#7c2626" if dark else "#fecaca"
+                    bg    = "#0c1219" if dark else "#ffffff"
+                    bdr   = "#7c2626" if dark else "#fecaca"
                     muted = "#637a94" if dark else "#7a8fa0"
-                    st.markdown(f"""
+
+                    confirm_ph = st.empty()
+                    confirm_ph.markdown(f"""
 <div style="
-    background:{bg};
-    border:1.5px solid {bdr};
-    border-left:4px solid #f87171;
-    border-radius:16px;
-    padding:1.8rem 2rem;
-    margin-top:0.75rem;
-    text-align:center;
-">
+    background:{bg};border:1.5px solid {bdr};
+    border-left:4px solid #f87171;border-radius:16px;
+    padding:1.8rem 2rem;margin-top:0.75rem;text-align:center;">
   <div style="font-size:2.4rem;margin-bottom:0.6rem">⚠️</div>
   <div style="font-family:'Space Grotesk',sans-serif;font-size:0.6rem;
               letter-spacing:2px;color:#f87171;font-weight:700;margin-bottom:0.3rem">
@@ -456,11 +453,14 @@ def render_admin():
   </div>
 </div>
 """, unsafe_allow_html=True)
+
                     col_yes, col_no = st.columns(2)
                     with col_yes:
                         if st.button("✅ Sí, eliminar", key=f"del_yes_{uid}", use_container_width=True):
                             ok = admin_eliminar_usuario(uid)
                             st.session_state["admin_confirm_delete"].pop(uid, None)
+                            # Limpiar la card de confirmación antes del overlay
+                            confirm_ph.empty()
                             if ok:
                                 oram_bienvenida(
                                     titulo="🗑️ Usuario eliminado",
