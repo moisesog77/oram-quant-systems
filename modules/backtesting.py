@@ -1,20 +1,5 @@
 """
 modules/backtesting.py — ORAM Quant Systems — Backtesting SMC
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Prueba la estrategia SMC sobre datos históricos reales de yfinance.
-
-Motor (utils/backtesting.ejecutar_backtest):
-  · Ventana deslizante de 80 velas para señales SMC
-  · SL = ATR × 1.5 / TP = ATR × 3.0
-  · Filtra señales por umbral de confianza configurable
-  · Simula P&L con % de riesgo por trade sobre capital inicial
-
-KPIs mostrados: Total trades, Win Rate, Profit Factor, P&L total,
-Max Drawdown, Sharpe Ratio, gráfica de equity del backtest.
-
-Tabs:
-  ▶️ Nuevo Backtest → configurar ticker/TF/umbral/capital/riesgo + ejecutar
-  📋 Historial      → últimos backtests guardados en DB por usuario
 """
 import streamlit as st
 import pandas as pd
@@ -22,14 +7,189 @@ import plotly.graph_objects as go
 from utils.backtesting import ejecutar_backtest
 from utils.market_data import ACTIVOS_DEFAULT
 from database.db import guardar_backtest, obtener_backtests
-from ui.styles import get_colors, page_header, oram_notify
+from ui.styles import get_colors, page_header, oram_notify, oram_bienvenida, get_theme
+
+
+def _inject_bt_css(dark: bool, c: dict):
+    input_bg   = "#080d14"  if dark else "#f0f4f8"
+    input_text = "#c8d8ea"  if dark else "#1a2b3c"
+    input_bdr  = "#2a4560"  if dark else "#94a3b8"
+    label_col  = "#4a6a84"  if dark else "#6b7f94"
+    focus_clr  = "#22c55e"
+    focus_glow = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
+    eye_col    = "#64748b"
+
+    st.markdown(f"""
+<style>
+/* ══ LABELS ══════════════════════════════════════════════════════════════ */
+.stSelectbox label, .stNumberInput label, .stSlider label {{
+    color: {label_col} !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.72rem !important; font-weight: 600 !important;
+    letter-spacing: 1px !important; text-transform: uppercase !important;
+    margin-bottom: 0.3rem !important; display: block !important;
+}}
+
+/* ══ SELECTBOX ════════════════════════════════════════════════════════════ */
+.stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
+    background: transparent !important;
+    border: none !important; box-shadow: none !important;
+}}
+.stSelectbox [data-baseweb="select"] {{ cursor: pointer !important; }}
+.stSelectbox [data-baseweb="select"] > div {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    min-height: 46px !important;
+    display: flex !important; align-items: center !important;
+    cursor: pointer !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    padding: 0 0.75rem !important;
+}}
+.stSelectbox [data-baseweb="select"] > div:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+.stSelectbox [data-baseweb="select"] span {{
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.93rem !important; pointer-events: none !important;
+}}
+.stSelectbox [data-baseweb="select"] svg {{
+    fill: {eye_col} !important; opacity: 0.7 !important;
+    flex-shrink: 0 !important; pointer-events: none !important;
+}}
+.stSelectbox [data-baseweb="select"] input {{
+    position: absolute !important; width: 1px !important;
+    height: 1px !important; opacity: 0 !important;
+    pointer-events: none !important; caret-color: transparent !important;
+    user-select: none !important; border: none !important;
+}}
+
+/* ══ NUMBER INPUT ═════════════════════════════════════════════════════════ */
+[data-testid="stNumberInput"] {{
+    background: transparent !important; border: none !important;
+}}
+[data-testid="stNumberInput"] > div:nth-child(1) {{
+    background: transparent !important; border: none !important;
+}}
+[data-testid="stNumberInput"] > div:nth-child(2) {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    display: flex !important; align-items: center !important;
+    min-height: 46px !important; overflow: hidden !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    padding: 0 !important;
+}}
+[data-testid="stNumberInput"] > div:nth-child(2):focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+[data-testid="stNumberInput"] input {{
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
+    padding: 0 0.75rem !important; flex: 1 !important;
+    height: 46px !important; -moz-appearance: textfield !important;
+}}
+[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
+[data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
+    -webkit-appearance: none !important; margin: 0 !important;
+}}
+[data-testid="stNumberInput"] > div:nth-child(2) > div:last-child {{
+    display: flex !important; align-items: center !important;
+    align-self: stretch !important; height: 100% !important;
+    background: transparent !important; border: none !important;
+}}
+[data-testid="stNumberInput-StepDown"],
+[data-testid="stNumberInput-StepUp"] {{
+    all: unset !important; box-sizing: border-box !important;
+    display: flex !important; align-items: center !important;
+    justify-content: center !important; align-self: stretch !important;
+    width: 44px !important; min-width: 44px !important;
+    height: 100% !important; min-height: 46px !important;
+    flex-shrink: 0 !important; cursor: pointer !important;
+    border-left: 1px solid {input_bdr} !important;
+    background: transparent !important;
+    opacity: 0.55 !important; transition: opacity .15s !important;
+}}
+[data-testid="stNumberInput-StepDown"]:hover,
+[data-testid="stNumberInput-StepUp"]:hover {{ opacity: 1 !important; }}
+[data-testid="stNumberInput-StepDown"] svg,
+[data-testid="stNumberInput-StepUp"] svg {{
+    width: 17px !important; height: 17px !important;
+    fill: none !important; stroke: {eye_col} !important;
+    stroke-width: 1.8 !important; pointer-events: none !important;
+    display: block !important; flex-shrink: 0 !important;
+}}
+[data-testid="stNumberInput"] > input:last-child,
+[data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
+[data-testid="stNumberInput"] > *:nth-child(n+3) {{
+    display: none !important; visibility: hidden !important;
+    height: 0 !important; margin: 0 !important; padding: 0 !important;
+    border: none !important; opacity: 0 !important;
+    position: absolute !important; pointer-events: none !important;
+}}
+[data-testid="InputInstructions"] {{
+    display: none !important; visibility: hidden !important;
+    height: 0 !important; margin: 0 !important;
+}}
+
+/* ══ SLIDER — pista y pulgar verdes ══════════════════════════════════════ */
+[data-testid="stSlider"] [data-baseweb="slider"] {{
+    padding: 0 !important;
+}}
+[data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"] {{
+    background: {focus_clr} !important;
+    border: 2px solid {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+[data-testid="stSlider"] [data-baseweb="slider"] div[class*="Track"] > div:first-child {{
+    background: {focus_clr} !important;
+}}
+
+/* ══ BOTÓN EJECUTAR BACKTEST ══════════════════════════════════════════════ */
+[data-testid="stBaseButton-primary"] {{
+    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
+    border: none !important; border-radius: 10px !important;
+    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
+    font-family: Inter, sans-serif !important;
+    font-weight: 600 !important; font-size: 0.95rem !important;
+    padding: 0.72rem 1.4rem !important;
+    box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
+    transition: box-shadow .25s ease, transform .18s ease !important;
+    cursor: pointer !important;
+}}
+[data-testid="stBaseButton-primary"]:hover {{
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+    box-shadow: 0 6px 22px 0 rgba(16,185,129,0.58) !important;
+    transform: translateY(-1px) !important;
+}}
+[data-testid="stBaseButton-primary"]:active {{
+    box-shadow: 0 2px 8px 0 rgba(16,185,129,0.30) !important;
+    transform: scale(0.98) !important;
+}}
+[data-testid="stHorizontalBlock"] [data-testid="stBaseButton-primary"] {{
+    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
+    box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
+    border: none !important;
+    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
+}}
+</style>
+""", unsafe_allow_html=True)
 
 
 def render_backtesting():
     user = st.session_state.user
     c    = get_colors()
+    dark = get_theme() == "dark"
 
     page_header("🧪", "Backtesting SMC", "Prueba la estrategia sobre datos históricos reales")
+    _inject_bt_css(dark, c)
 
     st.markdown(f"""
     <div class="smc-card smc-card-accent">
@@ -54,7 +214,7 @@ def render_backtesting():
             umbral = st.slider("Umbral confianza (%)", 30, 85, 50, key="bt_umb",
                                help="Bájalo a 40-50% para ver más señales. Súbelo para señales de mayor calidad.")
         with col3:
-            capital    = st.number_input("Capital (USD)", value=float(user.get("capital_inicial",10000)),
+            capital    = st.number_input("Capital (USD)", value=float(user.get("capital_inicial", 10000)),
                                           min_value=100.0, step=500.0, key="bt_cap")
             riesgo_pct = st.slider("Riesgo por trade (%)", 0.5, 3.0, 1.0, step=0.25, key="bt_rsk")
 
@@ -63,7 +223,17 @@ def render_backtesting():
             "El timeframe 15m tiene menos historia disponible en yfinance."
         )
 
-        if st.button("▶️ Ejecutar Backtest", width='stretch', key="bt_run"):
+        ejecutar = st.button("▶️ Ejecutar Backtest", width='stretch', key="bt_run")
+
+        if ejecutar:
+            oram_bienvenida(
+                titulo        = "🧪 Ejecutando Backtest",
+                subtitulo     = f"<b>{ticker}</b> · {tf} · Umbral {umbral}% · Capital ${capital:,.0f}",
+                spinner_label = "Analizando señales históricas…",
+                delay         = 1.6,
+            )
+
+        if ejecutar:
             with st.spinner(f"Ejecutando backtest {ticker} {tf} (puede tardar 30-90 seg)..."):
                 res = ejecutar_backtest(ticker, tf, riesgo_pct, umbral, capital)
 
@@ -78,8 +248,7 @@ def render_backtesting():
                     toast=True, banner=True
                 )
 
-                # ── KPIs ──────────────────────────────────────────────────
-                k1,k2,k3,k4,k5,k6 = st.columns(6)
+                k1, k2, k3, k4, k5, k6 = st.columns(6)
                 k1.metric("Trades",        res["total_trades"])
                 k2.metric("Win Rate",      f"{res['win_rate']:.1f}%",
                            delta="✅ bueno" if res["win_rate"] > 50 else "⚠️ bajo")
@@ -103,10 +272,14 @@ def render_backtesting():
                         fill="tozeroy", fillcolor=fill_color,
                     ))
                     fig.update_layout(
-                        height=260, margin=dict(l=0,r=0,t=10,b=0),
+                        height=260, margin=dict(l=0, r=0, t=10, b=0),
                         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor=c["plot_bg"],
-                        xaxis=dict(showgrid=False, color=c["text_muted"], title="Trade #", tickfont=dict(color=c["text_muted"],size=9,family='JetBrains Mono'), tickcolor=c["text_muted"]),
-                        yaxis=dict(gridcolor=c["grid"], color=c["text_muted"], title="Capital USD", tickfont=dict(color=c["grid"],size=9,family='JetBrains Mono'), tickcolor=c["grid"]),
+                        xaxis=dict(showgrid=False, color=c["text_muted"], title="Trade #",
+                                   tickfont=dict(color=c["text_muted"], size=9, family='JetBrains Mono'),
+                                   tickcolor=c["text_muted"]),
+                        yaxis=dict(gridcolor=c["grid"], color=c["text_muted"], title="Capital USD",
+                                   tickfont=dict(color=c["grid"], size=9, family='JetBrains Mono'),
+                                   tickcolor=c["grid"]),
                         showlegend=False,
                     )
                     st.plotly_chart(fig, width='stretch')
@@ -138,7 +311,7 @@ def render_backtesting():
                     df_t = pd.DataFrame(res["trades"])
                     if not df_t.empty:
                         def color_r(val):
-                            if isinstance(val, (int,float)):
+                            if isinstance(val, (int, float)):
                                 return "color:#26de81" if val > 0 else "color:#fc5c65" if val < 0 else ""
                             return ""
                         st.dataframe(
@@ -147,12 +320,12 @@ def render_backtesting():
                         )
 
                 guardar_backtest(user["id"], {
-                    "ticker":ticker, "timeframe":tf,
-                    "fecha_inicio":res["fecha_inicio"], "fecha_fin":res["fecha_fin"],
-                    "total_trades":res["total_trades"], "win_rate":res["win_rate"],
-                    "profit_factor":res["profit_factor"], "total_pnl":res["total_pnl"],
-                    "max_drawdown":res["max_drawdown"], "sharpe":res["sharpe"],
-                    "parametros":res["parametros"],
+                    "ticker": ticker, "timeframe": tf,
+                    "fecha_inicio": res["fecha_inicio"], "fecha_fin": res["fecha_fin"],
+                    "total_trades": res["total_trades"], "win_rate": res["win_rate"],
+                    "profit_factor": res["profit_factor"], "total_pnl": res["total_pnl"],
+                    "max_drawdown": res["max_drawdown"], "sharpe": res["sharpe"],
+                    "parametros": res["parametros"],
                 })
 
     with tab_historial:
@@ -161,7 +334,7 @@ def render_backtesting():
             st.info("No hay backtests guardados aún.")
             return
         df_bt = pd.DataFrame(backtests)
-        cols_show = ["created_at","ticker","timeframe","total_trades",
-                     "win_rate","profit_factor","total_pnl","max_drawdown","sharpe"]
+        cols_show = ["created_at", "ticker", "timeframe", "total_trades",
+                     "win_rate", "profit_factor", "total_pnl", "max_drawdown", "sharpe"]
         st.dataframe(df_bt[[col for col in cols_show if col in df_bt.columns]],
                      width='stretch')
