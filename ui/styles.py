@@ -1401,21 +1401,23 @@ section[data-testid="stSidebar"] div[role="radio"] {{
     max-width: none !important;
     white-space: nowrap !important;
     overflow: visible !important;
-    background: {c['bg_card2']} !important;
-    border: 1px solid {c['border2']} !important;
-    color: {c['text']} !important;
-    border-radius: 5px !important;
+    background: {'#0f2a1a' if dark else '#dcfce7'} !important;
+    border: 1px solid {'#22c55e55' if dark else '#22c55e66'} !important;
+    color: {'#22c55e' if dark else '#15803d'} !important;
+    border-radius: 6px !important;
     padding: 2px 8px !important;
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.78rem !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.82rem !important; font-weight: 600 !important;
 }}
 [data-baseweb="tag"] span {{
-    color: {c['text']} !important;
-    -webkit-text-fill-color: {c['text']} !important;
-    font-family: 'JetBrains Mono', monospace !important;
+    color: {'#22c55e' if dark else '#15803d'} !important;
+    -webkit-text-fill-color: {'#22c55e' if dark else '#15803d'} !important;
+    font-family: Inter, sans-serif !important;
+    background: transparent !important;
 }}
 [data-baseweb="tag"] [role="button"] {{
-    color: {c['text_muted']} !important;
+    color: {'#22c55e' if dark else '#15803d'} !important;
+    opacity: 0.7 !important;
 }}
 /* ── PASSWORD INPUT — eliminar espacio extra junto al ojo ── */
 /* En Streamlit 1.58 el password wrapper tiene estructura:

@@ -77,37 +77,43 @@ def _inject_sp_css(dark: bool, c: dict):
     background: transparent !important; border: none !important;
     box-shadow: none !important; outline: none !important;
 }}
-/* Tags de categorías seleccionadas */
-.stMultiSelect [data-baseweb="tag"] {{
+/* Tags de categorías seleccionadas — especificidad alta para ganar al global */
+.stMultiSelect [data-baseweb="tag"],
+[data-testid="stMultiSelect"] [data-baseweb="tag"] {{
     background: {tag_bg} !important;
+    background-color: {tag_bg} !important;
     border: 1px solid {focus_clr}66 !important;
     border-radius: 6px !important;
     padding: 2px 4px 2px 8px !important;
     margin: 2px !important;
+    color: {tag_text} !important;
+}}
+/* Forzar transparencia en TODOS los hijos del tag */
+.stMultiSelect [data-baseweb="tag"] *,
+[data-testid="stMultiSelect"] [data-baseweb="tag"] * {{
+    background: transparent !important;
+    background-color: transparent !important;
 }}
 /* Texto del tag */
 .stMultiSelect [data-baseweb="tag"] span,
-.stMultiSelect [data-baseweb="tag"] > div > span,
-.stMultiSelect [data-baseweb="tag"] [class*="content"],
-.stMultiSelect [data-baseweb="tag"] > div {{
+[data-testid="stMultiSelect"] [data-baseweb="tag"] span {{
     color: {tag_text} !important;
     -webkit-text-fill-color: {tag_text} !important;
     font-family: Inter, sans-serif !important;
     font-size: 0.82rem !important; font-weight: 600 !important;
-    background: transparent !important;
 }}
 /* Icono X del tag */
+.stMultiSelect [data-baseweb="tag"] [role="button"],
 .stMultiSelect [data-baseweb="tag"] [role="presentation"],
-.stMultiSelect [data-baseweb="tag"] button,
-.stMultiSelect [data-baseweb="tag"] [aria-label*="Delete"],
-.stMultiSelect [data-baseweb="tag"] [aria-label*="delete"] {{
+[data-testid="stMultiSelect"] [data-baseweb="tag"] [role="button"] {{
     background: transparent !important;
+    background-color: transparent !important;
     border: none !important;
     color: {tag_text} !important;
     opacity: 0.7 !important;
 }}
-.stMultiSelect [data-baseweb="tag"] [role="presentation"] svg,
-.stMultiSelect [data-baseweb="tag"] button svg {{
+.stMultiSelect [data-baseweb="tag"] svg,
+[data-testid="stMultiSelect"] [data-baseweb="tag"] svg {{
     fill: {tag_text} !important;
 }}
 .stMultiSelect [data-baseweb="select"] svg:not([role="presentation"]) {{
