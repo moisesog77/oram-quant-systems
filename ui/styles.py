@@ -726,42 +726,22 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     font-size: 0.88rem !important;
     min-width: 60px !important;
 }}
-/* ── MULTISELECT TAGS ─────────────────────────────────────── */
-[data-testid="stMultiSelect"] [data-baseweb="tag"],
+/* ── MULTISELECT TAGS — solo color, sin tocar layout ─────── */
 [data-baseweb="tag"] {{
     background: {'#0f2a1a' if dark else '#dcfce7'} !important;
-    background-color: {'#0f2a1a' if dark else '#dcfce7'} !important;
     border: 1px solid {c['green']}55 !important;
     border-radius: 6px !important;
-    padding: 3px 6px 3px 10px !important;
-    margin: 2px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 4px !important;
+    color: {c['green']} !important;
 }}
-[data-testid="stMultiSelect"] [data-baseweb="tag"] *,
-[data-baseweb="tag"] * {{
-    background: transparent !important;
-    background-color: transparent !important;
-}}
-[data-testid="stMultiSelect"] [data-baseweb="tag"] span,
-[data-baseweb="tag"] span {{
+[data-baseweb="tag"] span[class],
+[data-baseweb="tag"] > span {{
     color: {c['green']} !important;
     -webkit-text-fill-color: {c['green']} !important;
     font-family: Inter, sans-serif !important;
     font-size: 0.82rem !important; font-weight: 600 !important;
 }}
-[data-testid="stMultiSelect"] [data-baseweb="tag"] [role="button"],
 [data-baseweb="tag"] [role="button"] {{
-    color: {c['green']} !important;
-    opacity: 0.6 !important;
-    background: transparent !important;
-    padding: 0 2px !important;
-}}
-[data-testid="stMultiSelect"] [data-baseweb="tag"] svg,
-[data-baseweb="tag"] svg {{
-    fill: {c['green']} !important;
-    stroke: {c['green']} !important;
+    color: {c['green']} !important; opacity: 0.7 !important;
 }}
 /* ── DROPDOWN PORTAL — dark theme (renderiza en body) ─────── */
 [data-baseweb="popover"] [data-baseweb="menu"],
@@ -787,7 +767,6 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     border-radius: 6px !important;
     padding: 8px 12px !important;
     cursor: pointer !important;
-    transition: background .12s ease !important;
 }}
 [data-baseweb="popover"] [data-baseweb="menu"] li:hover,
 [data-baseweb="menu"] li:hover,
@@ -795,9 +774,12 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     background: {c['bg_card2']} !important;
     color: {c['green']} !important;
 }}
-[data-baseweb="popover"] [data-baseweb="menu"] li[aria-selected="true"],
-[data-baseweb="menu"] li[aria-selected="true"],
-[data-baseweb="option"][aria-selected="true"] {{
+[data-baseweb="option"][aria-selected="true"],
+[data-baseweb="menu"] li[aria-selected="true"] {{
+    background: {'#0f2a1a' if dark else '#dcfce7'} !important;
+    color: {c['green']} !important;
+    font-weight: 600 !important;
+}}
     background: {'#0f2a1a' if dark else '#dcfce7'} !important;
     color: {c['green']} !important;
     font-weight: 600 !important;
@@ -1363,20 +1345,27 @@ div[data-testid="stVerticalBlockBorderWrapper"]:empty {{
 [data-baseweb="menu"] [role="option"] {{
     background: {c['bg_card']} !important;
     color: {c['text']} !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.9rem !important;
 }}
 [data-baseweb="menu"] li:hover,
 [data-baseweb="menu"] [role="option"]:hover,
-[data-baseweb="menu"] [aria-selected="true"],
 [data-baseweb="menu"] [data-highlighted] {{
-    background: {c['nav_hover']} !important;
-    color: {c['text']} !important;
+    background: {c['bg_card2']} !important;
+    color: {c['green']} !important;
+}}
+[data-baseweb="menu"] [aria-selected="true"] {{
+    background: {'#0f2a1a' if dark else '#dcfce7'} !important;
+    color: {c['green']} !important;
+    font-weight: 600 !important;
 }}
 [data-baseweb="option"] {{
     background: {c['bg_card']} !important;
     color: {c['text']} !important;
 }}
 [data-baseweb="option"]:hover {{
-    background: {c['nav_hover']} !important;
+    background: {c['bg_card2']} !important;
+    color: {c['green']} !important;
 }}
 /* Date picker popup */
 [data-baseweb="calendar"] {{
