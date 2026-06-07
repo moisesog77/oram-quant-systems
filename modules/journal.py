@@ -23,8 +23,7 @@ from ui.styles import get_colors, page_header, oram_notify, oram_bienvenida, get
 
 
 def _inject_journal_css():
-    """CSS premium idéntico al de Análisis en Vivo y Multi-Timeframe."""
-    from ui.styles import get_theme
+    """CSS premium unificado — corrige todos los problemas visuales del formulario."""
     dark = get_theme() == "dark"
 
     input_bg   = "#080d14"  if dark else "#f0f4f8"
@@ -37,31 +36,40 @@ def _inject_journal_css():
     tab_bg     = "#0c1219"  if dark else "#f8fafc"
     tab_bdr    = "#1b2a40"  if dark else "#dde5ef"
     tab_text   = "#637a94"  if dark else "#7a8fa0"
-    tab_active = "#22c55e"
 
     st.markdown(f"""
 <style>
-/* ══ LABELS — uppercased premium ════════════════════════════════════════ */
-.stSelectbox label, .stNumberInput label, .stTextInput label,
-.stTextArea label, .stDateInput label, .stRadio label > div,
-[data-testid="stRadio"] > label {{
+/* ══ LABELS — uppercased premium ══════════════════════════════════════════ */
+.stSelectbox label,
+.stNumberInput label,
+.stTextInput label,
+.stTextArea label,
+.stDateInput label,
+[data-testid="stRadio"] > div > label:first-child,
+[data-testid="stWidgetLabel"] p {{
     color: {label_col} !important;
     font-family: Inter, sans-serif !important;
-    font-size: 0.72rem !important; font-weight: 600 !important;
-    letter-spacing: 1px !important; text-transform: uppercase !important;
-    margin-bottom: 0.3rem !important; display: block !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+    margin-bottom: 0.3rem !important;
+    display: block !important;
 }}
 
 /* ══ SELECTBOX ════════════════════════════════════════════════════════════ */
-.stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
+.stSelectbox > div,
+.stSelectbox > div > div {{
     background: transparent !important;
-    border: none !important; box-shadow: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important; margin: 0 !important;
 }}
-.stSelectbox [data-baseweb="select"] {{ cursor: pointer !important; }}
 .stSelectbox [data-baseweb="select"] > div {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
     min-height: 46px !important;
     display: flex !important; align-items: center !important;
     cursor: pointer !important;
@@ -76,7 +84,8 @@ def _inject_journal_css():
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
     font-family: Inter, sans-serif !important;
-    font-size: 0.93rem !important; pointer-events: none !important;
+    font-size: 0.93rem !important;
+    pointer-events: none !important;
 }}
 .stSelectbox [data-baseweb="select"] svg {{
     fill: {eye_col} !important; opacity: 0.7 !important;
@@ -89,19 +98,22 @@ def _inject_journal_css():
     user-select: none !important; border: none !important;
 }}
 
-/* ══ NUMBER INPUT ═════════════════════════════════════════════════════════ */
+/* ══ NUMBER INPUT — sin cuadro emergente al clickear ═══════════════════════ */
 [data-testid="stNumberInput"] {{
     background: transparent !important; border: none !important;
 }}
 [data-testid="stNumberInput"] > div:nth-child(1) {{
     background: transparent !important; border: none !important;
+    box-shadow: none !important;
 }}
 [data-testid="stNumberInput"] > div:nth-child(2) {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
     display: flex !important; align-items: center !important;
-    min-height: 46px !important; overflow: hidden !important;
+    min-height: 46px !important;
+    overflow: hidden !important;
     transition: border-color .18s ease, box-shadow .18s ease !important;
     padding: 0 !important;
 }}
@@ -110,17 +122,31 @@ def _inject_journal_css():
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
 [data-testid="stNumberInput"] input {{
-    background: transparent !important; border: none !important;
-    box-shadow: none !important; outline: none !important;
+    background: transparent !important;
+    border: none !important; box-shadow: none !important; outline: none !important;
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
     font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
     padding: 0 0.75rem !important; flex: 1 !important;
-    height: 46px !important; -moz-appearance: textfield !important;
+    height: 46px !important;
+    -moz-appearance: textfield !important;
 }}
 [data-testid="stNumberInput"] input::-webkit-outer-spin-button,
 [data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
     -webkit-appearance: none !important; margin: 0 !important;
+}}
+/* Eliminar tooltip/popover emergente */
+[data-testid="stNumberInput"] input:focus {{
+    outline: none !important;
+    box-shadow: none !important;
+}}
+[data-testid="InputInstructions"],
+[data-baseweb="popover"],
+[data-baseweb="tooltip"] {{
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }}
 [data-testid="stNumberInput-StepDown"],
 [data-testid="stNumberInput-StepUp"] {{
@@ -144,7 +170,7 @@ def _inject_journal_css():
     display: block !important; flex-shrink: 0 !important;
 }}
 
-/* ══ DATE INPUT ══════════════════════════════════════════════════════════ */
+/* ══ DATE INPUT ═══════════════════════════════════════════════════════════ */
 [data-testid="stDateInput"] > div {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
@@ -153,7 +179,8 @@ def _inject_journal_css():
     transition: border-color .18s ease, box-shadow .18s ease !important;
 }}
 [data-testid="stDateInput"] > div > div {{
-    background: transparent !important; border: none !important; box-shadow: none !important;
+    background: transparent !important; border: none !important;
+    box-shadow: none !important;
 }}
 [data-testid="stDateInput"] input {{
     background: transparent !important; border: none !important;
@@ -168,19 +195,23 @@ def _inject_journal_css():
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
 
-/* ══ TEXT INPUT ══════════════════════════════════════════════════════════ */
+/* ══ TEXT INPUT (Tags) — contorno completo ════════════════════════════════ */
 .stTextInput > div {{
     border: none !important; background: transparent !important;
-    box-shadow: none !important; padding: 0 !important;
+    box-shadow: none !important; padding: 0 !important; margin: 0 !important;
 }}
-.stTextInput > div > div {{
+.stTextInput > div > div,
+[data-testid="textInputRootElement"] {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
     min-height: 46px !important; overflow: hidden !important;
     transition: border-color .18s ease, box-shadow .18s ease !important;
+    display: flex !important; align-items: center !important;
 }}
-.stTextInput > div > div:focus-within {{
+.stTextInput > div > div:focus-within,
+[data-testid="textInputRootElement"]:focus-within {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
@@ -190,10 +221,10 @@ def _inject_journal_css():
     color: {input_text} !important;
     -webkit-text-fill-color: {input_text} !important;
     font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
-    padding: 0 0.75rem !important; height: 46px !important;
+    padding: 0 0.75rem !important; height: 46px !important; width: 100% !important;
 }}
 
-/* ══ TEXT AREA ══════════════════════════════════════════════════════════ */
+/* ══ TEXT AREA ════════════════════════════════════════════════════════════ */
 .stTextArea > div > div {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
@@ -214,33 +245,67 @@ def _inject_journal_css():
     padding: 0.65rem 0.75rem !important;
 }}
 
-/* ══ RADIO BUTTONS ═══════════════════════════════════════════════════════ */
+/* ══ RADIO BUTTONS — SOLO verde, sin dorado en hover ════════════════════ */
 [data-testid="stRadio"] > div {{
     background: transparent !important;
-    display: flex !important; gap: 0.5rem !important;
+    display: flex !important; gap: 0.5rem !important; flex-wrap: wrap !important;
+}}
+/* Neutralizar cualquier color heredado del tema */
+[data-testid="stRadio"] label,
+[data-testid="stRadio"] label * {{
+    accent-color: {focus_clr} !important;
 }}
 [data-testid="stRadio"] label {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important;
-    padding: 0.4rem 1rem !important;
+    padding: 0.45rem 1.1rem !important;
     color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
     font-family: Inter, sans-serif !important;
     font-size: 0.88rem !important; font-weight: 500 !important;
     transition: border-color .18s ease, box-shadow .18s ease !important;
     cursor: pointer !important;
+    display: flex !important; align-items: center !important; gap: 0.5rem !important;
 }}
+/* HOVER: solo verde, nunca dorado */
 [data-testid="stRadio"] label:hover {{
     border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 2px {focus_glow} !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
 }}
+/* Seleccionado */
 [data-testid="stRadio"] [data-checked="true"] label,
 [data-testid="stRadio"] label[data-checked="true"] {{
     border-color: {focus_clr} !important;
     color: {focus_clr} !important;
+    -webkit-text-fill-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}
+/* Círculo radio — eliminar dorado nativo del tema */
+[data-testid="stRadio"] div[role="radio"] {{
+    border-color: {input_bdr} !important;
+    background: {input_bg} !important;
+    box-shadow: none !important;
+    accent-color: {focus_clr} !important;
+}}
+[data-testid="stRadio"] div[role="radio"][aria-checked="true"] {{
+    border-color: {focus_clr} !important;
+    background: {focus_clr} !important;
+}}
+[data-testid="stRadio"] div[role="radio"] > div,
+[data-testid="stRadio"] div[role="radio"] svg {{
+    background: transparent !important;
+    fill: {focus_clr} !important;
+    color: {focus_clr} !important;
+}}
+/* Forzar que el acento del navegador sea verde, no dorado */
+[data-testid="stRadio"] input[type="radio"] {{
+    accent-color: {focus_clr} !important;
+}}
 
-/* ══ TABS premium ════════════════════════════════════════════════════════ */
+/* ══ TABS premium ═════════════════════════════════════════════════════════ */
 .stTabs [data-baseweb="tab-list"] {{
     background: {tab_bg} !important;
     border-bottom: 2px solid {tab_bdr} !important;
@@ -258,15 +323,14 @@ def _inject_journal_css():
 }}
 .stTabs [data-baseweb="tab"]:hover {{ color: {input_text} !important; }}
 .stTabs [aria-selected="true"] {{
-    color: {tab_active} !important;
-    border-bottom: 2px solid {tab_active} !important;
+    color: #22c55e !important;
+    border-bottom: 2px solid #22c55e !important;
     font-weight: 700 !important;
 }}
 .stTabs [data-baseweb="tab"] p {{ color: inherit !important; }}
 
-/* ══ BOTÓN GUARDAR TRADE / ELIMINAR — premium verde ════════════════════ */
+/* ══ BOTÓN GUARDAR TRADE — premium verde ══════════════════════════════════ */
 [data-testid="stFormSubmitButton"] button,
-[data-testid="stBaseButton-secondary"]:has(svg[data-testid*="trash"]),
 [data-testid="stBaseButton-primary"] {{
     background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
     border: none !important; border-radius: 10px !important;
@@ -276,7 +340,7 @@ def _inject_journal_css():
     padding: 0.72rem 1.4rem !important;
     box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
     transition: box-shadow .25s ease, transform .18s ease !important;
-    cursor: pointer !important;
+    cursor: pointer !important; width: 100% !important;
 }}
 [data-testid="stFormSubmitButton"] button:hover,
 [data-testid="stBaseButton-primary"]:hover {{
@@ -290,7 +354,7 @@ def _inject_journal_css():
     transform: scale(0.98) !important;
 }}
 
-/* ══ DATAFRAME historial ═════════════════════════════════════════════════ */
+/* ══ DATAFRAME historial ══════════════════════════════════════════════════ */
 [data-testid="stDataFrame"] {{
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important; overflow: hidden !important;
@@ -316,6 +380,63 @@ def _inject_journal_css():
 """, unsafe_allow_html=True)
 
 
+def _error_overlay(mensaje: str) -> None:
+    """Overlay premium de error — mismo estilo que oram_bienvenida."""
+    dark = get_theme() == "dark"
+    overlay_bg  = "rgba(6,9,15,0.92)"  if dark else "rgba(238,242,247,0.94)"
+    card_bg     = "#0c1219"            if dark else "#ffffff"
+    card_border = "#3d1a1a"            if dark else "#f8d0d0"
+    text_main   = "#edf4ff"            if dark else "#0b1824"
+    text_muted  = "#637a94"            if dark else "#7a8fa0"
+
+    import time
+    placeholder = st.empty()
+    placeholder.markdown(f"""
+<style>
+@keyframes oram-fadein {{
+    from {{ opacity: 0; transform: translateY(14px) scale(0.97); }}
+    to   {{ opacity: 1; transform: translateY(0)    scale(1);    }}
+}}
+#oram-error-overlay {{
+    position: fixed; inset: 0;
+    background: {overlay_bg};
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    z-index: 99999;
+    display: flex; align-items: center; justify-content: center;
+}}
+#oram-error-card {{
+    background: {card_bg};
+    border: 1px solid {card_border};
+    border-radius: 20px;
+    padding: 2.8rem 3rem 2.4rem;
+    text-align: center; max-width: 400px; width: 90%;
+    animation: oram-fadein 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+}}
+</style>
+<div id="oram-error-overlay">
+  <div id="oram-error-card">
+    <div style="font-size:3rem;margin-bottom:1rem">❌</div>
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:1.25rem;
+                font-weight:700;color:#f87171;margin-bottom:0.6rem">
+      Campo obligatorio
+    </div>
+    <div style="font-family:Inter,sans-serif;font-size:0.92rem;
+                color:{text_muted};line-height:1.6">
+      {mensaje}
+    </div>
+    <div style="margin-top:1.4rem;font-family:Inter,sans-serif;
+                font-size:0.8rem;color:{text_muted};opacity:0.7">
+      Cerrando automáticamente…
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    time.sleep(2.2)
+    placeholder.empty()
+    st.rerun()
+
+
 SETUPS_SMC = [
     "OB Alcista + FVG", "OB Bajista + FVG",
     "BOS + OB Retest", "CHoCH Reversión",
@@ -337,28 +458,42 @@ def render_journal():
     # ── NUEVO TRADE ────────────────────────────────────────────────────────
     with tab_nuevo:
         with st.form("trade_form", clear_on_submit=True):
-            col1, col2, col3 = st.columns(3)
+            # Fila 1: Fecha | Dirección | Estado emocional
+            col1, col2, col3 = st.columns([1, 1, 1])
             with col1:
-                fecha     = st.date_input("Fecha", date.today())
-                categoria = st.selectbox("Categoría", list(ACTIVOS_DEFAULT.keys()))
-                activo    = st.selectbox("Activo", ACTIVOS_DEFAULT[categoria])
+                fecha = st.date_input("Fecha", date.today())
             with col2:
                 direccion = st.radio("Dirección", ["LONG", "SHORT"], horizontal=True)
-                tf        = st.selectbox("Temporalidad", ["1m","5m","15m","30m","1h","4h","1d"])
-                setup     = st.selectbox("Setup SMC", SETUPS_SMC)
             with col3:
                 emocion = st.selectbox("Estado emocional", EMOCIONES)
-                estado  = st.selectbox("Estado del trade", ["Cerrado", "Abierto", "Breakeven"])
 
-            st.divider()
+            # Fila 2: Categoría | Temporalidad | Estado del trade
+            col4, col5, col6 = st.columns([1, 1, 1])
+            with col4:
+                categoria = st.selectbox("Categoría", list(ACTIVOS_DEFAULT.keys()))
+            with col5:
+                tf = st.selectbox("Temporalidad", ["1m","5m","15m","30m","1h","4h","1d"])
+            with col6:
+                estado = st.selectbox("Estado del trade", ["Cerrado", "Abierto", "Breakeven"])
+
+            # Fila 3: Activo | Setup SMC
+            col7, col8 = st.columns([1, 1])
+            with col7:
+                activo = st.selectbox("Activo", ACTIVOS_DEFAULT[categoria])
+            with col8:
+                setup = st.selectbox("Setup SMC", SETUPS_SMC)
+
+            st.markdown('<div style="margin-top:0.5rem"></div>', unsafe_allow_html=True)
+
+            # Fila 4: números
             c4, c5, c6, c7 = st.columns(4)
-            with c4: entrada    = st.number_input("Entrada",       value=0.0, format="%.5f")
-            with c5: sl         = st.number_input("Stop Loss",      value=0.0, format="%.5f")
-            with c6: tp         = st.number_input("Take Profit",    value=0.0, format="%.5f")
-            with c7: riesgo_usd = st.number_input("Riesgo (USD)",   value=30.0, min_value=0.0)
+            with c4: entrada    = st.number_input("Entrada",     value=0.0, format="%.5f", step=0.00001)
+            with c5: sl         = st.number_input("Stop Loss",   value=0.0, format="%.5f", step=0.00001)
+            with c6: tp         = st.number_input("Take Profit", value=0.0, format="%.5f", step=0.00001)
+            with c7: riesgo_usd = st.number_input("Riesgo (USD)", value=30.0, min_value=0.0, step=1.0)
 
-            resultado_usd = st.number_input("Resultado (USD)", value=0.0,
-                                             help="Positivo = ganancia · Negativo = pérdida")
+            resultado_usd = st.number_input("Resultado (USD)", value=0.0, step=1.0,
+                                            help="Positivo = ganancia · Negativo = pérdida")
 
             if entrada > 0 and sl > 0 and tp > 0:
                 risk = calcular_riesgo(entrada, sl, tp, user.get('capital_inicial', 1000), 1.0)
@@ -374,12 +509,14 @@ def render_journal():
                     </div>
                     """, unsafe_allow_html=True)
 
-            notas = st.text_area("Notas / Plan", placeholder="Describe el setup, confluencias, razonamiento...", height=80)
+            notas = st.text_area("Notas / Plan",
+                                 placeholder="Describe el setup, confluencias, razonamiento...",
+                                 height=80)
             tags  = st.text_input("Tags (coma)", placeholder="impulso, NY session, OTE, CHoCH...")
 
-            if st.form_submit_button("💾 Guardar Trade", width='stretch'):
+            if st.form_submit_button("💾 Guardar Trade", use_container_width=True):
                 if entrada == 0 or sl == 0 or tp == 0:
-                    oram_notify("error", "❌ Entrada, SL y TP son obligatorios.", toast=True, banner=True)
+                    _error_overlay("Entrada, Stop Loss y Take Profit son obligatorios antes de guardar el trade.")
                 else:
                     insertar_trade(user["id"], {
                         "fecha": str(fecha), "activo": activo, "timeframe": tf,
@@ -391,7 +528,7 @@ def render_journal():
                     })
                     oram_bienvenida(
                         titulo        = "💾 Trade registrado",
-                        subtitulo     = f"<b>{activo}</b> {direccion} — {setup}<br>RR estimado: {riesgo_usd:.1f} USD en riesgo.",
+                        subtitulo     = f"<b>{activo}</b> {direccion} — {setup}<br>Riesgo: ${riesgo_usd:.2f} USD",
                         spinner_label = "Actualizando diario…",
                         delay         = 2.0,
                     )
@@ -425,10 +562,12 @@ def render_journal():
         pnl_total = df['resultado_usd'].sum()
         wr        = (df['resultado_usd'] > 0).mean() * 100 if len(df) > 0 else 0
         st.markdown(f"""
-        <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
-            <span class="card-sub">{len(df)} trades</span>
-            <span class="card-sub">PnL: <b style="color:{c['green'] if pnl_total>=0 else c['red']}">${pnl_total:,.2f}</b></span>
-            <span class="card-sub">Win Rate: <b>{wr:.1f}%</b></span>
+        <div style="display:flex;gap:1.5rem;margin-bottom:1rem;flex-wrap:wrap;
+                    padding:0.75rem 1rem;background:#0c1219;border-radius:10px;
+                    border:1px solid #1b2a40">
+            <span class="card-sub" style="font-size:0.82rem">{len(df)} trades</span>
+            <span class="card-sub" style="font-size:0.82rem">P&L: <b style="color:{'#26de81' if pnl_total>=0 else '#fc5c65'}">${pnl_total:,.2f}</b></span>
+            <span class="card-sub" style="font-size:0.82rem">Win Rate: <b>{wr:.1f}%</b></span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -443,23 +582,25 @@ def render_journal():
             return ''
 
         styled = df_show.style.map(color_result, subset=['resultado_usd'])
-        st.dataframe(styled, width='stretch', height=400)
+        st.dataframe(styled, use_container_width=True, height=400)
 
         st.divider()
         if len(df) > 0:
             col_del1, col_del2 = st.columns([3, 1])
             with col_del1:
                 trade_ids = df['id'].tolist()
-                del_id = st.selectbox("Trade a eliminar", trade_ids,
-                                       format_func=lambda i: f"#{i} – {df[df['id']==i]['activo'].values[0]} {str(df[df['id']==i]['fecha'].values[0])[:10]}",
-                                       key="del_id")
+                del_id = st.selectbox(
+                    "Trade a eliminar", trade_ids,
+                    format_func=lambda i: f"#{i} – {df[df['id']==i]['activo'].values[0]} {str(df[df['id']==i]['fecha'].values[0])[:10]}",
+                    key="del_id"
+                )
             with col_del2:
-                st.markdown("")
-                if st.button("🗑️ Eliminar", width='stretch'):
+                st.markdown('<div style="margin-top:1.65rem"></div>', unsafe_allow_html=True)
+                if st.button("🗑️ Eliminar", use_container_width=True):
                     eliminar_trade(del_id, user["id"])
                     oram_bienvenida(
                         titulo        = "🗑️ Trade eliminado",
-                        subtitulo     = f"El trade <b>#{del_id}</b> ha sido eliminado permanentemente de tu historial.",
+                        subtitulo     = f"El trade <b>#{del_id}</b> ha sido eliminado de tu historial.",
                         spinner_label = "Actualizando diario…",
                         delay         = 1.8,
                     )
