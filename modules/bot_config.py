@@ -337,17 +337,33 @@ def render_bot_config():
 
     # ── ALERTAS DE PRECIO ──────────────────────────────────────────────────
     with tab_alertas:
+        # CSS para envolver el form con borde izquierdo verde
         st.markdown(f"""
-        <div style="border-left:3px solid {c['green']};padding-left:1rem;margin-bottom:1rem">
-            <div style="font-family:'Space Grotesk',sans-serif;font-size:0.65rem;
-                        letter-spacing:2px;color:{c['text_muted']};font-weight:600;margin-bottom:0.2rem">
-                NUEVA ALERTA
-            </div>
-            <div style="font-family:'Space Grotesk',sans-serif;font-size:1.05rem;
-                        font-weight:700;color:{c['text_strong']}">
-                Crear alerta de precio
-            </div>
-        </div>
+<style>
+[data-testid="stForm"]#alerta_form_container,
+div:has(> [data-testid="stForm"]) {{
+    border-left: 3px solid {c['green']} !important;
+    padding-left: 1rem !important;
+}}
+/* Franja específica para el form de alerta */
+.alerta-form-wrapper {{
+    border-left: 3px solid {c['green']};
+    padding-left: 0;
+    border-radius: 0 12px 12px 0;
+    margin-bottom: 1rem;
+}}
+</style>
+<div style="border-left:3px solid {c['green']};padding-left:1rem;
+            margin-bottom:0.5rem;padding-top:0.25rem;padding-bottom:0.25rem">
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;
+                letter-spacing:2px;color:{c['text_muted']};font-weight:600">
+        NUEVA ALERTA
+    </div>
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:1.05rem;
+                font-weight:700;color:{c['text_strong']}">
+        Crear alerta de precio
+    </div>
+</div>
         """, unsafe_allow_html=True)
         with st.form("alerta_form", clear_on_submit=True):
             col1, col2, col3 = st.columns(3)
@@ -420,24 +436,49 @@ def render_bot_config():
         if not alertas:
             st.info("Sin alertas configuradas.")
         else:
-            st.markdown(f"**{len([a for a in alertas if not a['disparada']])} alertas activas · {len([a for a in alertas if a['disparada']])} disparadas**")
+            activas   = [a for a in alertas if not a['disparada']]
+            disparadas = [a for a in alertas if a['disparada']]
+            st.markdown(f"""
+<div style="border-left:3px solid {c['border']};padding-left:1rem;margin-bottom:0.75rem">
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;
+                letter-spacing:2px;color:{c['text_muted']};font-weight:600">
+        MIS ALERTAS
+    </div>
+    <div style="font-family:Inter,sans-serif;font-size:0.85rem;color:{c['text']}">
+        <b style="color:{c['green']}">{len(activas)}</b> activas &nbsp;·&nbsp;
+        <b style="color:{c['text_muted']}">{len(disparadas)}</b> disparadas
+    </div>
+</div>
+""", unsafe_allow_html=True)
             for al in alertas:
-                estado   = "✅ Disparada" if al["disparada"] else "⏳ Activa"
-                emoji    = "📈" if al["tipo"]=="above" else "📉"
-                bg_color = "rgba(38,222,129,0.08)" if al["disparada"] else ""
-                col1, col2 = st.columns([4,1])
+                disparada  = bool(al["disparada"])
+                estado_txt = "✅ Disparada" if disparada else "⏳ Activa"
+                emoji_dir  = "📈" if al["tipo"] == "above" else "📉"
+                dir_txt    = "sube sobre" if al["tipo"] == "above" else "baja bajo"
+                bdr_color  = c['text_muted'] if disparada else c['green']
+                bg_extra   = f"background:rgba(34,197,94,0.06);" if not disparada else ""
+                msg_txt    = f" &nbsp;·&nbsp; <i>{al['mensaje']}</i>" if al.get('mensaje') else ""
+                col1, col2 = st.columns([5, 1])
                 with col1:
                     st.markdown(f"""
-                    <div class="smc-card" style="padding:0.6rem 1rem;margin-bottom:0.3rem;background:{bg_color}">
-                        <span style="font-family:'JetBrains Mono',monospace;font-size:0.8rem">
-                        {estado} · {emoji} <b>{al['ticker']}</b> {al['tipo']} <b>{al['precio']:.5f}</b>
-                        {' · ' + al['mensaje'] if al['mensaje'] else ''}
-                        </span>
-                    </div>
-                    """, unsafe_allow_html=True)
+<div style="border-left:3px solid {bdr_color};padding:0.65rem 1rem;
+            border-radius:0 10px 10px 0;margin-bottom:0.4rem;
+            background:{c['bg_card']};{bg_extra}">
+    <div style="font-family:Inter,sans-serif;font-size:0.78rem;
+                color:{c['text_muted']};margin-bottom:0.15rem;
+                letter-spacing:0.5px;text-transform:uppercase;font-weight:600">
+        {estado_txt}
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;color:{c['text']}">
+        {emoji_dir} <b style="color:{c['text_strong']}">{al['ticker']}</b>
+        &nbsp;<span style="color:{c['text_muted']}">{dir_txt}</span>&nbsp;
+        <b style="color:{bdr_color}">{al['precio']:.5f}</b>{msg_txt}
+    </div>
+</div>
+""", unsafe_allow_html=True)
                 with col2:
-                    if not al["disparada"]:
-                        if st.button("🗑️", key=f"del_al_{al['id']}"):
+                    if not disparada:
+                        if st.button("🗑️", key=f"del_al_{al['id']}", use_container_width=True):
                             eliminar_alerta(al["id"], user["id"])
                             oram_bienvenida(
                                 titulo        = "🗑️ Alerta eliminada",
