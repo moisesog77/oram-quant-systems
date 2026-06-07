@@ -1,17 +1,5 @@
 """
 modules/signals_panel.py — ORAM Quant Systems — Panel de Señales SMC
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Escanea múltiples activos en paralelo y clasifica señales SMC activas.
-
-Flujo:
-  1. Filtros: categorías (multiselect), timeframe, umbral de confianza
-  2. Clic "⚡ Escanear" → barra de progreso por activo
-  3. Resultados en session_state["sp_results"] (persisten sin re-escanear)
-  4. KPIs resumen: total escaneados, LONG, SHORT, Neutral
-  5. Señales de alta confianza primero, formato semáforo 🔥⚡💡
-
-Bloqueo preventivo: si hay evento de alto impacto en < 30 min,
-se muestra advertencia y no se permite escanear.
 """
 import streamlit as st
 import pandas as pd
@@ -20,7 +8,7 @@ from zoneinfo import ZoneInfo
 from utils.market_data import ACTIVOS_DEFAULT, obtener_datos
 from utils.smc_engine import analisis_completo
 from utils.economic_calendar import hay_evento_alto_impacto_pronto
-from ui.styles import get_colors, page_header, oram_notify
+from ui.styles import get_colors, page_header, get_theme
 
 TZ_MX = ZoneInfo("America/Mexico_City")
 
@@ -29,25 +17,293 @@ def _semaforo(confianza, dir_):
     if dir_ == "neutral":
         return "⚪", "NEUTRO", "#6b7f99"
     if confianza >= 70:
-        color  = "#22c55e" if dir_=="LONG" else "#ef4444"
-        emoji  = "🟢" if dir_=="LONG" else "🔴"
-        label  = "FUERTE"
+        color = "#22c55e" if dir_ == "LONG" else "#ef4444"
+        emoji = "🟢" if dir_ == "LONG" else "🔴"
+        label = "FUERTE"
     elif confianza >= 50:
-        color  = "#c9a227"
-        emoji  = "🟡"
-        label  = "MODERADO"
+        color = "#c9a227"
+        emoji = "🟡"
+        label = "MODERADO"
     else:
-        color  = "#6b7f99"
-        emoji  = "⚪"
-        label  = "DÉBIL"
+        color = "#6b7f99"
+        emoji = "⚪"
+        label = "DÉBIL"
     return emoji, label, color
+
+
+def _inject_sp_css(dark: bool, c: dict):
+    input_bg   = "#080d14"  if dark else "#f0f4f8"
+    input_text = "#c8d8ea"  if dark else "#1a2b3c"
+    input_bdr  = "#2a4560"  if dark else "#94a3b8"
+    label_col  = "#4a6a84"  if dark else "#6b7f94"
+    focus_clr  = "#22c55e"
+    focus_glow = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
+    eye_col    = "#64748b"
+    tag_bg     = "#0f2a1a"  if dark else "#dcfce7"
+    tag_text   = "#22c55e"  if dark else "#15803d"
+
+    st.markdown(f"""
+<style>
+/* ══ LABELS ══════════════════════════════════════════════════════════════ */
+.stSelectbox label, .stMultiSelect label, .stSlider label {{
+    color: {label_col} !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.72rem !important; font-weight: 600 !important;
+    letter-spacing: 1px !important; text-transform: uppercase !important;
+    margin-bottom: 0.3rem !important; display: block !important;
+}}
+
+/* ══ MULTISELECT (Categorías) ═════════════════════════════════════════════ */
+.stMultiSelect > div > div {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    min-height: 46px !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    padding: 0 0.5rem !important;
+}}
+.stMultiSelect > div > div:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+.stMultiSelect [data-baseweb="select"] > div {{
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; padding: 0 !important;
+}}
+.stMultiSelect input {{
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important; font-size: 0.9rem !important;
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
+}}
+/* Tags de categorías seleccionadas */
+.stMultiSelect [data-baseweb="tag"] {{
+    background: {tag_bg} !important;
+    border: 1px solid {focus_clr}55 !important;
+    border-radius: 6px !important;
+}}
+.stMultiSelect [data-baseweb="tag"] span {{
+    color: {tag_text} !important;
+    -webkit-text-fill-color: {tag_text} !important;
+    font-family: Inter, sans-serif !important; font-size: 0.82rem !important;
+    font-weight: 600 !important;
+}}
+.stMultiSelect [data-baseweb="tag"] [role="presentation"] svg {{
+    fill: {tag_text} !important; opacity: 0.7 !important;
+}}
+.stMultiSelect [data-baseweb="select"] svg:not([role="presentation"]) {{
+    fill: {eye_col} !important; opacity: 0.7 !important;
+}}
+
+/* ══ SELECTBOX (Timeframe) ════════════════════════════════════════════════ */
+.stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
+    background: transparent !important;
+    border: none !important; box-shadow: none !important;
+}}
+.stSelectbox [data-baseweb="select"] {{ cursor: pointer !important; }}
+.stSelectbox [data-baseweb="select"] > div {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    min-height: 46px !important;
+    display: flex !important; align-items: center !important;
+    cursor: pointer !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    padding: 0 0.75rem !important;
+}}
+.stSelectbox [data-baseweb="select"] > div:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+.stSelectbox [data-baseweb="select"] span {{
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.93rem !important; pointer-events: none !important;
+}}
+.stSelectbox [data-baseweb="select"] svg {{
+    fill: {eye_col} !important; opacity: 0.7 !important;
+    flex-shrink: 0 !important; pointer-events: none !important;
+}}
+.stSelectbox [data-baseweb="select"] input {{
+    position: absolute !important; width: 1px !important;
+    height: 1px !important; opacity: 0 !important;
+    pointer-events: none !important; caret-color: transparent !important;
+    user-select: none !important; border: none !important;
+}}
+
+/* ══ BOTÓN ESCANEAR ═══════════════════════════════════════════════════════ */
+[data-testid="stBaseButton-primary"] {{
+    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
+    border: none !important; border-radius: 10px !important;
+    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
+    font-family: Inter, sans-serif !important;
+    font-weight: 600 !important; font-size: 0.95rem !important;
+    padding: 0.72rem 1.4rem !important;
+    box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
+    transition: box-shadow .25s ease, transform .18s ease !important;
+    cursor: pointer !important;
+}}
+[data-testid="stBaseButton-primary"]:hover {{
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+    box-shadow: 0 6px 22px 0 rgba(16,185,129,0.58) !important;
+    transform: translateY(-1px) !important;
+}}
+[data-testid="stBaseButton-primary"]:active {{
+    box-shadow: 0 2px 8px 0 rgba(16,185,129,0.30) !important;
+    transform: scale(0.98) !important;
+}}
+/* Ocultar barra de progreso nativa de Streamlit */
+[data-testid="stProgressBar"],
+.stProgress, div[data-testid="stProgress"] {{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+
+def _scan_overlay(ticker_actual: str, idx: int, total: int, dark: bool):
+    """Overlay premium de escaneo — actualiza en tiempo real."""
+    overlay_bg = "rgba(6,9,15,0.93)"  if dark else "rgba(238,242,247,0.95)"
+    card_bg    = "#0c1219"            if dark else "#ffffff"
+    card_bdr   = "#1b3a24"           if dark else "#d1fae5"
+    text_col   = "#edf4ff"           if dark else "#0b1824"
+    text_muted = "#637a94"           if dark else "#7a8fa0"
+    pct        = int(idx / total * 100) if total else 0
+
+    return f"""
+<style>
+@keyframes oram-sc-in {{
+    from {{ opacity:0; transform:translateY(12px) scale(0.97); }}
+    to   {{ opacity:1; transform:translateY(0) scale(1); }}
+}}
+@keyframes oram-spin {{
+    to {{ transform: rotate(360deg); }}
+}}
+#oram-sc-overlay {{
+    position:fixed; inset:0; background:{overlay_bg};
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    z-index:99999; display:flex; align-items:center; justify-content:center;
+}}
+#oram-sc-card {{
+    background:{card_bg}; border:1px solid {card_bdr};
+    border-radius:20px; padding:2.6rem 3rem 2.4rem;
+    text-align:center; max-width:440px; width:92%;
+    animation:oram-sc-in 0.38s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow:0 24px 60px rgba(0,0,0,0.38);
+}}
+.oram-sc-ring {{
+    width:72px; height:72px; border-radius:50%;
+    border:3px solid rgba(34,197,94,0.2);
+    border-top-color:#22c55e;
+    animation:oram-spin 0.9s linear infinite;
+    margin:0 auto 1.3rem;
+}}
+.oram-sc-bar-bg {{
+    width:100%; height:6px; background:rgba(34,197,94,0.12);
+    border-radius:3px; margin-top:1.2rem; overflow:hidden;
+}}
+.oram-sc-bar-fill {{
+    height:100%; background:linear-gradient(90deg,#16a34a,#22c55e);
+    border-radius:3px;
+    width:{pct}%;
+    transition:width 0.3s ease;
+}}
+</style>
+<div id="oram-sc-overlay"><div id="oram-sc-card">
+  <div class="oram-sc-ring"></div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;
+              letter-spacing:2px;color:#22c55e;font-weight:600;margin-bottom:0.4rem">
+    ORAM · Panel de Señales
+  </div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;
+              font-weight:700;color:{text_col};margin-bottom:0.5rem">
+    ⚡ Escaneando mercado
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;color:{text_muted}">
+    {ticker_actual} &nbsp;·&nbsp; {idx}/{total} activos
+  </div>
+  <div class="oram-sc-bar-bg"><div class="oram-sc-bar-fill"></div></div>
+  <div style="font-family:Inter,sans-serif;font-size:0.72rem;
+              color:{text_muted};margin-top:0.5rem;opacity:0.8">
+    {pct}% completado
+  </div>
+</div></div>
+"""
+
+
+def _resultado_overlay(total_act: int, umbral: int, dark: bool):
+    """Overlay premium de resultado del escaneo."""
+    import time
+    overlay_bg = "rgba(6,9,15,0.93)"  if dark else "rgba(238,242,247,0.95)"
+    card_bg    = "#0c1219"            if dark else "#ffffff"
+    text_muted = "#637a94"            if dark else "#7a8fa0"
+
+    if total_act > 0:
+        icon    = "⚡"
+        color   = "#22c55e"
+        card_bdr = "#1b3a24" if dark else "#d1fae5"
+        titulo  = f"{total_act} señal{'es' if total_act != 1 else ''} activa{'s' if total_act != 1 else ''}"
+        msg     = f"Confianza ≥ {umbral}% · Revisa los resultados abajo"
+    else:
+        icon    = "🔍"
+        color   = "#94a3b8"
+        card_bdr = "#1b2a40" if dark else "#dde5ef"
+        titulo  = "Sin señales activas"
+        msg     = f"No se encontraron señales con confianza ≥ {umbral}%. Baja el umbral o prueba más tarde."
+
+    ph = st.empty()
+    ph.markdown(f"""
+<style>
+@keyframes oram-res-in {{
+    from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
+    to   {{ opacity:1; transform:translateY(0) scale(1); }}
+}}
+#oram-res-overlay {{
+    position:fixed; inset:0; background:{overlay_bg};
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    z-index:99999; display:flex; align-items:center; justify-content:center;
+}}
+#oram-res-card {{
+    background:{card_bg}; border:1px solid {card_bdr};
+    border-radius:20px; padding:2.8rem 3.2rem 2.6rem;
+    text-align:center; max-width:420px; width:92%;
+    animation:oram-res-in 0.42s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow:0 24px 60px rgba(0,0,0,0.38);
+}}
+</style>
+<div id="oram-res-overlay"><div id="oram-res-card">
+  <div style="font-size:3rem;margin-bottom:1rem">{icon}</div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;
+              letter-spacing:2px;color:#22c55e;font-weight:600;margin-bottom:0.4rem">
+    ORAM · Escaneo completado
+  </div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.25rem;
+              font-weight:700;color:{color};margin-bottom:0.6rem">
+    {titulo}
+  </div>
+  <div style="font-family:Inter,sans-serif;font-size:0.88rem;
+              color:{text_muted};line-height:1.6">{msg}</div>
+  <div style="margin-top:1.4rem;font-family:Inter,sans-serif;
+              font-size:0.78rem;color:{text_muted};opacity:0.7">
+    Cerrando automáticamente…
+  </div>
+</div></div>
+""", unsafe_allow_html=True)
+    time.sleep(2.0)
+    ph.empty()
 
 
 def render_signals_panel():
     user = st.session_state.user
     c    = get_colors()
+    dark = get_theme() == "dark"
 
     page_header("⚡", "Panel de Señales", "Escaneo multi-activo en tiempo real · SMC Score")
+    _inject_sp_css(dark, c)
 
     # ── Alerta noticias ────────────────────────────────────────────────────
     hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=60)
@@ -56,19 +312,18 @@ def render_signals_panel():
                  f"{ev_info['titulo']} · {ev_info['hora_mx']} CDMX")
 
     # ── Controles ──────────────────────────────────────────────────────────
-    col1, col2, col3, col4 = st.columns([2,1,1,1])
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
     with col1:
         cats = st.multiselect("Categorías", list(ACTIVOS_DEFAULT.keys()),
                                default=["Forex"], key="sp_cats")
     with col2:
-        tf = st.selectbox("Timeframe", ["5m","15m","30m","1h","4h"], index=1, key="sp_tf")
+        tf = st.selectbox("Timeframe", ["5m", "15m", "30m", "1h", "4h"], index=1, key="sp_tf")
     with col3:
         umbral = st.slider("Confianza mín. %", 0, 90, 50, key="sp_umb")
     with col4:
         st.markdown("&nbsp;")
         escanear = st.button("⚡ Escanear", width='stretch', key="sp_scan")
 
-    # Construir lista de activos
     activos = []
     for cat in (cats or list(ACTIVOS_DEFAULT.keys())):
         activos.extend(ACTIVOS_DEFAULT.get(cat, []))
@@ -79,9 +334,14 @@ def render_signals_panel():
 
     if escanear:
         resultados = []
-        prog = st.progress(0, text="Escaneando mercado...")
+        overlay_ph = st.empty()
+
         for i, ticker in enumerate(activos):
-            prog.progress((i+1)/len(activos), text=f"Analizando {ticker}...")
+            # Actualizar overlay con progreso real
+            overlay_ph.markdown(
+                _scan_overlay(ticker, i + 1, len(activos), dark),
+                unsafe_allow_html=True
+            )
             try:
                 df, _ = obtener_datos(ticker, tf)
                 if df is None:
@@ -89,41 +349,39 @@ def render_signals_panel():
                 smc  = analisis_completo(df, ticker)
                 if "error" in smc:
                     continue
-                conf = smc.get("confluencia",{}).get("confianza",0)
-                dir_ = smc.get("estructura",{}).get("direccion","neutral")
-                tipo = smc.get("estructura",{}).get("tipo","?")
-                rsi  = smc.get("rsi",0)
-                atr  = smc.get("atr",0)
-                precio = smc.get("precio",0)
-                sl   = smc.get("sl_sugerido",0)
-                tp_  = smc.get("tp_sugerido",0)
-                rr   = abs(tp_-precio)/abs(precio-sl) if sl and abs(precio-sl)>0 else 0
+                conf   = smc.get("confluencia", {}).get("confianza", 0)
+                dir_   = smc.get("estructura", {}).get("direccion", "neutral")
+                tipo   = smc.get("estructura", {}).get("tipo", "?")
+                rsi    = smc.get("rsi", 0)
+                atr    = smc.get("atr", 0)
+                precio = smc.get("precio", 0)
+                sl     = smc.get("sl_sugerido", 0)
+                tp_    = smc.get("tp_sugerido", 0)
+                rr     = abs(tp_ - precio) / abs(precio - sl) if sl and abs(precio - sl) > 0 else 0
                 resultados.append({
-                    "ticker":ticker, "precio":precio, "dir":dir_,
-                    "tipo":tipo, "conf":conf, "rsi":rsi, "atr":atr,
-                    "sl":sl, "tp":tp_, "rr":rr,
+                    "ticker": ticker, "precio": precio, "dir": dir_,
+                    "tipo": tipo, "conf": conf, "rsi": rsi, "atr": atr,
+                    "sl": sl, "tp": tp_, "rr": rr,
                     "hora": datetime.now(TZ_MX).strftime("%H:%M"),
                 })
             except Exception:
                 continue
-        prog.empty()
+
+        overlay_ph.empty()
         st.session_state["sp_results"] = resultados
         st.session_state["sp_time"]    = datetime.now(TZ_MX).strftime("%H:%M:%S")
-        # Toast de resumen al completar el escaneo
+
         total_act = len([r for r in resultados if r["conf"] >= umbral and r["dir"] != "neutral"])
-        if total_act > 0:
-            oram_notify("success", f"⚡ Escaneo completado — **{total_act}** señal{'es' if total_act != 1 else ''} activa{'s' if total_act != 1 else ''} (≥{umbral}%)", toast=True)
-        else:
-            oram_notify("warning", f"⚡ Escaneo completado — Sin señales con confianza ≥{umbral}%", toast=True)
+        _resultado_overlay(total_act, umbral, dark)
 
     resultados = st.session_state.get("sp_results", [])
     scan_time  = st.session_state.get("sp_time", "")
 
     # ── Resumen rápido ─────────────────────────────────────────────────────
     total    = len(resultados)
-    longs    = [r for r in resultados if r["dir"]=="LONG"  and r["conf"]>=umbral]
-    shorts   = [r for r in resultados if r["dir"]=="SHORT" and r["conf"]>=umbral]
-    neutrals = [r for r in resultados if r["dir"]=="neutral"]
+    longs    = [r for r in resultados if r["dir"] == "LONG"    and r["conf"] >= umbral]
+    shorts   = [r for r in resultados if r["dir"] == "SHORT"   and r["conf"] >= umbral]
+    neutrals = [r for r in resultados if r["dir"] == "neutral"]
 
     st.markdown(f"""
     <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
@@ -149,7 +407,7 @@ def render_signals_panel():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Señales destacadas (alta confianza) ────────────────────────────────
+    # ── Señales destacadas ─────────────────────────────────────────────────
     destacadas = [r for r in resultados if r["conf"] >= umbral and r["dir"] != "neutral"]
     destacadas.sort(key=lambda x: -x["conf"])
 
@@ -159,7 +417,7 @@ def render_signals_panel():
         st.markdown(f"### ⚡ {len(destacadas)} señales activas (≥{umbral}%)")
         for r in destacadas:
             emoji, label, color = _semaforo(r["conf"], r["dir"])
-            border = c["green"] if r["dir"]=="LONG" else c["red"]
+            border = c["green"] if r["dir"] == "LONG" else c["red"]
             st.markdown(f"""
             <div class="oram-card" style="border-left:4px solid {border};padding:0.9rem 1.2rem;margin-bottom:0.5rem">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -222,7 +480,7 @@ def render_signals_panel():
                 if val == "SHORT": return "color:#ef4444;font-weight:600"
                 return "color:#6b7f99"
             def color_conf(val):
-                if isinstance(val, (int,float)):
+                if isinstance(val, (int, float)):
                     if val >= 70: return "color:#22c55e;font-weight:700"
                     if val >= 50: return "color:#c9a227"
                 return ""
