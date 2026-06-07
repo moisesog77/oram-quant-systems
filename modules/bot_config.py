@@ -215,20 +215,14 @@ def _inject_bot_css(dark: bool, c: dict):
 .smc-card-red    {{ border-left: 3px solid {c['red']} !important; }}
 .oram-card       {{ border-left: 3px solid {c['border']} !important; }}
 
-/* ══ FORM CONTAINERS — franja de color izquierda (sobrepone al borde del stForm) */
+/* ══ FORM CONTAINERS — franja de color izquierda */
 [data-testid="stForm"]:has(#bot-cfg-form-marker) {{
     border-left: 4px solid {c['accent3']} !important;
-    border-top: 1px solid {c['border']} !important;
-    border-right: 1px solid {c['border']} !important;
-    border-bottom: 1px solid {c['border']} !important;
-    border-radius: 0 16px 16px 0 !important;
+    border-radius: 16px !important;
 }}
 [data-testid="stForm"]:has(#bot-alerta-form-marker) {{
     border-left: 4px solid {c['green']} !important;
-    border-top: 1px solid {c['border']} !important;
-    border-right: 1px solid {c['border']} !important;
-    border-bottom: 1px solid {c['border']} !important;
-    border-radius: 0 16px 16px 0 !important;
+    border-radius: 16px !important;
 }}
 </style>
 """, unsafe_allow_html=True)
