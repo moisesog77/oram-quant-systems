@@ -246,12 +246,9 @@ def render_bot_config():
         """, unsafe_allow_html=True)
 
         with st.form("bot_cfg_form"):
-            st.markdown(f"""
-            <div style="border-left:3px solid {c['accent3']};padding-left:1rem;margin-bottom:1rem">
-                <div style="font-family:'Space Grotesk',sans-serif;font-size:0.65rem;
-                            letter-spacing:2px;color:{c['text_muted']};font-weight:600;margin-bottom:0.4rem">
-                    CONEXIÓN BOT
-                </div>
+            st.markdown("""
+            <div class="smc-card smc-card-blue" style="margin-bottom:1rem;padding:0.8rem 1rem">
+                <div class="card-title">🔗 Conexión Bot</div>
             </div>
             """, unsafe_allow_html=True)
             chat_id = st.text_input("Telegram Chat ID", value=cfg.get("telegram_chat_id",""),
@@ -338,31 +335,9 @@ def render_bot_config():
     # ── ALERTAS DE PRECIO ──────────────────────────────────────────────────
     with tab_alertas:
         # CSS para envolver el form con borde izquierdo verde
-        st.markdown(f"""
-<style>
-[data-testid="stForm"]#alerta_form_container,
-div:has(> [data-testid="stForm"]) {{
-    border-left: 3px solid {c['green']} !important;
-    padding-left: 1rem !important;
-}}
-/* Franja específica para el form de alerta */
-.alerta-form-wrapper {{
-    border-left: 3px solid {c['green']};
-    padding-left: 0;
-    border-radius: 0 12px 12px 0;
-    margin-bottom: 1rem;
-}}
-</style>
-<div style="border-left:3px solid {c['green']};padding-left:1rem;
-            margin-bottom:0.5rem;padding-top:0.25rem;padding-bottom:0.25rem">
-    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;
-                letter-spacing:2px;color:{c['text_muted']};font-weight:600">
-        NUEVA ALERTA
-    </div>
-    <div style="font-family:'Space Grotesk',sans-serif;font-size:1.05rem;
-                font-weight:700;color:{c['text_strong']}">
-        Crear alerta de precio
-    </div>
+        st.markdown("""
+<div class="smc-card smc-card-green" style="margin-bottom:1rem;padding:0.8rem 1rem">
+    <div class="card-title">🔔 Nueva Alerta de Precio</div>
 </div>
         """, unsafe_allow_html=True)
         with st.form("alerta_form", clear_on_submit=True):
@@ -439,12 +414,9 @@ div:has(> [data-testid="stForm"]) {{
             activas   = [a for a in alertas if not a['disparada']]
             disparadas = [a for a in alertas if a['disparada']]
             st.markdown(f"""
-<div style="border-left:3px solid {c['border']};padding-left:1rem;margin-bottom:0.75rem">
-    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;
-                letter-spacing:2px;color:{c['text_muted']};font-weight:600">
-        MIS ALERTAS
-    </div>
-    <div style="font-family:Inter,sans-serif;font-size:0.85rem;color:{c['text']}">
+<div class="smc-card" style="padding:0.8rem 1rem;margin-bottom:0.75rem">
+    <div class="card-title">📋 Mis Alertas</div>
+    <div class="card-sub">
         <b style="color:{c['green']}">{len(activas)}</b> activas &nbsp;·&nbsp;
         <b style="color:{c['text_muted']}">{len(disparadas)}</b> disparadas
     </div>
