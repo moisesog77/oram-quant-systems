@@ -295,15 +295,9 @@ def render_backtesting():
             overlay_ph.empty()
 
             if "error" in res:
-                oram_notify("error", f"❌ {res['error']}", toast=True, banner=True)
-                oram_notify("info", "💡 Prueba: umbral más bajo (40-50%), timeframe con más datos (1h/4h/1d), o diferente activo.", toast=False, banner=True)
+                oram_notify("error", f"❌ {res['error']}", toast=True, banner=False)
+                oram_notify("info", "💡 Prueba: umbral más bajo (40-50%), timeframe con más datos (1h/4h/1d), o diferente activo.", toast=True, banner=False)
             else:
-                oram_notify(
-                    "success",
-                    f"✅ Backtest completado: **{res['total_trades']}** operaciones "
-                    f"de {res.get('señales_analizadas', 0)} señales analizadas",
-                    toast=True, banner=False
-                )
 
                 # ── KPIs ──────────────────────────────────────────────────
                 k1, k2, k3, k4, k5, k6 = st.columns(6)

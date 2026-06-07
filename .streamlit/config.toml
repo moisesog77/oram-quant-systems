@@ -9,7 +9,7 @@ serverAddress = "0.0.0.0"
 
 [theme]
 base = "light"
-primaryColor = "#c9a227"
+primaryColor = "#22c55e"
 backgroundColor = "#eef2f7"
 secondaryBackgroundColor = "#ffffff"
 textColor = "#1a2b3c"
