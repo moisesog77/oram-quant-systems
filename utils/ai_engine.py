@@ -1,22 +1,6 @@
 """
-utils/ai_engine.py — ORAM Quant Systems — Motor de IA y Métricas
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Análisis estadístico y ML del historial de trades.
-
-Funciones públicas:
-  · analizar_performance_ia(df_trades) → dict con métricas + insights ML
-      Usa RandomForestClassifier + StratifiedKFold CV (5 folds).
-      Features: dirección, RR planeado, riesgo USD, día de semana, hora.
-      Requiere mínimo 20 trades para activar el modelo.
-      Advertencia automática si CV accuracy < 55% (datos insuficientes)
-      o > 85% (posible sobreajuste).
-
-  · calcular_drawdown(pnl_series) → dict {max_drawdown, current_drawdown, equity_curve}
-      Calcula mediante running maximum (peak) de la curva acumulada.
-
-  · calcular_sharpe(pnl_series) → float
-      Sharpe ratio simplificado sin tasa libre de riesgo.
-      Factor de anualización √252 (días de trading).
+utils/ai_engine.py — Motor de IA para análisis de performance y sesgo.
+Usa RandomForest + validación cruzada, con advertencias de sobreajuste.
 """
 import pandas as pd
 import numpy as np

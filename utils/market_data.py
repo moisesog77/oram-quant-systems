@@ -1,16 +1,7 @@
 """
-utils/market_data.py — ORAM Quant Systems — Capa de Datos de Mercado
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Responsabilidades:
-  · Descargar datos OHLCV via yfinance con reintento automático
-  · Normalizar columnas (MultiIndex → nombres estándar)
-  · Validar integridad (NaN, High<Low, antigüedad de datos)
-  · Calcular indicadores técnicos: EMA9/20/50/200, ATR, RSI, MACD, BB
-  · Generar datos demo sintéticos cuando yfinance no está disponible
-
-Sin dependencias de pytz — usa stdlib zoneinfo (Python 3.9+).
-Función pública:
-  obtener_datos(ticker, timeframe) → (DataFrame | None, str_status)
+utils/market_data.py — Descarga y validación de datos de mercado.
+Usa yfinance con verificación de integridad de datos.
+Sin pytz — usa zoneinfo (stdlib Python 3.9+).
 """
 import pandas as pd
 import numpy as np

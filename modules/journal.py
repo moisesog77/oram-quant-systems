@@ -1,20 +1,5 @@
 """
 modules/journal.py — ORAM Quant Systems — Diario de Trades
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Registro completo de operaciones con análisis psicológico y SMC.
-
-Tabs:
-  · ➕ Nuevo Trade   → formulario multi-fila (fecha, activo, dirección,
-                        niveles de precio, riesgo, emoción, setup, tags)
-  · 📋 Historial     → tabla filtrable + eliminación individual
-
-Validaciones:
-  · Entrada, SL y TP obligatorios (> 0)
-  · Overlay premium de error en lugar de st.error inline
-  · Preview automático del RR y pips al ingresar niveles
-
-Datos persistidos: tabla `trades` en PostgreSQL/SQLite
-  RR planeado calculado automáticamente en insertar_trade()
 """
 import streamlit as st
 import pandas as pd
@@ -22,9 +7,55 @@ from datetime import date
 from database.db import insertar_trade, obtener_trades, eliminar_trade
 from utils.market_data import ACTIVOS_DEFAULT
 from utils.smc_engine import calcular_riesgo
-from ui.styles import get_colors, page_header, oram_bienvenida, get_theme, inject_module_css, oram_overlay_error
+from ui.styles import get_colors, page_header, oram_bienvenida, get_theme, inject_module_css
 
 
+
+def _overlay_error(mensaje: str, dark: bool = True) -> None:
+    """Overlay premium de error."""
+    import time
+    dark = get_theme() == "dark"
+    overlay_bg = "rgba(6,9,15,0.92)"  if dark else "rgba(238,242,247,0.94)"
+    card_bg    = "#0c1219"            if dark else "#ffffff"
+    card_bdr   = "#3d1a1a"            if dark else "#f8d0d0"
+    text_muted = "#637a94"            if dark else "#7a8fa0"
+
+    ph = st.empty()
+    ph.markdown(f"""
+<style>
+@keyframes oram-err-in {{
+    from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
+    to   {{ opacity:1; transform:translateY(0) scale(1); }}
+}}
+#oram-err-overlay {{
+    position:fixed; inset:0; background:{overlay_bg};
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    z-index:99999; display:flex; align-items:center; justify-content:center;
+}}
+#oram-err-card {{
+    background:{card_bg}; border:1px solid {card_bdr};
+    border-radius:20px; padding:2.8rem 3rem 2.4rem;
+    text-align:center; max-width:400px; width:90%;
+    animation:oram-err-in 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow:0 24px 60px rgba(0,0,0,0.35);
+}}
+</style>
+<div id="oram-err-overlay"><div id="oram-err-card">
+  <div style="font-size:3rem;margin-bottom:1rem">❌</div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.25rem;
+              font-weight:700;color:#f87171;margin-bottom:0.6rem">
+    Campo obligatorio
+  </div>
+  <div style="font-family:Inter,sans-serif;font-size:0.92rem;
+              color:{text_muted};line-height:1.6">{mensaje}</div>
+  <div style="margin-top:1.4rem;font-family:Inter,sans-serif;
+              font-size:0.8rem;color:{text_muted};opacity:0.7">
+    Cerrando automáticamente…</div>
+</div></div>
+""", unsafe_allow_html=True)
+    time.sleep(2.2)
+    ph.empty()
+    st.rerun()
 
 
 SETUPS_SMC = [
@@ -98,7 +129,7 @@ def render_journal():
 
             if st.form_submit_button("💾 Guardar Trade", use_container_width=True):
                 if entrada == 0 or sl == 0 or tp == 0:
-                    oram_overlay_error("Entrada, Stop Loss y Take Profit son campos obligatorios.")
+                    _overlay_error("Entrada, Stop Loss y Take Profit son campos obligatorios.", dark=dark)
                 else:
                     insertar_trade(user["id"], {
                         "fecha": str(fecha), "activo": activo, "timeframe": tf,

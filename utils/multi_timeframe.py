@@ -1,15 +1,6 @@
 """
-utils/multi_timeframe.py — ORAM Quant Systems — Análisis Multi-Timeframe
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Ejecuta analisis_completo en múltiples timeframes simultáneamente.
-
-Función pública:
-  analisis_mtf(ticker, timeframes) → dict[timeframe → smc_result]
-  Descarga datos para cada TF en paralelo y ejecuta el engine SMC.
-  Útil para confirmar confluencia top-down (4h → 1h → 15m).
-
-Constante exportada:
-  MTF_COMBOS: dict de combinaciones predefinidas de timeframes.
+utils/multi_timeframe.py — Análisis Multi-Timeframe (MTF).
+Confluencia entre timeframe alto (estructura) y bajo (entrada).
 """
 from utils.market_data import obtener_datos
 from utils.smc_engine  import analisis_completo

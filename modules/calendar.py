@@ -1,18 +1,8 @@
 """
-modules/calendar.py — ORAM Quant Systems — Calendario Económico
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Eventos económicos semanales con horarios en CDMX y UTC.
-
-Secciones:
-  · Alerta urgente: evento de alto impacto en los próximos 90 minutos
-  · Próximos 4 eventos (tarjetas compactas coloreadas por impacto)
-  · Eventos pendientes (hoy + resto de semana) con filtros de moneda/impacto
-  · Eventos pasados (colapsados en expander) — días anteriores de la semana
-  · Eventos de baja frecuencia: FOMC, NFP, CPI (referencia estática)
-  · Link a Forex Factory para datos en tiempo real
-
-Colores de impacto: rojo (High), naranja (Medium), azul (Low).
-Los eventos están mapeados por utils/economic_calendar.py.
+modules/calendar.py — Calendario Económico semanal v3.
+- Por defecto muestra solo HOY y días futuros de la semana
+- Los días pasados se muestran en sección colapsada
+- Noticias en español
 """
 import streamlit as st
 from utils.economic_calendar import (

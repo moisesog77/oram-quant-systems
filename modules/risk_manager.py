@@ -1,18 +1,5 @@
 """
-modules/risk_manager.py — ORAM Quant Systems — Gestor de Riesgo
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Calculadora de posición y simulación de riesgo institucional.
-
-Tabs:
-  · 📐 Calculadora  → tamaño de posición basado en % de capital,
-                       pips, pip value según tipo de par (Forex/JPY/Cripto)
-  · 📊 Kelly        → Kelly Criterion: full, half y quarter
-  · 💀 Ruina        → Monte Carlo: N simulaciones × M trades,
-                       calcula probabilidad de ruina y percentiles P10/P90
-
-El overlay _resultado_overlay muestra el resultado de la simulación
-con código de color: verde (<10% ruina) / amarillo / rojo (>20%).
-Sin dependencias de DB — módulo completamente stateless.
+modules/risk_manager.py — ORAM Quant Systems — Gestor de Riesgo Institucional
 """
 import streamlit as st
 import numpy as np

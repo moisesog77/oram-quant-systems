@@ -1,17 +1,16 @@
 """
 modules/bot_config.py — ORAM Quant Systems — Configuración Bot Telegram
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Configuración del bot Telegram por usuario.
+Permite configurar el bot de Telegram por usuario:
+  · Chat ID (se obtiene con /start en ToroMaster)
+  · Umbral de confianza para alertas automáticas
+  · Timeframe de monitoreo y activos a vigilar
+  · Activar/desactivar alertas y resumen diario (8AM CDMX)
 
 Tabs:
-  · 🔧 Configuración → Chat ID, umbral, timeframe, activos monitoreados,
-                        resumen diario (hora CDMX), activar/desactivar
-  · 🔔 Alertas       → crear alertas de precio (above/below) por nivel;
-                        listar alertas activas con opción de eliminar
-  · 📋 Historial     → últimas señales SMC enviadas por el bot (72h)
-
-Integración: bot/telegram_bot.py lee bot_config + signal_log de la
-misma DB (PostgreSQL en Railway/Streamlit Cloud, SQLite en local).
+  🔧 Configuración → formulario guardado en bot_config DB
+  🔔 Alertas       → crear alertas de precio (above/below) por nivel
+  📋 Historial     → señales enviadas por el bot en últimas 72h
 """
 import streamlit as st
 import json

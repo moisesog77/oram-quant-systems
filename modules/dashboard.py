@@ -13,9 +13,9 @@ Flujo de datos:
   DB.obtener_trades() → DataFrame → calcular_drawdown/sharpe → Plotly
 
 Nota CSS:
-  inject_module_css(dark) inyecta el sistema de inputs premium.
-  El CSS adicional del expander usa selector de posición estructural para
-  colorear el stBaseButton-secondary sin colisiones con otros botones.
+  inject_module_css(dark) inyecta el sistema de inputs premium unificado.
+  El CSS del expander usa selector estructural para colorear el botón
+  stBaseButton-secondary sin colisiones con otros botones.
 """
 import streamlit as st
 import pandas as pd
@@ -35,57 +35,122 @@ def render_dashboard():
     inject_module_css(dark)
     page_header("📈", "Dashboard", f"Bienvenido, {user['username'].upper()}")
 
-    # ── CSS específico del expander "Configuración de cuenta" ──────────────
-    # NOTA TÉCNICA: st.button() dentro de un st.expander genera
-    # data-testid="stBaseButton-secondary" (no "primary").
-    # El selector de posición estructural garantiza que solo afecte
-    # al botón "Actualizar capital" dentro de ese expander único.
-    # El bloque de "fantasma" aquí refuerza la supresión dentro del
-    # contexto específico del expander (los selectores globales de
-    # inject_module_css ya cubren el caso general).
+    # ── CSS: botón verde dentro del expander ─────────────────────────────
+    # NOTA TÉCNICA: st.button() NO genera data-testid="stButton-KEY".
+    # Streamlit solo genera data-testid="stBaseButton-secondary" para todos
+    # los st.button. La única forma segura es buscar el botón por texto
+    # via JavaScript e inyectarle una clase, o usar el selector de posición
+    # dentro del expander. Usamos la estrategia de posición estructural:
+    # el único stBaseButton dentro del expander es "Actualizar capital".
     st.markdown(f"""
 <style>
-/* ═══ BOTÓN "Actualizar capital" — stExpander context ═════════════════════
-   stButton genera stBaseButton-secondary; el scope del expander evita
-   colisiones con otros botones secundarios de la página.
-   ════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   BOTÓN "Actualizar capital"
+   Selector: único stBaseButton-secondary dentro del stExpander.
+   No hay otros botones en ese expander → selector sin colisiones.
+   ═══════════════════════════════════════════════════════════════ */
 [data-testid="stExpander"] [data-testid="stBaseButton-secondary"] {{
     background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
-    border: none !important; border-radius: 10px !important;
-    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
-    font-family: 'Inter', sans-serif !important; font-size: 0.95rem !important;
-    font-weight: 600 !important; padding: 0.72rem 1.5rem !important;
-    width: 100% !important; box-shadow: 0 4px 16px rgba(22,163,74,0.38) !important;
-    transition: all .18s ease !important; cursor: pointer !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.3px !important;
+    padding: 0.72rem 1.5rem !important;
+    width: 100% !important;
+    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.38) !important;
+    transition: all .18s ease !important;
+    cursor: pointer !important;
     margin-top: 0.6rem !important;
 }}
-[data-testid="stExpander"] [data-testid="stBaseButton-secondary"] * {{
-    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
+[data-testid="stExpander"] [data-testid="stBaseButton-secondary"] *,
+[data-testid="stExpander"] [data-testid="stBaseButton-secondary"] p {{
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
 }}
 [data-testid="stExpander"] [data-testid="stBaseButton-secondary"]:hover {{
     background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
-    box-shadow: 0 6px 24px rgba(34,197,94,0.48) !important;
+    box-shadow: 0 6px 24px rgba(34, 197, 94, 0.48) !important;
     transform: translateY(-1px) !important;
 }}
 [data-testid="stExpander"] [data-testid="stBaseButton-secondary"]:active {{
     transform: scale(0.98) !important;
-    box-shadow: 0 2px 8px rgba(22,163,74,0.3) !important;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3) !important;
 }}
-/* ═══ REFUERZO "fantasma" en stExpander — complementa inject_module_css ══ */
+
+/* Number input styled globally by _inject_dashboard_css */
+
+/* ═══════════════════════════════════════════════════════════════
+   RECUADRO FANTASMA — Dashboard / stExpander
+   
+   Al editar manualmente el number_input, Streamlit inyecta un
+   elemento extra (input hermano o div) debajo del campo.
+   
+   Estructura DOM real dentro del expander:
+     [data-testid="stNumberInput"]
+       div (1°) — label wrapper
+       div (2°) — campo real + botones ±  ← MANTENER
+       input / div (3°+) — EL FANTASMA    ← OCULTAR
+
+   Estrategia de cobertura total:
+     1. > *:nth-child(n+3)   → cualquier 3° hijo en adelante
+     2. > input              → si el fantasma es un <input> directo
+     3. > div:last-child:not(:nth-child(2)) → si es un <div> final
+     4. InputInstructions    → hint "Press Enter to apply"
+     5. margin/gap a 0       → sin hueco vacío entre input y botón
+   ═══════════════════════════════════════════════════════════════ */
+
+/* — Elemento fantasma — */
+[data-testid="stExpander"] [data-testid="stNumberInput"] > input,
 [data-testid="stExpander"] [data-testid="stNumberInput"] > input:last-child,
 [data-testid="stExpander"] [data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
-[data-testid="stExpander"] [data-testid="stNumberInput"] > *:nth-child(n+3),
-[data-testid="stExpander"] [data-testid="InputInstructions"] {{
-    display: none !important; visibility: hidden !important;
-    height: 0 !important; margin: 0 !important; padding: 0 !important;
-    opacity: 0 !important; position: absolute !important;
-    pointer-events: none !important; overflow: hidden !important;
+[data-testid="stExpander"] [data-testid="stNumberInput"] > *:nth-child(n+3) {{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    opacity: 0 !important;
+    position: absolute !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+}}
+
+/* — InputInstructions: hint "Press Enter to apply" — */
+[data-testid="stExpander"] [data-testid="InputInstructions"],
+[data-testid="stExpander"] [data-testid="InputInstructions"] *,
+[data-testid="stExpander"] div[class*="instructions"],
+[data-testid="stExpander"] p[class*="instructions"],
+[data-testid="stExpander"] small[class*="instructions"] {{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}}
+
+/* — Sin hueco residual: eliminar gap entre input y botón — */
+[data-testid="stExpander"] [data-testid="stNumberInput"] {{
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}}
+[data-testid="stExpander"] [data-testid="stVerticalBlock"] {{
+    gap: 0.5rem !important;
 }}
 </style>
 """, unsafe_allow_html=True)
 
-
-        trades = obtener_trades(user["id"])
+    trades = obtener_trades(user["id"])
     df     = pd.DataFrame(trades) if trades else pd.DataFrame()
 
     # Capital actual

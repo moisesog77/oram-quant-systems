@@ -137,10 +137,7 @@ def _mostrar_bienvenida_premium(username: str, dark: bool) -> None:
 # ══════════════════════════════════════════════════════
 def render_auth():
     dark  = get_theme() == "dark"
-    # Inyecta CSS premium de inputs (SelectBox, NumberInput, TextInput)
-    # El CSS propio de auth cubre: fondo de página, tabs, form card,
-    # botón submit, overlay de bienvenida — no se superpone con inject_module_css.
-    inject_module_css(dark)
+    inject_module_css(dark)  # CSS premium de inputs (SelectBox, NumberInput, TextInput)
     m     = "#edf4ff" if dark else "#0b1824"
     muted = "#637a94" if dark else "#7a8fa0"
 

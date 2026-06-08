@@ -1,20 +1,6 @@
 """
-utils/backtesting.py — ORAM Quant Systems — Motor de Backtesting SMC
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Ejecuta backtesting de la estrategia SMC sobre datos históricos reales.
-
-Algoritmo (ventana deslizante):
-  1. Descarga datos vía obtener_datos() (yfinance)
-  2. Itera vela por vela con ventana de 80 velas para analisis_completo()
-  3. Filtra señales por umbral de confianza y dirección no neutral
-  4. Simula SL=1.5×ATR, TP=3×ATR sobre las próximas 25 velas
-  5. Acumula equity y métricas (win rate, profit factor, Sharpe, drawdown)
-
-Función pública:
-  ejecutar_backtest(ticker, timeframe, riesgo_pct, umbral_confianza, capital)
-  → dict con métricas, equity_curve, lista de trades y parámetros usados
-
-Nota: los resultados son orientativos (sin spread ni slippage).
+utils/backtesting.py — Motor de backtesting SMC v2.
+Ventana ampliada, umbral reducido por defecto, diagnóstico mejorado.
 """
 import pandas as pd
 import numpy as np

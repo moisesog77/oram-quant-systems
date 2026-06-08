@@ -1,19 +1,5 @@
 """
 modules/admin.py — ORAM Quant Systems — Panel de Superadministración
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Acceso exclusivo para is_admin=1. La ruta en app.py solo la añade
-al nav si el usuario autenticado tiene el flag admin.
-
-Tabs:
-  · 📊 Resumen     → KPIs globales: usuarios, trades, señales, bots
-  · 👥 Usuarios    → tabla de todos los usuarios + CRUD (crear, reset
-                      password, actualizar capital, desactivar)
-  · 📋 Trades      → últimos 100 trades de toda la plataforma
-  · ⚡ Señales     → últimas 100 señales SMC del log global
-  · 🤖 Bots        → configuración de bot de todos los usuarios
-
-Protección: admin_eliminar_usuario verifica is_admin=1 antes de borrar
-(nunca se puede eliminar a un admin desde la UI).
 """
 import streamlit as st
 import pandas as pd
@@ -26,8 +12,33 @@ from database.db import (
     admin_logs_senales, admin_trades_todos, admin_configs_bot_todas,
     actualizar_bot_config,
 )
-from ui.styles import get_colors, page_header, oram_bienvenida, get_theme, inject_module_css, oram_overlay_error
+from ui.styles import get_colors, page_header, oram_bienvenida, get_theme, inject_module_css
 
+
+
+def _overlay_error(msg: str, titulo: str = "Campo obligatorio", dark: bool = True):
+    overlay_bg = "rgba(6,9,15,0.92)" if dark else "rgba(238,242,247,0.94)"
+    card_bg    = "#0c1219"           if dark else "#ffffff"
+    text_muted = "#637a94"           if dark else "#7a8fa0"
+    ph = st.empty()
+    ph.markdown(f"""
+<style>
+@keyframes oad-err {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
+#oad-overlay{{position:fixed;inset:0;background:{overlay_bg};backdrop-filter:blur(6px);
+z-index:99999;display:flex;align-items:center;justify-content:center}}
+#oad-card{{background:{card_bg};border:1px solid #3d1a1a;border-radius:20px;
+padding:2.6rem 3rem 2.2rem;text-align:center;max-width:400px;width:90%;
+animation:oad-err 0.4s cubic-bezier(0.22,1,0.36,1) both;
+box-shadow:0 24px 60px rgba(0,0,0,0.35)}}
+</style>
+<div id="oad-overlay"><div id="oad-card">
+<div style="font-size:2.8rem;margin-bottom:0.8rem">❌</div>
+<div style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;font-weight:700;color:#f87171;margin-bottom:0.5rem">{titulo}</div>
+<div style="font-family:Inter,sans-serif;font-size:0.9rem;color:{text_muted};line-height:1.6">{msg}</div>
+<div style="margin-top:1.2rem;font-family:Inter,sans-serif;font-size:0.75rem;color:{text_muted};opacity:0.7">Cerrando automáticamente…</div>
+</div></div>""", unsafe_allow_html=True)
+    time.sleep(2.2)
+    ph.empty()
 
 
 
@@ -117,11 +128,11 @@ def render_admin():
 
                 if st.form_submit_button("✅ Crear usuario", use_container_width=True):
                     if not nu_user or not nu_pw1:
-                        oram_overlay_error("Usuario y contraseña son campos obligatorios.")
+                        _overlay_error("Usuario y contraseña son campos obligatorios.", dark=dark)
                     elif nu_pw1 != nu_pw2:
-                        oram_overlay_error("Las contraseñas no coinciden. Verifícalas e intenta de nuevo.", titulo="Contraseñas diferentes")
+                        _overlay_error("Las contraseñas no coinciden. Verifícalas e intenta de nuevo.", "Contraseñas diferentes", dark=dark)
                     elif len(nu_pw1) < 6:
-                        oram_overlay_error("La contraseña debe tener mínimo 6 caracteres.")
+                        _overlay_error("La contraseña debe tener mínimo 6 caracteres.", dark=dark)
                     else:
                         ok = admin_crear_usuario(nu_user, nu_pw1, nu_cap)
                         if ok:
@@ -132,7 +143,7 @@ def render_admin():
                                 delay=1.5,
                             )
                         else:
-                            oram_overlay_error(f"El usuario <b>{nu_user}</b> ya existe en el sistema.")
+                            _overlay_error(f"El usuario <b>{nu_user}</b> ya existe en el sistema.", dark=dark)
 
         st.divider()
         st.markdown("#### Lista de usuarios registrados")
@@ -197,7 +208,7 @@ def render_admin():
                                     spinner_label="Aplicando cambios…", delay=1.5,
                                 )
                             else:
-                                oram_overlay_error("La contraseña debe tener mínimo 6 caracteres.")
+                                _overlay_error("La contraseña debe tener mínimo 6 caracteres.", dark=dark)
 
                     with col_c:
                         st.markdown('<div style="margin-top:1.65rem"></div>', unsafe_allow_html=True)
@@ -335,7 +346,7 @@ animation:oad-spin 0.8s linear infinite;vertical-align:middle;margin-right:0.5re
                                 success_ph.empty()
                                 st.rerun()
                             else:
-                                oram_overlay_error(f"No se pudo eliminar a <b>{uname}</b>. Puede tener permisos de administrador.")
+                                _overlay_error(f"No se pudo eliminar a <b>{uname}</b>. Puede tener permisos de administrador.", dark=dark)
                     with col_no:
                         if st.button("❌ Cancelar", key=f"del_no_{uid}", use_container_width=True, type="secondary"):
                             overlay_ph.empty()

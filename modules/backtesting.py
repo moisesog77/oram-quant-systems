@@ -1,20 +1,5 @@
 """
 modules/backtesting.py — ORAM Quant Systems — Backtesting SMC
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Interfaz de backtesting sobre datos históricos reales (yfinance).
-
-Tabs:
-  · ▶️ Nuevo Backtest  → configura activo, TF, umbral y capital; ejecuta
-                          con overlay premium durante el proceso
-  · 📋 Historial       → tabla de backtests guardados del usuario
-
-Motor: utils/backtesting.ejecutar_backtest()
-  Ventana deslizante de 80 velas SMC · SL=1.5×ATR · TP=3×ATR
-  Resultado: KPIs + curva de equity + breakdown por tipo de señal
-
-Nota de diseño:
-  El overlay _bt_overlay usa st.empty() para mostrar feedback
-  sin bloquear la ejecución; se limpia con ph.empty() al terminar.
 """
 import streamlit as st
 import pandas as pd
