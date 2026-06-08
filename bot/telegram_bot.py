@@ -25,7 +25,7 @@ try:
 except ImportError:
     TELEGRAM_OK = False
 
-from utils.market_data       import obtener_datos, ACTIVOS_DEFAULT
+from utils.market_data       import obtener_datos
 from utils.smc_engine        import analisis_completo, calcular_riesgo
 from utils.multi_timeframe   import analisis_mtf, MTF_COMBOS
 from utils.backtesting       import ejecutar_backtest
@@ -36,8 +36,8 @@ from database.db import (
     obtener_todas_configs_bot, obtener_todas_alertas_activas,
     disparar_alerta, registrar_señal, marcar_señal_enviada,
     obtener_señales_recientes, inicializar_db,
-    obtener_todos_usuarios, obtener_trades, insertar_trade,
-    obtener_watchlist_usuario,
+    obtener_todos_usuarios, obtener_trades,
+    obtener_watchlist,
 )
 
 import pandas as pd
@@ -724,7 +724,7 @@ async def cmd_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     tf = cfg.get("tf_monitor", "1h") if cfg else "1h"
     try:
-        wl = obtener_watchlist_usuario(user["id"])
+        wl = obtener_watchlist(user["id"])
     except Exception:
         wl = []
 
