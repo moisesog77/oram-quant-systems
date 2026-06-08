@@ -2246,8 +2246,6 @@ def inject_module_css(
 
     # ── MultiSelect ────────────────────────────────────────────────────────
     if multiselect:
-        tag_bg   = "#0f2a1a" if dark else "#dcfce7"
-        tag_text = "#22c55e" if dark else "#15803d"
         css += f"""
 /* ══ MULTISELECT — selección múltiple con tags ORAM ════════════════════ */
 .stMultiSelect > div > div {{

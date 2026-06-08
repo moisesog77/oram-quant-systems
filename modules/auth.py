@@ -521,17 +521,32 @@ p[class*="instructions"] {{
         theme_icon = "☀️ Claro" if dark else "🌙 Oscuro"
         st.markdown(f"""
 <style>
-[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child .stButton > button {{
+/* Botón de tema en auth — múltiples selectores para máxima compatibilidad */
+button[kind="secondary"][data-testid="stBaseButton-secondary"]:has(p:contains("Claro")),
+button[kind="secondary"][data-testid="stBaseButton-secondary"]:has(p:contains("Oscuro")),
+[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child .stButton > button,
+[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"],
+.stButton:has(button[kind="secondary"]) button {{
     background: {tbtn_bg} !important;
-    backdrop-filter: blur(10px) !important; -webkit-backdrop-filter: blur(10px) !important;
-    color: {tbtn_txt} !important; -webkit-text-fill-color: {tbtn_txt} !important;
-    border: 1px solid {tbtn_bdr} !important; border-radius: 999px !important;
+    backdrop-filter: blur(10px) !important;
+    color: {tbtn_txt} !important;
+    -webkit-text-fill-color: {tbtn_txt} !important;
+    border: 1.5px solid {tbtn_bdr} !important;
+    border-radius: 999px !important;
     font-family: 'Inter',sans-serif !important;
-    font-size: 0.82rem !important; font-weight: 500 !important;
-    padding: 0.4rem 1.1rem !important;
-    box-shadow: 0 2px 14px rgba(0,0,0,0.18) !important;
-    width: auto !important; white-space: nowrap !important;
-    float: right !important; transition: all .18s ease !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    padding: 0.4rem 1.2rem !important;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.22) !important;
+    width: auto !important;
+    white-space: nowrap !important;
+    float: right !important;
+    transition: all .18s ease !important;
+}}
+[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child .stButton > button p,
+[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"] p {{
+    color: {tbtn_txt} !important;
+    -webkit-text-fill-color: {tbtn_txt} !important;
 }}
 </style>
 """, unsafe_allow_html=True)
