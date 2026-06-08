@@ -1398,11 +1398,17 @@ textarea {{
     -webkit-text-fill-color: {c['text']} !important;
 }}
 
-/* ═══ RADIO BUTTONS — verde, sin dorado ══════════════════════ */
+/* ═══ RADIO BUTTONS — verde, sin dorado ══════════════════════
+   IMPORTANTE: Solo aplica radio con borde a widgets FUERA del sidebar.
+   El sidebar usa radio para la navegación — NO debe tener bordes/padding.
+   Usamos :not(section[data-testid="stSidebar"] *) para excluirlo.
+   ══════════════════════════════════════════════════════════════ */
 [data-testid="stRadio"] > div {{
     background: transparent !important;
 }}
-[data-testid="stRadio"] label {{
+/* Radio labels con borde — solo FUERA del sidebar */
+.main [data-testid="stRadio"] label,
+[data-testid="stMainBlockContainer"] [data-testid="stRadio"] label {{
     background: transparent !important;
     border: 1px solid {c['border']} !important;
     border-radius: 8px !important;
@@ -1410,14 +1416,28 @@ textarea {{
     color: {c['text']} !important;
     transition: all .15s ease;
 }}
-[data-testid="stRadio"] label:hover {{
+.main [data-testid="stRadio"] label:hover,
+[data-testid="stMainBlockContainer"] [data-testid="stRadio"] label:hover {{
     border-color: {c['green']} !important;
     background: {c['glow']} !important;
 }}
-[data-testid="stRadio"] [data-checked="true"] label,
-[data-testid="stRadio"] label[data-checked="true"] {{
+.main [data-testid="stRadio"] [data-checked="true"] label,
+.main [data-testid="stRadio"] label[data-checked="true"],
+[data-testid="stMainBlockContainer"] [data-testid="stRadio"] [data-checked="true"] label {{
     border-color: {c['green']} !important;
     color: {c['green']} !important;
+}}
+/* Sidebar nav radio — sin bordes, solo texto limpio */
+section[data-testid="stSidebar"] [data-testid="stRadio"] label {{
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    color: {c['text']} !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {{
+    background: {c['nav_hover']} !important;
+    border: none !important;
 }}
 /* Radio circle dot — verde adaptable */
 [data-testid="stRadio"] div[role="radio"],
@@ -1776,6 +1796,114 @@ html body [data-baseweb="layer"] [role="option"] {{
 </style>
 """, unsafe_allow_html=True)
 
+    # ── CSS global de alertas premium ORAM ───────────────────────────────────
+    # Reemplaza el estilo nativo de Streamlit para st.success/error/warning/info
+    # con el design system ORAM: bordes de color, fondo semi-transparente,
+    # tipografía Inter, sin iconos nativos (reemplazados por emoji del texto).
+    _dark = t == "dark"
+    _alert_bg   = "rgba(12,18,25,0.85)"   if _dark else "rgba(248,250,252,0.92)"
+    _alert_bdr  = c["border"]
+    _s_bdr  = c["green"]
+    _e_bdr  = c["red"]
+    _w_bdr  = c["accent"]
+    _i_bdr  = c["accent2"]
+    _s_bg   = "rgba(34,197,94,0.07)"      if _dark else "rgba(21,128,61,0.06)"
+    _e_bg   = "rgba(239,68,68,0.07)"      if _dark else "rgba(200,30,30,0.06)"
+    _w_bg   = "rgba(201,162,39,0.07)"     if _dark else "rgba(154,117,16,0.06)"
+    _i_bg   = "rgba(61,155,233,0.07)"     if _dark else "rgba(22,96,168,0.05)"
+    _alert_text = c["text"]
+    _ff = "Inter, sans-serif"
+    st.markdown(f"""
+<style>
+/* ══ ALERTAS PREMIUM ORAM — reemplaza estilo nativo de Streamlit ══════════
+   Aplica a: st.success, st.error, st.warning, st.info
+   Diseño: borde izquierdo de color, fondo semitransparente,
+           tipografía Inter, sin el icono nativo azul de Streamlit.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Base compartida para todos los tipos */
+[data-testid="stAlert"] {{
+    background: {_alert_bg} !important;
+    border: 1px solid {_alert_bdr} !important;
+    border-radius: 10px !important;
+    padding: 0.75rem 1rem !important;
+    font-family: {_ff} !important;
+    font-size: 0.88rem !important;
+    line-height: 1.55 !important;
+    backdrop-filter: blur(4px) !important;
+}}
+/* Ocultar el icono SVG nativo de Streamlit */
+[data-testid="stAlert"] > svg {{
+    display: none !important;
+}}
+/* Texto del mensaje */
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"] p {{
+    color: {_alert_text} !important;
+    font-family: {_ff} !important;
+    font-size: 0.88rem !important;
+    line-height: 1.55 !important;
+    margin: 0 !important;
+}}
+
+/* ── SUCCESS — borde verde ── */
+[data-testid="stAlert"][data-baseweb="notification"][kind="positive"],
+[data-testid="stNotification"][data-baseweb="notification"][kind="positive"],
+div[data-testid="stAlert"]:has(svg[data-testid="stIconMaterial"]:first-child) {{
+    border-left: 3px solid {_s_bdr} !important;
+    background: {_s_bg} !important;
+}}
+/* Selector alternativo por clase Streamlit */
+.stSuccess, [data-baseweb="notification"][kind="positive"] {{
+    border-left: 3px solid {_s_bdr} !important;
+    background: {_s_bg} !important;
+}}
+
+/* ── ERROR — borde rojo ── */
+.stError, [data-baseweb="notification"][kind="negative"] {{
+    border-left: 3px solid {_e_bdr} !important;
+    background: {_e_bg} !important;
+}}
+
+/* ── WARNING — borde dorado ── */
+.stWarning, [data-baseweb="notification"][kind="warning"] {{
+    border-left: 3px solid {_w_bdr} !important;
+    background: {_w_bg} !important;
+}}
+
+/* ── INFO — borde azul ── */
+.stInfo, [data-baseweb="notification"][kind="info"] {{
+    border-left: 3px solid {_i_bdr} !important;
+    background: {_i_bg} !important;
+}}
+
+/* ── Versión Streamlit 1.30+ — selector por atributo ── */
+[data-testid="stAlert"][data-type="success"] {{
+    border-left: 3px solid {_s_bdr} !important;
+    background: {_s_bg} !important;
+}}
+[data-testid="stAlert"][data-type="error"] {{
+    border-left: 3px solid {_e_bdr} !important;
+    background: {_e_bg} !important;
+}}
+[data-testid="stAlert"][data-type="warning"] {{
+    border-left: 3px solid {_w_bdr} !important;
+    background: {_w_bg} !important;
+}}
+[data-testid="stAlert"][data-type="info"] {{
+    border-left: 3px solid {_i_bdr} !important;
+    background: {_i_bg} !important;
+}}
+
+/* ══ CAPTION / st.caption ══════════════════════════════════════════════════ */
+[data-testid="stCaptionContainer"] p {{
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.72rem !important;
+    color: {c["text_muted"]} !important;
+    letter-spacing: 0.3px !important;
+}}
+</style>
+""", unsafe_allow_html=True)
 
 
 def inject_module_css(
@@ -1834,9 +1962,21 @@ def inject_module_css(
    Aplica a todos los tipos de widget para coherencia visual.
    Texto uppercase + letter-spacing institucional.
    ════════════════════════════════════════════════════════════════════════ */
-.stSelectbox label, .stNumberInput label, .stTextInput label,
-.stTextArea label, .stDateInput label, .stSlider label,
-.stMultiSelect label, .stRadio label {{
+/* Scoped to main content — excludes sidebar nav radio (inject_module_css) */
+.main .stSelectbox label,
+.main .stNumberInput label,
+.main .stTextInput label,
+.main .stTextArea label,
+.main .stDateInput label,
+.main .stSlider label,
+.main .stMultiSelect label,
+[data-testid="stMainBlockContainer"] .stSelectbox label,
+[data-testid="stMainBlockContainer"] .stNumberInput label,
+[data-testid="stMainBlockContainer"] .stTextInput label,
+[data-testid="stMainBlockContainer"] .stTextArea label,
+[data-testid="stMainBlockContainer"] .stDateInput label,
+[data-testid="stMainBlockContainer"] .stSlider label,
+[data-testid="stMainBlockContainer"] .stMultiSelect label {{
     color: {label_col} !important;
     font-family: Inter, sans-serif !important;
     font-size: 0.72rem !important; font-weight: 600 !important;

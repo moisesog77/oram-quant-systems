@@ -12,33 +12,8 @@ from database.db import (
     admin_logs_senales, admin_trades_todos, admin_configs_bot_todas,
     actualizar_bot_config,
 )
-from ui.styles import get_colors, page_header, oram_bienvenida, get_theme, inject_module_css
+from ui.styles import get_colors, page_header, oram_bienvenida, oram_overlay_error, get_theme, inject_module_css
 
-
-
-def _overlay_error(msg: str, titulo: str = "Campo obligatorio", dark: bool = True):
-    overlay_bg = "rgba(6,9,15,0.92)" if dark else "rgba(238,242,247,0.94)"
-    card_bg    = "#0c1219"           if dark else "#ffffff"
-    text_muted = "#637a94"           if dark else "#7a8fa0"
-    ph = st.empty()
-    ph.markdown(f"""
-<style>
-@keyframes oad-err {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
-#oad-overlay{{position:fixed;inset:0;background:{overlay_bg};backdrop-filter:blur(6px);
-z-index:99999;display:flex;align-items:center;justify-content:center}}
-#oad-card{{background:{card_bg};border:1px solid #3d1a1a;border-radius:20px;
-padding:2.6rem 3rem 2.2rem;text-align:center;max-width:400px;width:90%;
-animation:oad-err 0.4s cubic-bezier(0.22,1,0.36,1) both;
-box-shadow:0 24px 60px rgba(0,0,0,0.35)}}
-</style>
-<div id="oad-overlay"><div id="oad-card">
-<div style="font-size:2.8rem;margin-bottom:0.8rem">❌</div>
-<div style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;font-weight:700;color:#f87171;margin-bottom:0.5rem">{titulo}</div>
-<div style="font-family:Inter,sans-serif;font-size:0.9rem;color:{text_muted};line-height:1.6">{msg}</div>
-<div style="margin-top:1.2rem;font-family:Inter,sans-serif;font-size:0.75rem;color:{text_muted};opacity:0.7">Cerrando automáticamente…</div>
-</div></div>""", unsafe_allow_html=True)
-    time.sleep(2.2)
-    ph.empty()
 
 
 
@@ -128,11 +103,11 @@ def render_admin():
 
                 if st.form_submit_button("✅ Crear usuario", use_container_width=True):
                     if not nu_user or not nu_pw1:
-                        _overlay_error("Usuario y contraseña son campos obligatorios.", dark=dark)
+                        oram_overlay_error("Usuario y contraseña son campos obligatorios.")
                     elif nu_pw1 != nu_pw2:
-                        _overlay_error("Las contraseñas no coinciden. Verifícalas e intenta de nuevo.", "Contraseñas diferentes", dark=dark)
+                        oram_overlay_error("Las contraseñas no coinciden. Verifícalas e intenta de nuevo.", "Contraseñas diferentes")
                     elif len(nu_pw1) < 6:
-                        _overlay_error("La contraseña debe tener mínimo 6 caracteres.", dark=dark)
+                        oram_overlay_error("La contraseña debe tener mínimo 6 caracteres.")
                     else:
                         ok = admin_crear_usuario(nu_user, nu_pw1, nu_cap)
                         if ok:
@@ -143,7 +118,7 @@ def render_admin():
                                 delay=1.5,
                             )
                         else:
-                            _overlay_error(f"El usuario <b>{nu_user}</b> ya existe en el sistema.", dark=dark)
+                            oram_overlay_error(f"El usuario <b>{nu_user}</b> ya existe en el sistema.")
 
         st.divider()
         st.markdown("#### Lista de usuarios registrados")
@@ -208,7 +183,7 @@ def render_admin():
                                     spinner_label="Aplicando cambios…", delay=1.5,
                                 )
                             else:
-                                _overlay_error("La contraseña debe tener mínimo 6 caracteres.", dark=dark)
+                                oram_overlay_error("La contraseña debe tener mínimo 6 caracteres.")
 
                     with col_c:
                         st.markdown('<div style="margin-top:1.65rem"></div>', unsafe_allow_html=True)
@@ -221,30 +196,26 @@ def render_admin():
                 # Overlay premium con botones integrados via sendPrompt JS
                 confirming = st.session_state["admin_confirm_delete"].get(uid, False)
                 if confirming:
+                    # ── Overlay premium de confirmación ───────────────────────
+                    # Usa CSS para la card visual pero botones REALES de Streamlit
+                    # (sin JS onclick) para garantizar que Streamlit detecte los clicks
                     bg         = "#0c1219" if dark else "#ffffff"
                     bdr        = "#7c2626" if dark else "#fecaca"
                     muted      = "#637a94" if dark else "#7a8fa0"
                     overlay_bg = "rgba(6,9,15,0.93)" if dark else "rgba(238,242,247,0.95)"
                     text_col   = "#edf4ff" if dark else "#0b1824"
 
-                    overlay_ph = st.empty()
-                    overlay_ph.markdown(f"""
+                    # Card de confirmación visual (sin botones HTML — solo estilos)
+                    st.markdown(f"""
 <style>
 @keyframes oad-in {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
 #oad-conf-bg{{position:fixed;inset:0;background:{overlay_bg};
 backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-z-index:99999;display:flex;align-items:center;justify-content:center}}
+z-index:99998;display:flex;align-items:flex-start;justify-content:center;padding-top:15vh}}
 #oad-conf-card{{background:{bg};border:1.5px solid {bdr};border-radius:20px;
 padding:2.8rem 3.2rem 2.4rem;text-align:center;max-width:460px;width:92%;
 animation:oad-in 0.42s cubic-bezier(0.22,1,0.36,1) both;
 box-shadow:0 24px 60px rgba(0,0,0,0.45)}}
-.oad-btn{{width:100%;padding:0.75rem 1rem;border-radius:10px;font-family:Inter,sans-serif;
-font-size:0.95rem;font-weight:600;cursor:pointer;border:none;transition:all .18s ease}}
-.oad-btn-yes{{background:linear-gradient(135deg,#16a34a,#14743d);color:#fff;
-box-shadow:0 4px 14px rgba(16,185,129,0.39)}}
-.oad-btn-yes:hover{{background:linear-gradient(135deg,#22c55e,#16a34a);transform:translateY(-1px)}}
-.oad-btn-no{{background:transparent;color:{muted};border:2px solid #2a4560 !important}}
-.oad-btn-no:hover{{border-color:#22c55e !important;color:#22c55e}}
 </style>
 <div id="oad-conf-bg">
   <div id="oad-conf-card">
@@ -257,99 +228,51 @@ box-shadow:0 4px 14px rgba(16,185,129,0.39)}}
                 font-weight:700;color:#fbbf24;margin-bottom:0.6rem">
       ¿Eliminar a <b>{uname}</b>?
     </div>
-    <div style="font-family:Inter,sans-serif;font-size:0.88rem;color:{muted};line-height:1.7;margin-bottom:1.6rem">
+    <div style="font-family:Inter,sans-serif;font-size:0.88rem;color:{muted};line-height:1.7">
       Se borrarán permanentemente:<br>
       trades · alertas · watchlist · configuración del bot.
-    </div>
-    <div style="display:flex;gap:0.75rem">
-      <button class="oad-btn oad-btn-yes" onclick="
-        const inputs = window.parent.document.querySelectorAll('input[type=text]');
-        const btns = window.parent.document.querySelectorAll('button');
-        for(let b of btns){{
-          if(b.innerText.includes('Sí, eliminar') || b.querySelector && b.querySelector('p') && b.querySelector('p').innerText.includes('Sí, eliminar')){{
-            b.click(); break;
-          }}
-        }}
-      ">✅ Sí, eliminar</button>
-      <button class="oad-btn oad-btn-no" onclick="
-        const btns = window.parent.document.querySelectorAll('button');
-        for(let b of btns){{
-          const txt = b.innerText || (b.querySelector('p') ? b.querySelector('p').innerText : '');
-          if(txt.includes('Cancelar')){{ b.click(); break; }}
-        }}
-      ">❌ Cancelar</button>
     </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-                    # Botones Streamlit ocultos — activados por el JS del overlay
+                    # Botones Streamlit reales — z-index sobre el overlay para ser clickeables
                     st.markdown("""<style>
-[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]) {{
-    position: fixed !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-    z-index: -1 !important;
+[data-testid="stHorizontalBlock"]:has([data-testid="stBaseButton-secondary"]) {{
+    position: relative;
+    z-index: 99999 !important;
+    background: transparent;
+    margin-top: -6rem;
+    padding: 0 1rem;
+    justify-content: center;
+    gap: 1rem;
+}}
+[data-testid="stHorizontalBlock"]:has([data-testid="stBaseButton-secondary"]) > div {{
+    flex: 0 1 200px !important;
+    max-width: 200px !important;
 }}
 </style>""", unsafe_allow_html=True)
+
                     col_yes, col_no = st.columns(2)
                     with col_yes:
-                        if st.button("✅ Sí, eliminar", key=f"del_yes_{uid}", use_container_width=True):
-                            overlay_ph.empty()
+                        if st.button("✅ Sí, eliminar", key=f"del_yes_{uid}",
+                                     use_container_width=True, type="primary"):
                             ok = admin_eliminar_usuario(uid)
                             st.session_state["admin_confirm_delete"].pop(uid, None)
                             if ok:
-                                success_ph = st.empty()
-                                success_ph.markdown(f"""
-<style>
-@keyframes oad-ok {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
-@keyframes oad-spin {{to{{transform:rotate(360deg)}}}}
-#oad-ok-bg{{position:fixed;inset:0;background:{overlay_bg};backdrop-filter:blur(8px);
-z-index:99999;display:flex;align-items:center;justify-content:center}}
-#oad-ok-card{{background:{bg};border:1px solid #1b3a24;border-radius:20px;
-padding:2.8rem 3.2rem 2.4rem;text-align:center;max-width:440px;width:92%;
-animation:oad-ok 0.42s cubic-bezier(0.22,1,0.36,1) both;
-box-shadow:0 24px 60px rgba(0,0,0,0.45)}}
-.ok-ring{{width:72px;height:72px;border-radius:50%;border:3px solid #22c55e;
-display:flex;align-items:center;justify-content:center;
-margin:0 auto 1.2rem;box-shadow:0 0 0 8px rgba(34,197,94,0.12)}}
-.ok-spin{{width:18px;height:18px;border:2.5px solid rgba(34,197,94,0.25);
-border-top-color:#22c55e;border-radius:50%;display:inline-block;
-animation:oad-spin 0.8s linear infinite;vertical-align:middle;margin-right:0.5rem}}
-</style>
-<div id="oad-ok-bg"><div id="oad-ok-card">
-  <div class="ok-ring">
-    <svg width="32" height="32" fill="none" stroke="#22c55e" stroke-width="2.5"
-         stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-      <polyline points="20 6 9 17 4 12"/>
-    </svg>
-  </div>
-  <div style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;
-              letter-spacing:2px;color:#22c55e;font-weight:600;margin-bottom:0.4rem">
-    ORAM Quant Systems
-  </div>
-  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;
-              font-weight:700;color:{text_col};margin-bottom:0.6rem">
-    🗑️ Usuario eliminado
-  </div>
-  <div style="font-family:Inter,sans-serif;font-size:0.88rem;color:{muted};line-height:1.6">
-    <b style="color:{text_col}">{uname}</b> y todos sus datos<br>
-    han sido eliminados permanentemente.
-  </div>
-  <div style="margin-top:1.3rem;font-family:Inter,sans-serif;font-size:0.72rem;
-              letter-spacing:1.5px;text-transform:uppercase;color:{muted}">
-    <span class="ok-spin"></span>Actualizando base de datos…
-  </div>
-</div></div>
-""", unsafe_allow_html=True)
-                                time.sleep(2.2)
-                                success_ph.empty()
-                                st.rerun()
+                                oram_bienvenida(
+                                    titulo        = "🗑️ Usuario eliminado",
+                                    subtitulo     = f"<b>{uname}</b> y todos sus datos han sido eliminados permanentemente.",
+                                    spinner_label = "Actualizando base de datos…",
+                                    delay         = 2.0,
+                                )
                             else:
-                                _overlay_error(f"No se pudo eliminar a <b>{uname}</b>. Puede tener permisos de administrador.", dark=dark)
+                                oram_overlay_error(
+                                    f"No se pudo eliminar a <b>{uname}</b>. Puede tener permisos de administrador."
+                                )
                     with col_no:
-                        if st.button("❌ Cancelar", key=f"del_no_{uid}", use_container_width=True, type="secondary"):
-                            overlay_ph.empty()
+                        if st.button("❌ Cancelar", key=f"del_no_{uid}",
+                                     use_container_width=True, type="secondary"):
                             st.session_state["admin_confirm_delete"].pop(uid, None)
                             st.rerun()
 

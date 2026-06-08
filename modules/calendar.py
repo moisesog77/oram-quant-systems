@@ -16,50 +16,82 @@ from ui.styles import get_colors, page_header, get_theme, inject_module_css
 
 
 def _render_evento(ev, c, dark):
-    """Renderiza una tarjeta de evento."""
-    imp_color = impacto_color(ev["impacto"], dark)
-    bg_extra  = (
+    """Renderiza una tarjeta de evento económico como card premium."""
+    # Pre-computar todas las variables ANTES del f-string
+    # para evitar nested f-strings y dict-lookups dentro del template
+    imp_color   = impacto_color(ev["impacto"], dark)
+    dia_fecha   = f"{ev['dia']} {ev['fecha']}"
+    hora_mx     = ev["hora_mx"]
+    hora_utc    = ev["hora_utc"]
+    moneda      = ev["moneda"]
+    impacto_txt = ev["impacto"]
+    impacto_ico = impacto_emoji(ev["impacto"])
+    titulo      = ev["titulo"]
+    descripcion = ev.get("descripcion", "")
+    border_col  = c["border"]
+    text_muted  = c["text_muted"]
+    text_strong = c["text_strong"]
+
+    # Estilo extra si es el evento de hoy (no pasado)
+    bg_extra = (
         f"background:rgba(245,166,35,0.08);border-left:3px solid {c['accent']};"
         if ev["es_hoy"] and not ev["ya_paso"] else ""
     )
-    estado_tag = ""
-    if ev["ya_paso"] and ev["es_hoy"]:
-        estado_tag = f'<span style="font-size:0.65rem;background:{c["border"]};color:{c["text_muted"]};border-radius:3px;padding:1px 6px;margin-left:6px">YA PASÓ</span>'
-    elif ev["es_hoy"]:
-        estado_tag = f'<span style="font-size:0.65rem;background:{imp_color}22;color:{imp_color};border-radius:3px;padding:1px 6px;margin-left:6px;font-weight:700">HOY</span>'
 
-    st.markdown(f"""
-    <div class="smc-card" style="padding:0.85rem 1.2rem;margin-bottom:0.4rem;{bg_extra}">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:{c['text_muted']}">
-                    {ev['dia']} {ev['fecha']}
-                </span>
-                <span style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;
-                             background:{c['border']};border-radius:4px;padding:2px 8px;font-weight:700">
-                    {ev['hora_mx']} CDMX
-                </span>
-                <span style="font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:{c['text_muted']}">
-                    UTC {ev['hora_utc']}
-                </span>
-                {estado_tag}
-            </div>
-            <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;
-                             background:{c['border']};border-radius:4px;padding:2px 8px">
-                    {ev['moneda']}
-                </span>
-                <span style="color:{imp_color};font-weight:700;font-size:0.85rem">
-                    {impacto_emoji(ev['impacto'])} {ev['impacto']}
-                </span>
-            </div>
-        </div>
-        <div style="font-size:0.9rem;font-weight:700;margin-top:0.35rem;color:{c['text_strong']}">
-            {ev['titulo']}
-        </div>
-        {f'<div class="card-sub" style="margin-top:0.2rem;line-height:1.5">{ev["descripcion"]}</div>' if ev["descripcion"] else ""}
+    # Badge HOY / YA PASÓ
+    if ev["ya_paso"] and ev["es_hoy"]:
+        estado_tag = (
+            f'<span style="font-size:0.65rem;background:{border_col};'
+            f'color:{text_muted};border-radius:3px;padding:1px 6px;margin-left:6px">YA PASÓ</span>'
+        )
+    elif ev["es_hoy"]:
+        estado_tag = (
+            f'<span style="font-size:0.65rem;background:{imp_color}22;'
+            f'color:{imp_color};border-radius:3px;padding:1px 6px;'
+            f'margin-left:6px;font-weight:700">HOY</span>'
+        )
+    else:
+        estado_tag = ""
+
+    # Bloque de descripción (vacío si no hay texto)
+    desc_block = (
+        f'<div class="card-sub" style="margin-top:0.2rem;line-height:1.5">{descripcion}</div>'
+        if descripcion else ""
+    )
+
+    st.markdown(
+        f'''<div class="smc-card" style="padding:0.85rem 1.2rem;margin-bottom:0.4rem;{bg_extra}">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-family:JetBrains Mono,monospace;font-size:0.72rem;color:{text_muted}">
+        {dia_fecha}
+      </span>
+      <span style="font-family:JetBrains Mono,monospace;font-size:0.75rem;
+                   background:{border_col};border-radius:4px;padding:2px 8px;font-weight:700">
+        {hora_mx} CDMX
+      </span>
+      <span style="font-family:JetBrains Mono,monospace;font-size:0.68rem;color:{text_muted}">
+        UTC {hora_utc}
+      </span>
+      {estado_tag}
     </div>
-    """, unsafe_allow_html=True)
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-family:JetBrains Mono,monospace;font-size:0.72rem;
+                   background:{border_col};border-radius:4px;padding:2px 8px">
+        {moneda}
+      </span>
+      <span style="color:{imp_color};font-weight:700;font-size:0.85rem">
+        {impacto_ico} {impacto_txt}
+      </span>
+    </div>
+  </div>
+  <div style="font-size:0.9rem;font-weight:700;margin-top:0.35rem;color:{text_strong}">
+    {titulo}
+  </div>
+  {desc_block}
+</div>''',
+        unsafe_allow_html=True,
+    )
 
 
 def render_calendar():
