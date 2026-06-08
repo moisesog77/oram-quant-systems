@@ -155,9 +155,9 @@ def render_auth():
     shadow      = "0 8px 40px rgba(0,0,0,0.28)" if dark else "0 4px 24px rgba(0,0,0,0.09)"
     eye_col     = "#64748b"  if dark else "#64748b"
 
-    tbtn_bg     = "rgba(12,18,25,0.88)"   if dark else "rgba(255,255,255,0.94)"
-    tbtn_txt    = "#c8d8ea"               if dark else "#2a3f54"
-    tbtn_bdr    = "rgba(255,255,255,0.12)" if dark else "rgba(0,0,0,0.09)"
+    tbtn_bg     = "rgba(12,18,25,0.88)"   if dark else "rgba(15,30,50,0.92)"
+    tbtn_txt    = "#c8d8ea"               if dark else "#ffffff"
+    tbtn_bdr    = "rgba(255,255,255,0.12)" if dark else "rgba(255,255,255,0.25)"
 
     st.markdown(f"""
 <style>
