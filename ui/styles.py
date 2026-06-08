@@ -1418,7 +1418,7 @@ textarea {{
 }}
 .main [data-testid="stRadio"] label:hover,
 [data-testid="stMainBlockContainer"] [data-testid="stRadio"] label:hover {{
-    border-color: {c['border2']} !important;
+    border-color: {c['green']} !important;
     background: {c['glow']} !important;
 }}
 .main [data-testid="stRadio"] [data-checked="true"] label,
@@ -1451,16 +1451,6 @@ div[role="radiogroup"] div[role="radio"] {{
 div[role="radiogroup"] div[role="radio"][aria-checked="true"] {{
     border-color: {c['green']} !important;
     background: {c['green']} !important;
-}}
-/* Suprimir glow dorado nativo de Streamlit en radio buttons */
-[data-testid="stRadio"] label:focus-within,
-[data-testid="stRadio"] div[role="radio"]:focus,
-[data-testid="stRadio"] div[role="radio"]:hover,
-div[role="radiogroup"] div[role="radio"]:focus,
-div[role="radiogroup"] div[role="radio"]:hover,
-div[role="radiogroup"] label:focus-within {{
-    outline: none !important;
-    box-shadow: none !important;
 }}
 /* SVG/círculo nativo dentro del radio */
 [data-testid="stRadio"] div[role="radio"] > div,
@@ -2246,6 +2236,8 @@ def inject_module_css(
 
     # ── MultiSelect ────────────────────────────────────────────────────────
     if multiselect:
+        tag_bg   = "#0f2a1a" if dark else "#dcfce7"
+        tag_text = "#22c55e" if dark else "#15803d"
         css += f"""
 /* ══ MULTISELECT — selección múltiple con tags ORAM ════════════════════ */
 .stMultiSelect > div > div {{
@@ -2270,13 +2262,13 @@ def inject_module_css(
     background: transparent !important; border: none !important;
     box-shadow: none !important; outline: none !important;
 }}
-/* Tags de items seleccionados — estilo neutro (sin color verde/dorado) */
+/* Tags de items seleccionados */
 .stMultiSelect [data-baseweb="tag"],
 [data-testid="stMultiSelect"] [data-baseweb="tag"] {{
-    background: {input_bg} !important; background-color: {input_bg} !important;
-    border: 1px solid {input_bdr} !important; border-radius: 6px !important;
+    background: {tag_bg} !important; background-color: {tag_bg} !important;
+    border: 1px solid {focus_clr}66 !important; border-radius: 6px !important;
     padding: 2px 4px 2px 8px !important; margin: 2px !important;
-    color: {input_text} !important;
+    color: {tag_text} !important;
 }}
 .stMultiSelect [data-baseweb="tag"] *,
 [data-testid="stMultiSelect"] [data-baseweb="tag"] * {{
@@ -2284,12 +2276,12 @@ def inject_module_css(
 }}
 .stMultiSelect [data-baseweb="tag"] span,
 [data-testid="stMultiSelect"] [data-baseweb="tag"] span {{
-    color: {input_text} !important; -webkit-text-fill-color: {input_text} !important;
+    color: {tag_text} !important; -webkit-text-fill-color: {tag_text} !important;
     font-family: Inter, sans-serif !important;
-    font-size: 0.82rem !important; font-weight: 500 !important;
+    font-size: 0.82rem !important; font-weight: 600 !important;
 }}
 .stMultiSelect [data-baseweb="tag"] svg,
-[data-testid="stMultiSelect"] [data-baseweb="tag"] svg {{ fill: {input_text} !important; opacity: 0.6 !important; }}
+[data-testid="stMultiSelect"] [data-baseweb="tag"] svg {{ fill: {tag_text} !important; }}
 """
 
     # ── Metrics ────────────────────────────────────────────────────────────

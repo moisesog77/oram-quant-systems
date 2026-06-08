@@ -113,11 +113,11 @@ def render_backtesting():
             ticker = st.selectbox("Activo",        ACTIVOS_DEFAULT[cat],         key="bt_tk")
         with col2:
             tf     = st.selectbox("Temporalidad", ["15m","30m","1h","4h","1d"],  key="bt_tf")
-            capital    = st.number_input("Capital (USD)", value=float(user.get("capital_inicial", 10000)),
-                                          min_value=100.0, step=500.0, key="bt_cap")
-        with col3:
             umbral = st.slider("Umbral confianza (%)", 30, 85, 50, key="bt_umb",
                                help="Bájalo a 40-50% para ver más señales.")
+        with col3:
+            capital    = st.number_input("Capital (USD)", value=float(user.get("capital_inicial", 10000)),
+                                          min_value=100.0, step=500.0, key="bt_cap")
             riesgo_pct = st.slider("Riesgo por trade (%)", 0.5, 3.0, 1.0, step=0.25, key="bt_rsk")
 
         st.caption(
