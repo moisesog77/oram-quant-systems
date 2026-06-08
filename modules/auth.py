@@ -137,6 +137,7 @@ def _mostrar_bienvenida_premium(username: str, dark: bool) -> None:
 # ══════════════════════════════════════════════════════
 def render_auth():
     dark  = get_theme() == "dark"
+    c     = get_colors()
     inject_module_css(dark)  # CSS premium de inputs (SelectBox, NumberInput, TextInput)
     m     = "#edf4ff" if dark else "#0b1824"
     muted = "#637a94" if dark else "#7a8fa0"
@@ -155,9 +156,10 @@ def render_auth():
     shadow      = "0 8px 40px rgba(0,0,0,0.28)" if dark else "0 4px 24px rgba(0,0,0,0.09)"
     eye_col     = "#64748b"  if dark else "#64748b"
 
-    tbtn_bg     = "rgba(12,18,25,0.88)"   if dark else "rgba(15,30,50,0.92)"
-    tbtn_txt    = "#c8d8ea"               if dark else "#ffffff"
-    tbtn_bdr    = "rgba(255,255,255,0.12)" if dark else "rgba(255,255,255,0.25)"
+    # Idéntico al botón "Claro/Oscuro" del sidebar (get_colors sb_theme_*)
+    tbtn_bg     = c["sb_theme_bg"]
+    tbtn_txt    = c["sb_theme_txt"]
+    tbtn_bdr    = c["sb_theme_bdr"]
 
     st.markdown(f"""
 <style>
@@ -521,30 +523,34 @@ p[class*="instructions"] {{
         theme_icon = "☀️ Claro" if dark else "🌙 Oscuro"
         st.markdown(f"""
 <style>
-/* Botón de tema en auth — múltiples selectores para máxima compatibilidad */
-button[kind="secondary"][data-testid="stBaseButton-secondary"]:has(p:contains("Claro")),
-button[kind="secondary"][data-testid="stBaseButton-secondary"]:has(p:contains("Oscuro")),
-[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child .stButton > button,
-[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"],
-.stButton:has(button[kind="secondary"]) button {{
+/* ── Botón tema en login — diseño idéntico al botón "Claro/Oscuro" del sidebar ── */
+[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"] {{
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 999px !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+    padding: 0.4rem 1.1rem !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    transition: all .18s ease !important;
     background: {tbtn_bg} !important;
-    backdrop-filter: blur(10px) !important;
     color: {tbtn_txt} !important;
     -webkit-text-fill-color: {tbtn_txt} !important;
-    border: 1.5px solid {tbtn_bdr} !important;
-    border-radius: 999px !important;
-    font-family: 'Inter',sans-serif !important;
-    font-size: 0.82rem !important;
-    font-weight: 600 !important;
-    padding: 0.4rem 1.2rem !important;
-    box-shadow: 0 2px 14px rgba(0,0,0,0.22) !important;
-    width: auto !important;
-    white-space: nowrap !important;
-    float: right !important;
-    transition: all .18s ease !important;
+    border: 1px solid {tbtn_bdr} !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.07) !important;
 }}
-[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child .stButton > button p,
-[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"] p {{
+[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"]:hover {{
+    box-shadow: 0 6px 22px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.12) !important;
+    transform: translateY(-1px) !important;
+    opacity: 0.92 !important;
+}}
+[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"] p,
+[data-testid="stVerticalBlock"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stBaseButton-secondary"] * {{
     color: {tbtn_txt} !important;
     -webkit-text-fill-color: {tbtn_txt} !important;
 }}
