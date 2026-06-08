@@ -144,15 +144,43 @@ def obtener_eventos_hoy() -> list[dict]:
     return [e for e in obtener_eventos_semana() if e["es_hoy"]]
 
 
+def _agregar_minutos_restantes(eventos: list) -> list:
+    """
+    Añade campo 'minutos_restantes' a cada evento.
+    Calcula cuántos minutos faltan hasta la hora UTC del evento.
+    Usado por cmd_proximos del bot y hay_evento_alto_impacto_pronto.
+    """
+    from zoneinfo import ZoneInfo
+    ahora_utc = datetime.now(ZoneInfo("UTC"))
+    result = []
+    for ev in eventos:
+        try:
+            hh, mm  = map(int, ev["hora_utc"].split(":"))
+            # Determinar la fecha del evento (puede ser hoy o fecha futura)
+            from datetime import date as date_type
+            ev_date = datetime.strptime(ev["fecha"], "%Y-%m-%d").date() if "fecha" in ev else ahora_utc.date()
+            ev_dt   = datetime(ev_date.year, ev_date.month, ev_date.day, hh, mm,
+                               tzinfo=ZoneInfo("UTC"))
+            mins    = int((ev_dt - ahora_utc).total_seconds() / 60)
+            ev_copy = dict(ev)
+            ev_copy["minutos_restantes"] = max(0, mins)
+            result.append(ev_copy)
+        except Exception:
+            ev_copy = dict(ev)
+            ev_copy["minutos_restantes"] = 0
+            result.append(ev_copy)
+    return result
+
+
 def obtener_proximos_eventos(n: int = 3) -> list[dict]:
     """
-    Retorna hasta n eventos proximos (no pasados).
+    Retorna hasta n eventos proximos (no pasados) con campo 'minutos_restantes'.
     Si la semana actual ya termino (fin de semana), muestra los
     eventos de la siguiente semana para que el banner siempre tenga contenido.
     """
     esta_semana = [e for e in obtener_eventos_semana() if not e["ya_paso"]]
     if esta_semana:
-        return esta_semana[:n]
+        return _agregar_minutos_restantes(esta_semana[:n])
     # Fin de semana o semana completamente pasada: calcular proxima semana
     hoy   = date.today()
     lunes = hoy - timedelta(days=hoy.weekday()) + timedelta(weeks=1)

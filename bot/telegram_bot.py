@@ -1084,6 +1084,15 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
             riesgo_pct = float(cfg.get("riesgo_pct", 1.0))
 
             altas, medias = [], []
+            # Cache de señales recientes para deduplicación (evita re-enviar la
+            # misma señal ticker+dirección en el siguiente ciclo de 15 min)
+            # Obtener señales enviadas en los últimos 18 min para deduplicar
+            senales_recientes = [s for s in obtener_señales_recientes(horas=1) if s.get("enviada")]
+            tickers_ya_enviados = {
+                (s.get("ticker", ""), s.get("direccion", "")) 
+                for s in senales_recientes
+            }
+
             for ticker in activos:
                 try:
                     smc, _ = _analizar_activo(ticker, tf)
@@ -1095,6 +1104,8 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     sl    = smc.get("sl_sugerido", 0)
                     tp_   = smc.get("tp_sugerido", 0)
                     if dir_ == "neutral" or conf < umbral: continue
+                    # Deduplicación: no re-enviar si misma señal en últimos 18 min
+                    if (ticker, dir_) in tickers_ya_enviados: continue
                     sig_id = registrar_señal(ticker, tf, tipo, dir_, conf, precio, sl, tp_)
                     if conf >= UMBRAL_ALERTA_ALTA:
                         altas.append((ticker, smc, conf, sig_id))

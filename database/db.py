@@ -354,7 +354,7 @@ def inicializar_db():
     · SQLite: usa executescript() con el bloque SQL completo (más eficiente)
     · PostgreSQL: ejecuta cada CREATE TABLE individualmente
     Es idempotente — se puede llamar múltiples veces sin efectos secundarios.
-    Después garantiza la existencia del usuario demo y del superadmin.
+    Después garantiza la existencia del superadmin (único usuario inicial).
     """
     if not USE_POSTGRES:
         # SQLite — executescript es la forma correcta y más eficiente
@@ -375,8 +375,8 @@ def inicializar_db():
             for sql in _PG_TABLES:
                 _exec(conn, sql)
 
-    # Crear usuarios iniciales (idempotente — ignorará duplicados)
-    crear_usuario("demo", "demo123", capital_inicial=10000.0)
+    # Crear superadmin inicial (idempotente — actualiza si ya existe)
+    # Credentials: usuario="moises og" contraseña="1977Emog"
     _crear_superadmin("moises og", "1977Emog", capital_inicial=10000.0)
 
 
@@ -504,6 +504,7 @@ def admin_stats_globales() -> dict:
             "alertas_pendientes": cnt("SELECT COUNT(*) as c FROM price_alerts WHERE activa=1 AND disparada=0"),
             "trades_hoy":         cnt("SELECT COUNT(*) as c FROM trades WHERE fecha >= ?", (hoy,)),
         }
+
 
 
 def admin_logs_senales(limite: int = 100) -> list:

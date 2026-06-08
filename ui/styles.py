@@ -321,11 +321,11 @@ section[data-testid="stSidebar"] .oram-logo .lm{{
 /* ── NAV ────────────────────────────────────────────── */
 div[role="radiogroup"] label{{
     font-family:'Inter',sans-serif!important;
-    font-size:0.82rem!important;font-weight:500!important;
-    padding:0.48rem 0.85rem!important;
+    font-size:0.93rem!important;font-weight:500!important;
+    padding:0.52rem 0.90rem!important;
     border-radius:8px!important;color:{c['text']}!important;
     transition:all .15s ease;border:1px solid transparent!important;
-    margin:1px 0!important;
+    margin:2px 0!important;
 }}
 div[role="radiogroup"] label:hover{{
     background:{c['nav_hover']}!important;
@@ -2119,7 +2119,8 @@ def inject_module_css(
     box-shadow: none !important; padding: 0 !important; margin: 0 !important;
 }}
 .stTextInput > div > div,
-[data-testid="stTextInputRootElement"] {{
+[data-testid="stTextInputRootElement"],
+.stTextInput [data-baseweb="input"] {{
     background: {input_bg} !important;
     border: 2px solid {input_bdr} !important;
     border-radius: 10px !important; box-shadow: none !important;
@@ -2129,7 +2130,8 @@ def inject_module_css(
     padding: 0 !important;
 }}
 .stTextInput > div > div:focus-within,
-[data-testid="stTextInputRootElement"]:focus-within {{
+[data-testid="stTextInputRootElement"]:focus-within,
+.stTextInput [data-baseweb="input"]:focus-within {{
     border-color: {focus_clr} !important;
     box-shadow: 0 0 0 3px {focus_glow} !important;
 }}

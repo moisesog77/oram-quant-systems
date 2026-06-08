@@ -3,7 +3,7 @@ modules/auth.py — ORAM Quant Systems
 """
 import time
 import streamlit as st
-from database.db import autenticar_usuario, crear_usuario
+from database.db import autenticar_usuario
 from ui.styles import toggle_theme, get_theme, APP_TAGLINE, LOGO_GOLD, LOGO_BLUE, LOGO_TEAL, inject_module_css
 
 
@@ -545,60 +545,20 @@ p[class*="instructions"] {{
     # ══════════════════════════════════════════════════
     _, col_form, _ = st.columns([1, 2, 1])
     with col_form:
-        tab_login, tab_reg = st.tabs(["Iniciar sesión", "Crear cuenta"])
-
-        # ── Login ──
-        with tab_login:
-            with st.form("login_form"):
-                user = st.text_input("Usuario", placeholder="tu_usuario")
-                pw   = st.text_input("Contraseña", type="password", placeholder="••••••••")
-                sub  = st.form_submit_button("Acceder →", width="stretch")
-                if sub:
-                    if not user or not pw:
-                        st.error("Completa todos los campos.")
+        # ── Solo Login — el registro de usuarios es exclusivo del Admin Panel ──
+        with st.form("login_form"):
+            user = st.text_input("Usuario", placeholder="tu_usuario")
+            pw   = st.text_input("Contraseña", type="password", placeholder="••••••••")
+            sub  = st.form_submit_button("Acceder →", width="stretch")
+            if sub:
+                if not user or not pw:
+                    st.error("Completa todos los campos.")
+                else:
+                    data = autenticar_usuario(user, pw)
+                    if data:
+                        st.session_state.user = data
+                        from datetime import datetime, timezone
+                        st.session_state["session_start"] = datetime.now(timezone.utc).timestamp()
+                        st.rerun()
                     else:
-                        data = autenticar_usuario(user, pw)
-                        if data:
-                            st.session_state.user = data
-                            from datetime import datetime, timezone
-                            st.session_state["session_start"] = datetime.now(timezone.utc).timestamp()
-                            st.rerun()
-                        else:
-                            st.error("Credenciales incorrectas.")
-
-        # ── Registro ──
-        with tab_reg:
-            with st.form("reg_form"):
-                new_user = st.text_input("Usuario", placeholder="elige_un_nombre", key="ru")
-                new_pw   = st.text_input("Contraseña", type="password", key="rp")
-                new_pw2  = st.text_input("Confirmar contraseña", type="password", key="rp2")
-                capital  = st.number_input("Capital inicial (USD)", value=1000.0,
-                                           min_value=100.0, step=500.0)
-                sub_reg  = st.form_submit_button("Crear cuenta →", width="stretch")
-
-                if sub_reg:
-                    # ── Validaciones ──
-                    if not new_user or not new_pw:
-                        st.error("Completa todos los campos.")
-                    elif len(new_pw) < 6:
-                        st.error("Mínimo 6 caracteres en la contraseña.")
-                    elif new_pw != new_pw2:
-                        st.error("Las contraseñas no coinciden.")
-                    elif len(new_user) < 3:
-                        st.error("El usuario debe tener mínimo 3 caracteres.")
-                    else:
-                        ok = crear_usuario(new_user, new_pw, capital_inicial=capital)
-                        if not ok:
-                            st.error("Ese nombre de usuario ya existe.")
-                        else:
-                            # ── Tarea 1: flujo premium ──
-                            # 1. Autenticar y guardar sesión en state
-                            data = autenticar_usuario(new_user, new_pw)
-                            if data:
-                                st.session_state.user = data
-                                from datetime import datetime, timezone
-                                st.session_state["session_start"] = datetime.now(timezone.utc).timestamp()
-                            # 2. Mostrar overlay premium + delay + rerun
-                            #    (si autenticar falló igual mostramos
-                            #     la pantalla y el rerun llevará al login)
-                            _mostrar_bienvenida_premium(new_user, dark)
+                        st.error("Credenciales incorrectas.")
