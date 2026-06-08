@@ -4,7 +4,7 @@ modules/auth.py — ORAM Quant Systems
 import time
 import streamlit as st
 from database.db import autenticar_usuario, crear_usuario
-from ui.styles import toggle_theme, get_theme, APP_TAGLINE, LOGO_GOLD, LOGO_BLUE, LOGO_TEAL
+from ui.styles import toggle_theme, get_theme, APP_TAGLINE, LOGO_GOLD, LOGO_BLUE, LOGO_TEAL, inject_module_css
 
 
 # ══════════════════════════════════════════════════════
@@ -137,6 +137,10 @@ def _mostrar_bienvenida_premium(username: str, dark: bool) -> None:
 # ══════════════════════════════════════════════════════
 def render_auth():
     dark  = get_theme() == "dark"
+    # Inyecta CSS premium de inputs (SelectBox, NumberInput, TextInput)
+    # El CSS propio de auth cubre: fondo de página, tabs, form card,
+    # botón submit, overlay de bienvenida — no se superpone con inject_module_css.
+    inject_module_css(dark)
     m     = "#edf4ff" if dark else "#0b1824"
     muted = "#637a94" if dark else "#7a8fa0"
 

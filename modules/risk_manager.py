@@ -1,165 +1,24 @@
 """
-modules/risk_manager.py — ORAM Quant Systems — Gestor de Riesgo Institucional
+modules/risk_manager.py — ORAM Quant Systems — Gestor de Riesgo
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Calculadora de posición y simulación de riesgo institucional.
+
+Tabs:
+  · 📐 Calculadora  → tamaño de posición basado en % de capital,
+                       pips, pip value según tipo de par (Forex/JPY/Cripto)
+  · 📊 Kelly        → Kelly Criterion: full, half y quarter
+  · 💀 Ruina        → Monte Carlo: N simulaciones × M trades,
+                       calcula probabilidad de ruina y percentiles P10/P90
+
+El overlay _resultado_overlay muestra el resultado de la simulación
+con código de color: verde (<10% ruina) / amarillo / rojo (>20%).
+Sin dependencias de DB — módulo completamente stateless.
 """
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
-from ui.styles import get_colors, page_header, get_theme
+from ui.styles import get_colors, page_header, get_theme, inject_module_css
 
-
-def _inject_rm_css(dark: bool, c: dict):
-    input_bg   = "#080d14"  if dark else "#f0f4f8"
-    input_text = "#c8d8ea"  if dark else "#1a2b3c"
-    input_bdr  = "#2a4560"  if dark else "#94a3b8"
-    label_col  = "#4a6a84"  if dark else "#6b7f94"
-    focus_clr  = "#22c55e"
-    focus_glow = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
-    eye_col    = "#64748b"
-
-    st.markdown(f"""
-<style>
-/* ══ LABELS ══════════════════════════════════════════════════════════════ */
-.stSelectbox label, .stNumberInput label, .stSlider label {{
-    color: {label_col} !important;
-    font-family: Inter, sans-serif !important;
-    font-size: 0.72rem !important; font-weight: 600 !important;
-    letter-spacing: 1px !important; text-transform: uppercase !important;
-    margin-bottom: 0.3rem !important; display: block !important;
-}}
-
-/* ══ SELECTBOX ════════════════════════════════════════════════════════════ */
-.stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
-    background: transparent !important;
-    border: none !important; box-shadow: none !important;
-}}
-.stSelectbox [data-baseweb="select"] {{ cursor: pointer !important; }}
-.stSelectbox [data-baseweb="select"] > div {{
-    background: {input_bg} !important;
-    border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
-    min-height: 46px !important;
-    display: flex !important; align-items: center !important;
-    cursor: pointer !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important;
-    padding: 0 0.75rem !important;
-}}
-.stSelectbox [data-baseweb="select"] > div:focus-within {{
-    border-color: {focus_clr} !important;
-    box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-.stSelectbox [data-baseweb="select"] span {{
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important;
-    font-size: 0.93rem !important; pointer-events: none !important;
-}}
-.stSelectbox [data-baseweb="select"] svg {{
-    fill: {eye_col} !important; opacity: 0.7 !important;
-    flex-shrink: 0 !important; pointer-events: none !important;
-}}
-.stSelectbox [data-baseweb="select"] input {{
-    position: absolute !important; width: 1px !important;
-    height: 1px !important; opacity: 0 !important;
-    pointer-events: none !important; caret-color: transparent !important;
-    user-select: none !important; border: none !important;
-}}
-
-/* ══ NUMBER INPUT — igual a live_analysis, sin cuadro extra ══════════════ */
-[data-testid="stNumberInput"] {{
-    background: transparent !important; border: none !important;
-}}
-[data-testid="stNumberInput"] > div:nth-child(1) {{
-    background: transparent !important; border: none !important;
-}}
-[data-testid="stNumberInput"] > div:nth-child(2) {{
-    background: {input_bg} !important;
-    border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
-    display: flex !important; align-items: center !important;
-    min-height: 46px !important; overflow: hidden !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important;
-    padding: 0 !important;
-}}
-[data-testid="stNumberInput"] > div:nth-child(2):focus-within {{
-    border-color: {focus_clr} !important;
-    box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-[data-testid="stNumberInput"] input {{
-    background: transparent !important; border: none !important;
-    box-shadow: none !important; outline: none !important;
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
-    padding: 0 0.75rem !important; flex: 1 !important;
-    height: 46px !important; -moz-appearance: textfield !important;
-}}
-[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
-[data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
-    -webkit-appearance: none !important; margin: 0 !important;
-}}
-[data-testid="stNumberInput"] > div:nth-child(2) > div:last-child {{
-    display: flex !important; align-items: center !important;
-    align-self: stretch !important; height: 100% !important;
-    background: transparent !important; border: none !important;
-}}
-[data-testid="stNumberInput-StepDown"],
-[data-testid="stNumberInput-StepUp"] {{
-    all: unset !important; box-sizing: border-box !important;
-    display: flex !important; align-items: center !important;
-    justify-content: center !important; align-self: stretch !important;
-    width: 44px !important; min-width: 44px !important;
-    height: 100% !important; min-height: 46px !important;
-    flex-shrink: 0 !important; cursor: pointer !important;
-    border-left: 1px solid {input_bdr} !important;
-    background: transparent !important;
-    opacity: 0.55 !important; transition: opacity .15s !important;
-}}
-[data-testid="stNumberInput-StepDown"]:hover,
-[data-testid="stNumberInput-StepUp"]:hover {{ opacity: 1 !important; }}
-[data-testid="stNumberInput-StepDown"] svg,
-[data-testid="stNumberInput-StepUp"] svg {{
-    width: 17px !important; height: 17px !important;
-    fill: none !important; stroke: {eye_col} !important;
-    stroke-width: 1.8 !important; pointer-events: none !important;
-    display: block !important; flex-shrink: 0 !important;
-}}
-/* Eliminar cuadro extra al editar manualmente */
-[data-testid="stNumberInput"] > input:last-child,
-[data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
-[data-testid="stNumberInput"] > *:nth-child(n+3) {{
-    display: none !important; visibility: hidden !important;
-    height: 0 !important; margin: 0 !important; padding: 0 !important;
-    border: none !important; opacity: 0 !important;
-    position: absolute !important; pointer-events: none !important;
-}}
-[data-testid="InputInstructions"] {{
-    display: none !important; visibility: hidden !important;
-    height: 0 !important; margin: 0 !important;
-}}
-
-/* ══ BOTÓN SIMULAR ════════════════════════════════════════════════════════ */
-[data-testid="stBaseButton-primary"] {{
-    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
-    border: none !important; border-radius: 10px !important;
-    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
-    font-family: Inter, sans-serif !important;
-    font-weight: 600 !important; font-size: 0.95rem !important;
-    padding: 0.72rem 1.4rem !important;
-    box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
-    transition: box-shadow .25s ease, transform .18s ease !important;
-    cursor: pointer !important;
-}}
-[data-testid="stBaseButton-primary"]:hover {{
-    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
-    box-shadow: 0 6px 22px 0 rgba(16,185,129,0.58) !important;
-    transform: translateY(-1px) !important;
-}}
-[data-testid="stBaseButton-primary"]:active {{
-    box-shadow: 0 2px 8px 0 rgba(16,185,129,0.30) !important;
-    transform: scale(0.98) !important;
-}}
-</style>
-""", unsafe_allow_html=True)
 
 
 def _resultado_overlay(prob_ruina: float, dark: bool):
@@ -237,7 +96,7 @@ def render_risk_manager():
     c    = get_colors()
     dark = get_theme() == "dark"
     page_header("🛡️", "Risk Manager", "Calculadora de posición · Kelly Criterion · Simulación de ruina")
-    _inject_rm_css(dark, c)
+    inject_module_css(dark)
 
     tab_calc, tab_kelly, tab_ruina = st.tabs(["📐 Calculadora", "📊 Kelly Criterion", "💀 Riesgo de Ruina"])
 

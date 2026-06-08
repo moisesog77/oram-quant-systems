@@ -1,5 +1,17 @@
 """
-modules/education.py — Guía interactiva de Smart Money Concepts.
+modules/education.py — ORAM Quant Systems — Guía SMC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Manual de referencia rápida de Smart Money Concepts.
+
+Tabs (solo contenido estático, sin DB ni API):
+  · 🏗️ Estructura  → BOS, CHoCH, IPDA
+  · 🧱 Order Blocks → OB alcista y bajista con filtros de calidad
+  · ⚡ FVG          → Fair Value Gap y regla del 50% (OTE)
+  · 💧 Liquidez     → buy/sell stops, sesiones de mayor liquidez
+  · 🎯 Checklist    → checklist de entrada + reglas de hierro
+
+Módulo stateless: no requiere DB, yfinance ni ninguna API externa.
+Solo usa ui.styles para page_header y get_colors.
 """
 import streamlit as st
 from ui.styles import get_colors, page_header

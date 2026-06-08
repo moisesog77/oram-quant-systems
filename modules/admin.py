@@ -1,5 +1,19 @@
 """
 modules/admin.py — ORAM Quant Systems — Panel de Superadministración
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Acceso exclusivo para is_admin=1. La ruta en app.py solo la añade
+al nav si el usuario autenticado tiene el flag admin.
+
+Tabs:
+  · 📊 Resumen     → KPIs globales: usuarios, trades, señales, bots
+  · 👥 Usuarios    → tabla de todos los usuarios + CRUD (crear, reset
+                      password, actualizar capital, desactivar)
+  · 📋 Trades      → últimos 100 trades de toda la plataforma
+  · ⚡ Señales     → últimas 100 señales SMC del log global
+  · 🤖 Bots        → configuración de bot de todos los usuarios
+
+Protección: admin_eliminar_usuario verifica is_admin=1 antes de borrar
+(nunca se puede eliminar a un admin desde la UI).
 """
 import streamlit as st
 import pandas as pd
@@ -12,212 +26,8 @@ from database.db import (
     admin_logs_senales, admin_trades_todos, admin_configs_bot_todas,
     actualizar_bot_config,
 )
-from ui.styles import get_colors, page_header, oram_bienvenida, get_theme
+from ui.styles import get_colors, page_header, oram_bienvenida, get_theme, inject_module_css, oram_overlay_error
 
-
-def _inject_admin_css(dark: bool, c: dict):
-    input_bg   = "#080d14"  if dark else "#f0f4f8"
-    input_text = "#c8d8ea"  if dark else "#1a2b3c"
-    input_bdr  = "#2a4560"  if dark else "#94a3b8"
-    label_col  = "#4a6a84"  if dark else "#6b7f94"
-    focus_clr  = "#22c55e"
-    focus_glow = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
-    eye_col    = "#64748b"
-
-    st.markdown(f"""
-<style>
-/* ══ LABELS ══════════════════════════════════════════════════════════════ */
-.stSelectbox label, .stNumberInput label, .stTextInput label, .stSlider label {{
-    color: {label_col} !important;
-    font-family: Inter, sans-serif !important;
-    font-size: 0.72rem !important; font-weight: 600 !important;
-    letter-spacing: 1px !important; text-transform: uppercase !important;
-    margin-bottom: 0.3rem !important; display: block !important;
-}}
-/* ══ SELECTBOX ════════════════════════════════════════════════════════════ */
-.stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
-    background: transparent !important; border: none !important; box-shadow: none !important;
-}}
-.stSelectbox [data-baseweb="select"] {{ cursor: pointer !important; }}
-.stSelectbox [data-baseweb="select"] > div {{
-    background: {input_bg} !important;
-    border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
-    min-height: 46px !important; display: flex !important; align-items: center !important;
-    cursor: pointer !important; transition: border-color .18s ease, box-shadow .18s ease !important;
-    padding: 0 0.75rem !important;
-}}
-.stSelectbox [data-baseweb="select"] > div:focus-within {{
-    border-color: {focus_clr} !important; box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-.stSelectbox [data-baseweb="select"] span {{
-    color: {input_text} !important; -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important; font-size: 0.93rem !important; pointer-events: none !important;
-}}
-.stSelectbox [data-baseweb="select"] svg {{
-    fill: {eye_col} !important; opacity: 0.7 !important; flex-shrink: 0 !important; pointer-events: none !important;
-}}
-.stSelectbox [data-baseweb="select"] input {{
-    position: absolute !important; width: 1px !important; height: 1px !important; opacity: 0 !important;
-    pointer-events: none !important; caret-color: transparent !important; user-select: none !important; border: none !important;
-}}
-/* ══ NUMBER INPUT ═════════════════════════════════════════════════════════ */
-[data-testid="stNumberInput"] {{ background: transparent !important; border: none !important; }}
-[data-testid="stNumberInput"] > div:nth-child(1) {{ background: transparent !important; border: none !important; }}
-[data-testid="stNumberInput"] > div:nth-child(2) {{
-    background: {input_bg} !important; border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
-    display: flex !important; align-items: center !important;
-    min-height: 46px !important; overflow: hidden !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important; padding: 0 !important;
-}}
-[data-testid="stNumberInput"] > div:nth-child(2):focus-within {{
-    border-color: {focus_clr} !important; box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-[data-testid="stNumberInput"] input {{
-    background: transparent !important; border: none !important;
-    box-shadow: none !important; outline: none !important;
-    color: {input_text} !important; -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
-    padding: 0 0.75rem !important; flex: 1 !important; height: 46px !important; -moz-appearance: textfield !important;
-}}
-[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
-[data-testid="stNumberInput"] input::-webkit-inner-spin-button {{ -webkit-appearance: none !important; margin: 0 !important; }}
-[data-testid="stNumberInput"] > div:nth-child(2) > div:last-child {{
-    display: flex !important; align-items: center !important; align-self: stretch !important;
-    height: 100% !important; background: transparent !important; border: none !important;
-}}
-[data-testid="stNumberInput-StepDown"], [data-testid="stNumberInput-StepUp"] {{
-    all: unset !important; box-sizing: border-box !important;
-    display: flex !important; align-items: center !important; justify-content: center !important;
-    align-self: stretch !important; width: 44px !important; min-width: 44px !important;
-    height: 100% !important; min-height: 46px !important; flex-shrink: 0 !important;
-    cursor: pointer !important; border-left: 1px solid {input_bdr} !important;
-    background: transparent !important; opacity: 0.55 !important; transition: opacity .15s !important;
-}}
-[data-testid="stNumberInput-StepDown"]:hover, [data-testid="stNumberInput-StepUp"]:hover {{ opacity: 1 !important; }}
-[data-testid="stNumberInput-StepDown"] svg, [data-testid="stNumberInput-StepUp"] svg {{
-    width: 17px !important; height: 17px !important; fill: none !important;
-    stroke: {eye_col} !important; stroke-width: 1.8 !important;
-    pointer-events: none !important; display: block !important; flex-shrink: 0 !important;
-}}
-[data-testid="stNumberInput"] > input:last-child,
-[data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
-[data-testid="stNumberInput"] > *:nth-child(n+3) {{
-    display: none !important; visibility: hidden !important; height: 0 !important;
-    margin: 0 !important; padding: 0 !important; border: none !important;
-    opacity: 0 !important; position: absolute !important; pointer-events: none !important;
-}}
-[data-testid="InputInstructions"] {{
-    display: none !important; visibility: hidden !important; height: 0 !important; margin: 0 !important;
-}}
-/* ══ TEXT INPUT ═══════════════════════════════════════════════════════════ */
-.stTextInput > div {{
-    border: none !important; background: transparent !important;
-    box-shadow: none !important; padding: 0 !important; margin: 0 !important;
-}}
-.stTextInput > div > div {{
-    background: {input_bg} !important; border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
-    min-height: 46px !important; overflow: hidden !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important;
-    display: flex !important; align-items: center !important; padding: 0 !important;
-}}
-.stTextInput > div > div:focus-within {{
-    border-color: {focus_clr} !important; box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-.stTextInput input {{
-    background: transparent !important; border: none !important;
-    box-shadow: none !important; outline: none !important;
-    color: {input_text} !important; -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
-    padding: 0 0.75rem !important; height: 46px !important; width: 100% !important;
-}}
-[data-testid="stTextInputRootElement"] {{
-    background: {input_bg} !important; border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
-    min-height: 46px !important; overflow: hidden !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important;
-    display: flex !important; align-items: center !important;
-}}
-[data-testid="stTextInputRootElement"]:focus-within {{
-    border-color: {focus_clr} !important; box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-/* ══ BOTONES PREMIUM ══════════════════════════════════════════════════════ */
-[data-testid="stFormSubmitButton"] button,
-[data-testid="stBaseButton-primary"] {{
-    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
-    border: none !important; border-radius: 10px !important;
-    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
-    font-family: Inter, sans-serif !important; font-weight: 600 !important;
-    font-size: 0.95rem !important; padding: 0.72rem 1.4rem !important;
-    box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
-    transition: box-shadow .25s ease, transform .18s ease !important;
-    cursor: pointer !important; width: 100% !important;
-}}
-[data-testid="stFormSubmitButton"] button:hover,
-[data-testid="stBaseButton-primary"]:hover {{
-    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
-    box-shadow: 0 6px 22px 0 rgba(16,185,129,0.58) !important;
-    transform: translateY(-1px) !important;
-}}
-[data-testid="stBaseButton-secondary"] {{
-    border: 2px solid {input_bdr} !important; border-radius: 10px !important;
-    background: transparent !important; color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important; font-weight: 500 !important;
-    font-size: 0.9rem !important; width: 100% !important;
-    transition: border-color .18s ease !important;
-}}
-[data-testid="stBaseButton-secondary"]:hover {{
-    border-color: {focus_clr} !important; color: {focus_clr} !important;
-    -webkit-text-fill-color: {focus_clr} !important;
-}}
-/* ══ MÉTRICAS — alineación perfecta ══════════════════════════════════════ */
-[data-testid="stMetric"] {{
-    background: {input_bg} !important;
-    border: 1px solid {input_bdr} !important;
-    border-radius: 10px !important;
-    padding: 0.9rem 1rem !important;
-}}
-[data-testid="stMetricLabel"] {{
-    font-family: Inter, sans-serif !important;
-    font-size: 0.68rem !important; font-weight: 600 !important;
-    letter-spacing: 1px !important; text-transform: uppercase !important;
-    color: {label_col} !important;
-}}
-[data-testid="stMetricValue"] {{
-    font-family: 'Space Grotesk', sans-serif !important;
-    font-size: 2rem !important; font-weight: 700 !important;
-    color: {input_text} !important; line-height: 1.1 !important;
-}}
-</style>
-""", unsafe_allow_html=True)
-
-
-def _overlay_error(msg: str, titulo: str = "Campo obligatorio", dark: bool = True):
-    overlay_bg = "rgba(6,9,15,0.92)" if dark else "rgba(238,242,247,0.94)"
-    card_bg    = "#0c1219"           if dark else "#ffffff"
-    text_muted = "#637a94"           if dark else "#7a8fa0"
-    ph = st.empty()
-    ph.markdown(f"""
-<style>
-@keyframes oad-err {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
-#oad-overlay{{position:fixed;inset:0;background:{overlay_bg};backdrop-filter:blur(6px);
-z-index:99999;display:flex;align-items:center;justify-content:center}}
-#oad-card{{background:{card_bg};border:1px solid #3d1a1a;border-radius:20px;
-padding:2.6rem 3rem 2.2rem;text-align:center;max-width:400px;width:90%;
-animation:oad-err 0.4s cubic-bezier(0.22,1,0.36,1) both;
-box-shadow:0 24px 60px rgba(0,0,0,0.35)}}
-</style>
-<div id="oad-overlay"><div id="oad-card">
-<div style="font-size:2.8rem;margin-bottom:0.8rem">❌</div>
-<div style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;font-weight:700;color:#f87171;margin-bottom:0.5rem">{titulo}</div>
-<div style="font-family:Inter,sans-serif;font-size:0.9rem;color:{text_muted};line-height:1.6">{msg}</div>
-<div style="margin-top:1.2rem;font-family:Inter,sans-serif;font-size:0.75rem;color:{text_muted};opacity:0.7">Cerrando automáticamente…</div>
-</div></div>""", unsafe_allow_html=True)
-    time.sleep(2.2)
-    ph.empty()
 
 
 
@@ -231,7 +41,7 @@ def render_admin():
         return
 
     page_header("🛡️", "Panel de Administración", f"Superadmin: {user['username'].upper()}")
-    _inject_admin_css(dark, c)
+    inject_module_css(dark, metrics=True)
 
     tab_stats, tab_users, tab_bot, tab_senales, tab_trades = st.tabs([
         "📊 Estadísticas", "👥 Usuarios", "🤖 Configuración Bot",
@@ -307,11 +117,11 @@ def render_admin():
 
                 if st.form_submit_button("✅ Crear usuario", use_container_width=True):
                     if not nu_user or not nu_pw1:
-                        _overlay_error("Usuario y contraseña son campos obligatorios.", dark=dark)
+                        oram_overlay_error("Usuario y contraseña son campos obligatorios.")
                     elif nu_pw1 != nu_pw2:
-                        _overlay_error("Las contraseñas no coinciden. Verifícalas e intenta de nuevo.", "Contraseñas diferentes", dark=dark)
+                        oram_overlay_error("Las contraseñas no coinciden. Verifícalas e intenta de nuevo.", titulo="Contraseñas diferentes")
                     elif len(nu_pw1) < 6:
-                        _overlay_error("La contraseña debe tener mínimo 6 caracteres.", dark=dark)
+                        oram_overlay_error("La contraseña debe tener mínimo 6 caracteres.")
                     else:
                         ok = admin_crear_usuario(nu_user, nu_pw1, nu_cap)
                         if ok:
@@ -322,7 +132,7 @@ def render_admin():
                                 delay=1.5,
                             )
                         else:
-                            _overlay_error(f"El usuario <b>{nu_user}</b> ya existe en el sistema.", dark=dark)
+                            oram_overlay_error(f"El usuario <b>{nu_user}</b> ya existe en el sistema.")
 
         st.divider()
         st.markdown("#### Lista de usuarios registrados")
@@ -387,7 +197,7 @@ def render_admin():
                                     spinner_label="Aplicando cambios…", delay=1.5,
                                 )
                             else:
-                                _overlay_error("La contraseña debe tener mínimo 6 caracteres.", dark=dark)
+                                oram_overlay_error("La contraseña debe tener mínimo 6 caracteres.")
 
                     with col_c:
                         st.markdown('<div style="margin-top:1.65rem"></div>', unsafe_allow_html=True)
@@ -525,7 +335,7 @@ animation:oad-spin 0.8s linear infinite;vertical-align:middle;margin-right:0.5re
                                 success_ph.empty()
                                 st.rerun()
                             else:
-                                _overlay_error(f"No se pudo eliminar a <b>{uname}</b>. Puede tener permisos de administrador.", dark=dark)
+                                oram_overlay_error(f"No se pudo eliminar a <b>{uname}</b>. Puede tener permisos de administrador.")
                     with col_no:
                         if st.button("❌ Cancelar", key=f"del_no_{uid}", use_container_width=True, type="secondary"):
                             overlay_ph.empty()

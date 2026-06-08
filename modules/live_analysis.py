@@ -18,174 +18,13 @@ from utils.economic_calendar import (hay_evento_alto_impacto_pronto,
                                       impacto_emoji, impacto_color,
                                       FOREX_FACTORY_URL)
 from ui.styles import (signal_box, get_colors, get_plot_layout,
-                       page_header, get_theme, oram_bienvenida)
+                       page_header, get_theme, oram_bienvenida, inject_module_css)
 
 TIMEFRAME_LABELS = {
     "1m":"1 Min","5m":"5 Min","15m":"15 Min","30m":"30 Min",
     "1h":"1 Hora","4h":"4 Horas","1d":"Diario","1wk":"Semanal",
 }
 
-
-def _inject_module_css(dark: bool, c: dict):
-    """CSS de inputs y botón del módulo. Sin JS de dropdown."""
-    input_bg   = "#080d14"  if dark else "#f0f4f8"
-    input_text = "#c8d8ea"  if dark else "#1a2b3c"
-    input_bdr  = "#2a4560"  if dark else "#94a3b8"
-    label_col  = "#4a6a84"  if dark else "#6b7f94"
-    focus_clr  = "#22c55e"
-    focus_glow = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
-    eye_col    = "#64748b"
-
-    st.markdown(f"""
-<style>
-/* ══ LABELS ══════════════════════════════════════════════════════════════ */
-.stSelectbox label, .stNumberInput label {{
-    color: {label_col} !important;
-    font-family: Inter, sans-serif !important;
-    font-size: 0.72rem !important; font-weight: 600 !important;
-    letter-spacing: 1px !important; text-transform: uppercase !important;
-    margin-bottom: 0.3rem !important; display: block !important;
-}}
-
-/* ══ SELECTBOX ════════════════════════════════════════════════════════════ */
-.stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
-    background: transparent !important;
-    border: none !important; box-shadow: none !important;
-}}
-.stSelectbox [data-baseweb="select"] {{ cursor: pointer !important; }}
-.stSelectbox [data-baseweb="select"] > div {{
-    background: {input_bg} !important;
-    border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
-    min-height: 46px !important;
-    display: flex !important; align-items: center !important;
-    cursor: pointer !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important;
-    padding: 0 0.75rem !important;
-}}
-.stSelectbox [data-baseweb="select"] > div:focus-within {{
-    border-color: {focus_clr} !important;
-    box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-.stSelectbox [data-baseweb="select"] span {{
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important;
-    font-size: 0.93rem !important; pointer-events: none !important;
-}}
-.stSelectbox [data-baseweb="select"] svg {{
-    fill: {eye_col} !important; opacity: 0.7 !important;
-    flex-shrink: 0 !important; pointer-events: none !important;
-}}
-.stSelectbox [data-baseweb="select"] input {{
-    position: absolute !important; width: 1px !important;
-    height: 1px !important; opacity: 0 !important;
-    pointer-events: none !important; caret-color: transparent !important;
-    user-select: none !important; border: none !important;
-}}
-
-/* ══ NUMBER INPUT ═════════════════════════════════════════════════════════ */
-[data-testid="stNumberInput"] {{
-    background: transparent !important; border: none !important;
-}}
-[data-testid="stNumberInput"] > div:nth-child(1) {{
-    background: transparent !important; border: none !important;
-}}
-[data-testid="stNumberInput"] > div:nth-child(2) {{
-    background: {input_bg} !important;
-    border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
-    display: flex !important; align-items: center !important;
-    min-height: 46px !important; overflow: hidden !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important;
-    padding: 0 !important;
-}}
-[data-testid="stNumberInput"] > div:nth-child(2):focus-within {{
-    border-color: {focus_clr} !important;
-    box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-[data-testid="stNumberInput"] input {{
-    background: transparent !important; border: none !important;
-    box-shadow: none !important; outline: none !important;
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
-    padding: 0 0.75rem !important; flex: 1 !important;
-    height: 46px !important; -moz-appearance: textfield !important;
-}}
-[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
-[data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
-    -webkit-appearance: none !important; margin: 0 !important;
-}}
-[data-testid="stNumberInput"] > div:nth-child(2) > div:last-child {{
-    display: flex !important; align-items: center !important;
-    align-self: stretch !important; height: 100% !important;
-    background: transparent !important; border: none !important;
-}}
-[data-testid="stNumberInput-StepDown"],
-[data-testid="stNumberInput-StepUp"] {{
-    all: unset !important; box-sizing: border-box !important;
-    display: flex !important; align-items: center !important;
-    justify-content: center !important; align-self: stretch !important;
-    width: 44px !important; min-width: 44px !important;
-    height: 100% !important; min-height: 46px !important;
-    flex-shrink: 0 !important; cursor: pointer !important;
-    border-left: 1px solid {input_bdr} !important;
-    background: transparent !important;
-    opacity: 0.55 !important; transition: opacity .15s !important;
-}}
-[data-testid="stNumberInput-StepDown"]:hover,
-[data-testid="stNumberInput-StepUp"]:hover {{ opacity: 1 !important; }}
-[data-testid="stNumberInput-StepDown"] svg,
-[data-testid="stNumberInput-StepUp"] svg {{
-    width: 17px !important; height: 17px !important;
-    fill: none !important; stroke: {eye_col} !important;
-    stroke-width: 1.8 !important; pointer-events: none !important;
-    display: block !important; flex-shrink: 0 !important;
-}}
-[data-testid="stNumberInput"] > input:last-child,
-[data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
-[data-testid="stNumberInput"] > *:nth-child(n+3) {{
-    display: none !important; visibility: hidden !important;
-    height: 0 !important; margin: 0 !important; padding: 0 !important;
-    border: none !important; opacity: 0 !important;
-    position: absolute !important; pointer-events: none !important;
-}}
-[data-testid="InputInstructions"] {{
-    display: none !important; visibility: hidden !important;
-    height: 0 !important; margin: 0 !important;
-}}
-
-/* ══ BOTÓN PRIMARY ════════════════════════════════════════════════════════ */
-[data-testid="stBaseButton-primary"] {{
-    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
-    border: none !important; border-radius: 10px !important;
-    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
-    font-family: Inter, sans-serif !important;
-    font-weight: 600 !important; font-size: 0.95rem !important;
-    padding: 0.72rem 1.4rem !important;
-    box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
-    transition: box-shadow .25s ease, transform .18s ease !important;
-    cursor: pointer !important;
-}}
-[data-testid="stBaseButton-primary"]:hover {{
-    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
-    box-shadow: 0 6px 22px 0 rgba(16,185,129,0.58) !important;
-    transform: translateY(-1px) !important;
-}}
-[data-testid="stBaseButton-primary"]:active {{
-    box-shadow: 0 2px 8px 0 rgba(16,185,129,0.30) !important;
-    transform: scale(0.98) !important;
-}}
-/* En stHorizontalBlock el primary sigue siendo verde */
-[data-testid="stHorizontalBlock"] [data-testid="stBaseButton-primary"] {{
-    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
-    box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39) !important;
-    border: none !important;
-    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
-}}
-</style>
-""", unsafe_allow_html=True)
 
 
 def _render_news_banner(dark: bool, c: dict):
@@ -541,7 +380,7 @@ def render_live_analysis():
     page_header("📡", "Análisis en Vivo",
                 "Smart Money Concepts · Order Blocks · FVG · Liquidez")
     _render_news_banner(dark, c)
-    _inject_module_css(dark, c)
+    inject_module_css(dark)
 
     col1, col2, col3, col4, col5 = st.columns([2, 2, 1.5, 1.5, 1.5])
     with col1:

@@ -1,7 +1,23 @@
 """
-utils/economic_calendar.py — Calendario económico en ESPAÑOL.
-Eventos semanales de alto/medio impacto con horas en CDMX.
-Sin dependencias externas.
+utils/economic_calendar.py — ORAM Quant Systems — Calendario Económico
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Provee eventos económicos semanales con horarios en UTC y CDMX.
+
+Estrategia de datos:
+  Los eventos están codificados como una lista de dicts estáticos con
+  horarios base (hora_utc en formato "HH:MM") que se normalizan a la
+  semana actual en tiempo de ejecución. Esto garantiza funcionamiento
+  offline sin dependencia de ninguna API externa.
+
+Funciones públicas:
+  · obtener_eventos_semana()          → lista de eventos de lun a dom
+  · obtener_proximos_eventos(n)       → N próximos eventos futuros
+  · hay_evento_alto_impacto_pronto(m) → (bool, dict) si evento High en <m min
+  · impacto_color(impacto, dark)      → hex color según impacto y tema
+  · impacto_emoji(impacto)            → emoji 🔴🟡⚪ según impacto
+
+Constantes exportadas:
+  FOREX_FACTORY_URL, EVENTOS_ESPECIALES (FOMC, NFP, CPI, etc.)
 """
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo

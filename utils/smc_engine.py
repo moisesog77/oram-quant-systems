@@ -1,6 +1,23 @@
 """
-utils/smc_engine.py — Motor completo de Smart Money Concepts.
-Detecta: BOS, CHoCH, Order Blocks, FVG, Liquidez, IPDA.
+utils/smc_engine.py — ORAM Quant Systems — Motor SMC Completo
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Detección de patrones Smart Money Concepts sobre DataFrames OHLCV.
+
+Componentes detectados:
+  · BOS / CHoCH    → via swing highs/lows + comparación de HH/HL/LH/LL
+  · Order Blocks   → última vela contraria antes de impulso fuerte
+  · FVG            → gap entre mecha[i-2].high y mecha[i].low (o viceversa)
+  · Liquidez       → equal highs/lows (delta < 0.1%)
+  · IPDA           → bias basado en EMA200 + posición relativa del precio
+
+Función pública principal:
+  analisis_completo(df, ticker) → dict con:
+    {precio, rsi, atr, estructura, ob_alcista, ob_bajista,
+     fvg_alcista, fvg_bajista, liquidez, confluencia}
+  confluencia.confianza: 0–100 — combinación ponderada de señales activas
+
+Función auxiliar:
+  calcular_riesgo(entrada, sl, tp, capital, lotes) → dict con RR, pips, ganancia
 """
 import pandas as pd
 import numpy as np

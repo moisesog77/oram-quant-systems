@@ -1,17 +1,20 @@
 """
-modules/performance.py — ORAM Quant Systems — Performance & Análisis IA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Análisis profundo del historial de trades con métricas institucionales.
+modules/performance.py — ORAM Quant Systems — Performance & IA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Análisis estadístico profundo del historial de trades con ML.
 
 Secciones:
-  · KPIs principales: P&L total, win rate, trades, Sharpe, drawdown
-  · Curva de equity acumulada (Plotly interactivo)
-  · P&L desglosado por: activo, setup SMC, temporalidad, emoción
-  · Análisis IA (RandomForest): qué variables predicen trades ganadores
-    Features: activo, TF, dirección, setup, emoción, riesgo, RR planeado
-    Target: trade ganador/perdedor (resultado_usd > 0)
+  · KPIs: win rate, profit factor, expectancy, rachas
+  · Análisis IA (RandomForest + StratifiedKFold CV):
+      - Qué variables predicen trades ganadores
+      - Feature importance visualizada con barras
+      - Advertencias de sobreajuste cuando CV > 85%
+  · Gráficas: distribución de P&L, P&L por setup, por emoción,
+              RR planeado vs real
+  · Recordatorio de gestión de riesgo
 
-Requiere mínimo 5 trades para el análisis IA.
+Requiere mínimo 5 trades para mostrar análisis;
+mínimo 20 trades para activar el modelo ML.
 """
 import streamlit as st
 import pandas as pd

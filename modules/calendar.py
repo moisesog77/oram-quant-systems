@@ -1,8 +1,18 @@
 """
-modules/calendar.py — Calendario Económico semanal v3.
-- Por defecto muestra solo HOY y días futuros de la semana
-- Los días pasados se muestran en sección colapsada
-- Noticias en español
+modules/calendar.py — ORAM Quant Systems — Calendario Económico
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Eventos económicos semanales con horarios en CDMX y UTC.
+
+Secciones:
+  · Alerta urgente: evento de alto impacto en los próximos 90 minutos
+  · Próximos 4 eventos (tarjetas compactas coloreadas por impacto)
+  · Eventos pendientes (hoy + resto de semana) con filtros de moneda/impacto
+  · Eventos pasados (colapsados en expander) — días anteriores de la semana
+  · Eventos de baja frecuencia: FOMC, NFP, CPI (referencia estática)
+  · Link a Forex Factory para datos en tiempo real
+
+Colores de impacto: rojo (High), naranja (Medium), azul (Low).
+Los eventos están mapeados por utils/economic_calendar.py.
 """
 import streamlit as st
 from utils.economic_calendar import (
@@ -11,66 +21,8 @@ from utils.economic_calendar import (
     impacto_color, impacto_emoji,
     FOREX_FACTORY_URL, EVENTOS_ESPECIALES,
 )
-from ui.styles import get_colors, page_header, get_theme
+from ui.styles import get_colors, page_header, get_theme, inject_module_css
 
-
-def _inject_cal_css(dark: bool, c: dict):
-    input_bg   = "#080d14"  if dark else "#f0f4f8"
-    input_text = "#c8d8ea"  if dark else "#1a2b3c"
-    input_bdr  = "#2a4560"  if dark else "#94a3b8"
-    label_col  = "#4a6a84"  if dark else "#6b7f94"
-    focus_clr  = "#22c55e"
-    focus_glow = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
-    eye_col    = "#64748b"
-
-    st.markdown(f"""
-<style>
-/* ══ LABELS ══════════════════════════════════════════════════════════════ */
-.stSelectbox label {{
-    color: {label_col} !important;
-    font-family: Inter, sans-serif !important;
-    font-size: 0.72rem !important; font-weight: 600 !important;
-    letter-spacing: 1px !important; text-transform: uppercase !important;
-    margin-bottom: 0.3rem !important; display: block !important;
-}}
-/* ══ SELECTBOX ════════════════════════════════════════════════════════════ */
-.stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
-    background: transparent !important;
-    border: none !important; box-shadow: none !important;
-}}
-.stSelectbox [data-baseweb="select"] {{ cursor: pointer !important; }}
-.stSelectbox [data-baseweb="select"] > div {{
-    background: {input_bg} !important;
-    border: 2px solid {input_bdr} !important;
-    border-radius: 10px !important; box-shadow: none !important;
-    min-height: 46px !important;
-    display: flex !important; align-items: center !important;
-    cursor: pointer !important;
-    transition: border-color .18s ease, box-shadow .18s ease !important;
-    padding: 0 0.75rem !important;
-}}
-.stSelectbox [data-baseweb="select"] > div:focus-within {{
-    border-color: {focus_clr} !important;
-    box-shadow: 0 0 0 3px {focus_glow} !important;
-}}
-.stSelectbox [data-baseweb="select"] span {{
-    color: {input_text} !important;
-    -webkit-text-fill-color: {input_text} !important;
-    font-family: Inter, sans-serif !important;
-    font-size: 0.93rem !important; pointer-events: none !important;
-}}
-.stSelectbox [data-baseweb="select"] svg {{
-    fill: {eye_col} !important; opacity: 0.7 !important;
-    flex-shrink: 0 !important; pointer-events: none !important;
-}}
-.stSelectbox [data-baseweb="select"] input {{
-    position: absolute !important; width: 1px !important;
-    height: 1px !important; opacity: 0 !important;
-    pointer-events: none !important; caret-color: transparent !important;
-    user-select: none !important; border: none !important;
-}}
-</style>
-""", unsafe_allow_html=True)
 
 
 def _render_evento(ev, c, dark):
@@ -125,7 +77,7 @@ def render_calendar():
     dark = get_theme() == "dark"
 
     page_header("📰", "Calendario Económico", "Eventos semanales · Horas en CDMX · Alto impacto primero")
-    _inject_cal_css(dark, c)
+    inject_module_css(dark)
 
     # ── Alerta si hay evento pronto ────────────────────────────────────────
     hay_alerta, ev_alerta = hay_evento_alto_impacto_pronto(minutos=90)

@@ -1,7 +1,16 @@
 """
-utils/market_data.py — Descarga y validación de datos de mercado.
-Usa yfinance con verificación de integridad de datos.
-Sin pytz — usa zoneinfo (stdlib Python 3.9+).
+utils/market_data.py — ORAM Quant Systems — Capa de Datos de Mercado
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Responsabilidades:
+  · Descargar datos OHLCV via yfinance con reintento automático
+  · Normalizar columnas (MultiIndex → nombres estándar)
+  · Validar integridad (NaN, High<Low, antigüedad de datos)
+  · Calcular indicadores técnicos: EMA9/20/50/200, ATR, RSI, MACD, BB
+  · Generar datos demo sintéticos cuando yfinance no está disponible
+
+Sin dependencias de pytz — usa stdlib zoneinfo (Python 3.9+).
+Función pública:
+  obtener_datos(ticker, timeframe) → (DataFrame | None, str_status)
 """
 import pandas as pd
 import numpy as np
@@ -175,11 +184,3 @@ def _generar_datos_demo(ticker: str, timeframe: str) -> pd.DataFrame:
                        'Close': close, 'Volume': vol}, index=idx)
     return _agregar_indicadores(df, timeframe)
 
-    try:
-        t    = yf.Ticker(ticker)
-        hist = t.history(period="1d", interval="1m")
-        if not hist.empty:
-            return float(hist['Close'].iloc[-1])
-    except Exception:
-        pass
-    return None

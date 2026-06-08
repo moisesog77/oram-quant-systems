@@ -25,7 +25,6 @@ Variables CSS globales (:root):
 """
 import time
 import streamlit as st
-import streamlit.components.v1 as _st_components
 
 APP_NAME    = "ORAM Quant Systems"
 APP_ABBR    = "ORAM"
@@ -1776,6 +1775,487 @@ html body [data-baseweb="layer"] [role="option"] {{
 }}
 </style>
 """, unsafe_allow_html=True)
+
+
+
+def inject_module_css(
+    dark: bool | None = None,
+    extra_inputs: bool = True,
+    extra_buttons: bool = True,
+    slider: bool = True,
+    multiselect: bool = False,
+    textarea: bool = False,
+    date_input: bool = False,
+    metrics: bool = False,
+) -> None:
+    """
+    Inyecta el CSS premium unificado para inputs, selectboxes, botones y
+    controles de formulario en cualquier módulo.
+
+    PROPÓSITO / PROBLEMA RESUELTO:
+        Antes de esta función existían 11 funciones _inject_*_css() idénticas
+        (una por módulo) con ~150 líneas CSS cada una → ~1650 líneas duplicadas.
+        Esta función centraliza el CSS en un único punto de verdad (Single
+        Source of Truth) alineado con los principios de diseño de styles.py.
+
+    PARÁMETROS:
+        dark           : bool | None — tema actual. None = leer de session_state.
+        extra_inputs   : bool — incluir NumberInput y TextInput premium.
+        extra_buttons  : bool — incluir botones primary/submit verde ORAM.
+        slider         : bool — incluir labels de slider.
+        multiselect    : bool — incluir tags de MultiSelect (signals_panel).
+        textarea       : bool — incluir TextArea premium (journal).
+        date_input     : bool — incluir DateInput premium (journal).
+        metrics        : bool — incluir métricas con fondo premium (admin).
+
+    USO:
+        # Reemplaza cualquier _inject_xxx_css(dark, c) en módulos:
+        from ui.styles import inject_module_css
+        inject_module_css()           # SelectBox + NumberInput + Button básico
+        inject_module_css(textarea=True, date_input=True)   # Journal
+        inject_module_css(multiselect=True)                 # Signals Panel
+        inject_module_css(metrics=True)                     # Admin Panel
+    """
+    if dark is None:
+        dark = get_theme() == "dark"
+
+    input_bg   = "#080d14"  if dark else "#f0f4f8"
+    input_text = "#c8d8ea"  if dark else "#1a2b3c"
+    input_bdr  = "#2a4560"  if dark else "#94a3b8"
+    label_col  = "#4a6a84"  if dark else "#6b7f94"
+    focus_clr  = "#22c55e"
+    focus_glow = "rgba(34,197,94,0.18)" if dark else "rgba(34,197,94,0.14)"
+    eye_col    = "#64748b"
+
+    # ── Base: Labels + SelectBox (presentes en TODOS los módulos) ──────────
+    css = f"""
+<style>
+/* ══ LABELS — unificado ORAM ══════════════════════════════════════════════
+   Aplica a todos los tipos de widget para coherencia visual.
+   Texto uppercase + letter-spacing institucional.
+   ════════════════════════════════════════════════════════════════════════ */
+.stSelectbox label, .stNumberInput label, .stTextInput label,
+.stTextArea label, .stDateInput label, .stSlider label,
+.stMultiSelect label, .stRadio label {{
+    color: {label_col} !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.72rem !important; font-weight: 600 !important;
+    letter-spacing: 1px !important; text-transform: uppercase !important;
+    margin-bottom: 0.3rem !important; display: block !important;
+}}
+
+/* ══ SELECTBOX — campo de selección ORAM ══════════════════════════════════
+   Elimina el borde nativo de Streamlit y aplica estilo premium.
+   El campo real se estiliza en [data-baseweb="select"] > div.
+   ════════════════════════════════════════════════════════════════════════ */
+.stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
+    background: transparent !important;
+    border: none !important; box-shadow: none !important;
+}}
+.stSelectbox [data-baseweb="select"] {{ cursor: pointer !important; }}
+.stSelectbox [data-baseweb="select"] > div {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    min-height: 46px !important;
+    display: flex !important; align-items: center !important;
+    cursor: pointer !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    padding: 0 0.75rem !important;
+}}
+.stSelectbox [data-baseweb="select"] > div:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+.stSelectbox [data-baseweb="select"] span {{
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.93rem !important; pointer-events: none !important;
+}}
+.stSelectbox [data-baseweb="select"] svg {{
+    fill: {eye_col} !important; opacity: 0.7 !important;
+    flex-shrink: 0 !important; pointer-events: none !important;
+}}
+/* Input interno oculto — readonly visual (sin caret, sin escritura libre) */
+.stSelectbox [data-baseweb="select"] input {{
+    position: absolute !important; width: 1px !important;
+    height: 1px !important; opacity: 0 !important;
+    pointer-events: none !important; caret-color: transparent !important;
+    user-select: none !important; border: none !important;
+}}
+"""
+
+    # ── NumberInput + TextInput ────────────────────────────────────────────
+    if extra_inputs:
+        css += f"""
+/* ══ NUMBER INPUT — campo numérico premium ════════════════════════════════
+   Estructura DOM de Streamlit:
+     [data-testid="stNumberInput"]
+       div (1°) — label wrapper         → transparent
+       div (2°) — campo real + botones  → estilizado
+       *:nth-child(n+3)                 → FANTASMA → ocultar
+   ════════════════════════════════════════════════════════════════════════ */
+[data-testid="stNumberInput"] {{
+    background: transparent !important; border: none !important;
+}}
+[data-testid="stNumberInput"] > div:nth-child(1) {{
+    background: transparent !important; border: none !important;
+}}
+[data-testid="stNumberInput"] > div:nth-child(2) {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    display: flex !important; align-items: center !important;
+    min-height: 46px !important; overflow: hidden !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    padding: 0 !important;
+}}
+[data-testid="stNumberInput"] > div:nth-child(2):focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+[data-testid="stNumberInput"] input {{
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
+    padding: 0 0.75rem !important; flex: 1 !important;
+    height: 46px !important; -moz-appearance: textfield !important;
+}}
+[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
+[data-testid="stNumberInput"] input::-webkit-inner-spin-button {{
+    -webkit-appearance: none !important; margin: 0 !important;
+}}
+[data-testid="stNumberInput"] > div:nth-child(2) > div:last-child {{
+    display: flex !important; align-items: center !important;
+    align-self: stretch !important; height: 100% !important;
+    background: transparent !important; border: none !important;
+}}
+/* Botones ± del NumberInput */
+[data-testid="stNumberInput-StepDown"],
+[data-testid="stNumberInput-StepUp"] {{
+    all: unset !important; box-sizing: border-box !important;
+    display: flex !important; align-items: center !important;
+    justify-content: center !important; align-self: stretch !important;
+    width: 44px !important; min-width: 44px !important;
+    height: 100% !important; min-height: 46px !important;
+    flex-shrink: 0 !important; cursor: pointer !important;
+    border-left: 1px solid {input_bdr} !important;
+    background: transparent !important;
+    opacity: 0.55 !important; transition: opacity .15s !important;
+}}
+[data-testid="stNumberInput-StepDown"]:hover,
+[data-testid="stNumberInput-StepUp"]:hover {{ opacity: 1 !important; }}
+[data-testid="stNumberInput-StepDown"] svg,
+[data-testid="stNumberInput-StepUp"] svg {{
+    width: 17px !important; height: 17px !important;
+    fill: none !important; stroke: {eye_col} !important;
+    stroke-width: 1.8 !important; pointer-events: none !important;
+    display: block !important; flex-shrink: 0 !important;
+}}
+/* Elemento fantasma — aparece al editar manualmente el campo;
+   Streamlit inyecta un input o div adicional que rompe el layout. */
+[data-testid="stNumberInput"] > input:last-child,
+[data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
+[data-testid="stNumberInput"] > *:nth-child(n+3) {{
+    display: none !important; visibility: hidden !important;
+    height: 0 !important; min-height: 0 !important;
+    margin: 0 !important; padding: 0 !important;
+    border: none !important; opacity: 0 !important;
+    position: absolute !important; pointer-events: none !important;
+    overflow: hidden !important;
+}}
+/* Hint "Press Enter to apply" — siempre ocultar */
+[data-testid="InputInstructions"] {{
+    display: none !important; visibility: hidden !important;
+    height: 0 !important; margin: 0 !important;
+}}
+
+/* ══ TEXT INPUT — campo de texto premium ══════════════════════════════════ */
+.stTextInput > div {{
+    border: none !important; background: transparent !important;
+    box-shadow: none !important; padding: 0 !important; margin: 0 !important;
+}}
+.stTextInput > div > div,
+[data-testid="stTextInputRootElement"] {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    min-height: 46px !important; overflow: hidden !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    display: flex !important; align-items: center !important;
+    padding: 0 !important;
+}}
+.stTextInput > div > div:focus-within,
+[data-testid="stTextInputRootElement"]:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+.stTextInput input {{
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
+    padding: 0 0.75rem !important; height: 46px !important; width: 100% !important;
+}}
+"""
+
+    # ── Botones primary y submit ───────────────────────────────────────────
+    if extra_buttons:
+        css += f"""
+/* ══ BOTONES PREMIUM ORAM ═════════════════════════════════════════════════
+   Aplica a:
+     · stBaseButton-primary  → st.button(type="primary")
+     · stFormSubmitButton    → st.form_submit_button()
+   Degradado verde institucional con glow y micro-animación.
+   ════════════════════════════════════════════════════════════════════════ */
+[data-testid="stBaseButton-primary"],
+[data-testid="stFormSubmitButton"] button {{
+    background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
+    border: none !important; border-radius: 10px !important;
+    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
+    font-family: Inter, sans-serif !important; font-weight: 600 !important;
+    font-size: 0.95rem !important; padding: 0.72rem 1.4rem !important;
+    box-shadow: 0 4px 14px rgba(16,185,129,0.39) !important;
+    transition: box-shadow .25s ease, transform .18s ease !important;
+    cursor: pointer !important;
+}}
+[data-testid="stBaseButton-primary"]:hover,
+[data-testid="stFormSubmitButton"] button:hover {{
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+    box-shadow: 0 6px 22px rgba(16,185,129,0.58) !important;
+    transform: translateY(-1px) !important;
+}}
+[data-testid="stBaseButton-primary"]:active,
+[data-testid="stFormSubmitButton"] button:active {{
+    box-shadow: 0 2px 8px rgba(16,185,129,0.30) !important;
+    transform: scale(0.98) !important;
+}}
+[data-testid="stFormSubmitButton"] button * {{
+    color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
+}}
+"""
+
+    # ── TextArea ───────────────────────────────────────────────────────────
+    if textarea:
+        css += f"""
+/* ══ TEXT AREA — notas y planes de trade ════════════════════════════════ */
+.stTextArea > div > div {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    overflow: hidden !important;
+}}
+.stTextArea > div > div:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+.stTextArea textarea {{
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
+    padding: 0.65rem 0.75rem !important;
+}}
+"""
+
+    # ── DateInput ──────────────────────────────────────────────────────────
+    if date_input:
+        css += f"""
+/* ══ DATE INPUT — fecha de trade ════════════════════════════════════════ */
+[data-testid="stDateInput"] > div {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; overflow: hidden !important;
+    min-height: 46px !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+}}
+[data-testid="stDateInput"] > div > div {{
+    background: transparent !important; border: none !important; box-shadow: none !important;
+}}
+[data-testid="stDateInput"] input {{
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
+    color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important; font-size: 0.93rem !important;
+    padding: 0 0.75rem !important; height: 46px !important;
+}}
+[data-testid="stDateInput"]:focus-within > div {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+"""
+
+    # ── MultiSelect ────────────────────────────────────────────────────────
+    if multiselect:
+        tag_bg   = "#0f2a1a" if dark else "#dcfce7"
+        tag_text = "#22c55e" if dark else "#15803d"
+        css += f"""
+/* ══ MULTISELECT — selección múltiple con tags ORAM ════════════════════ */
+.stMultiSelect > div > div {{
+    background: {input_bg} !important;
+    border: 2px solid {input_bdr} !important;
+    border-radius: 10px !important; box-shadow: none !important;
+    min-height: 46px !important;
+    transition: border-color .18s ease, box-shadow .18s ease !important;
+    padding: 0 0.5rem !important;
+}}
+.stMultiSelect > div > div:focus-within {{
+    border-color: {focus_clr} !important;
+    box-shadow: 0 0 0 3px {focus_glow} !important;
+}}
+.stMultiSelect [data-baseweb="select"] > div {{
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; padding: 0 !important;
+}}
+.stMultiSelect input {{
+    color: {input_text} !important; -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important; font-size: 0.9rem !important;
+    background: transparent !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
+}}
+/* Tags de items seleccionados */
+.stMultiSelect [data-baseweb="tag"],
+[data-testid="stMultiSelect"] [data-baseweb="tag"] {{
+    background: {tag_bg} !important; background-color: {tag_bg} !important;
+    border: 1px solid {focus_clr}66 !important; border-radius: 6px !important;
+    padding: 2px 4px 2px 8px !important; margin: 2px !important;
+    color: {tag_text} !important;
+}}
+.stMultiSelect [data-baseweb="tag"] *,
+[data-testid="stMultiSelect"] [data-baseweb="tag"] * {{
+    background: transparent !important; background-color: transparent !important;
+}}
+.stMultiSelect [data-baseweb="tag"] span,
+[data-testid="stMultiSelect"] [data-baseweb="tag"] span {{
+    color: {tag_text} !important; -webkit-text-fill-color: {tag_text} !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 0.82rem !important; font-weight: 600 !important;
+}}
+.stMultiSelect [data-baseweb="tag"] svg,
+[data-testid="stMultiSelect"] [data-baseweb="tag"] svg {{ fill: {tag_text} !important; }}
+"""
+
+    # ── Metrics ────────────────────────────────────────────────────────────
+    if metrics:
+        css += f"""
+/* ══ MÉTRICAS — panel admin con fondo premium ══════════════════════════ */
+[data-testid="stMetric"] {{
+    background: {input_bg} !important;
+    border: 1px solid {input_bdr} !important;
+    border-radius: 10px !important; padding: 0.9rem 1rem !important;
+}}
+[data-testid="stMetricLabel"] {{
+    font-family: Inter, sans-serif !important;
+    font-size: 0.68rem !important; font-weight: 600 !important;
+    letter-spacing: 1px !important; text-transform: uppercase !important;
+    color: {label_col} !important;
+}}
+[data-testid="stMetricValue"] {{
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 2rem !important; font-weight: 700 !important;
+    color: {input_text} !important; line-height: 1.1 !important;
+}}
+/* Botón secondary en admin — borde sutil */
+[data-testid="stBaseButton-secondary"] {{
+    border: 2px solid {input_bdr} !important; border-radius: 10px !important;
+    background: transparent !important; color: {input_text} !important;
+    -webkit-text-fill-color: {input_text} !important;
+    font-family: Inter, sans-serif !important; font-weight: 500 !important;
+    font-size: 0.9rem !important; width: 100% !important;
+    transition: border-color .18s ease !important;
+}}
+[data-testid="stBaseButton-secondary"]:hover {{
+    border-color: {focus_clr} !important; color: {focus_clr} !important;
+    -webkit-text-fill-color: {focus_clr} !important;
+}}
+"""
+
+    css += "</style>"
+    st.markdown(css, unsafe_allow_html=True)
+
+
+
+
+def oram_overlay_error(
+    mensaje: str,
+    titulo: str = "Campo obligatorio",
+    dark: bool | None = None,
+    delay: float = 2.2,
+) -> None:
+    """
+    Overlay premium de error — centralizado desde journal y admin.
+
+    Muestra una tarjeta de error centrada con animación fade-in,
+    espera `delay` segundos y llama st.rerun() para limpiar el estado.
+
+    Reemplaza las funciones _overlay_error() que existían duplicadas
+    en modules/journal.py y modules/admin.py con lógica idéntica.
+
+    Parámetros:
+        mensaje : Texto del error (soporta HTML básico: <b>, <br>)
+        titulo  : Título del card — default "Campo obligatorio"
+        dark    : bool | None — tema. None = leer de session_state
+        delay   : Segundos antes de st.rerun() — default 2.2
+
+    Uso:
+        from ui.styles import oram_overlay_error
+        oram_overlay_error("Entrada, SL y TP son obligatorios.")
+        oram_overlay_error("Contraseñas distintas.", titulo="Error de validación")
+    """
+    import time
+    if dark is None:
+        dark = get_theme() == "dark"
+
+    overlay_bg = "rgba(6,9,15,0.92)"  if dark else "rgba(238,242,247,0.94)"
+    card_bg    = "#0c1219"            if dark else "#ffffff"
+    card_bdr   = "#3d1a1a"            if dark else "#f8d0d0"
+    text_muted = "#637a94"            if dark else "#7a8fa0"
+
+    ph = st.empty()
+    ph.markdown(f"""
+<style>
+@keyframes oram-err-in {{
+    from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
+    to   {{ opacity:1; transform:translateY(0) scale(1); }}
+}}
+#oram-err-overlay {{
+    position:fixed; inset:0; background:{overlay_bg};
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    z-index:99999; display:flex; align-items:center; justify-content:center;
+}}
+#oram-err-card {{
+    background:{card_bg}; border:1px solid {card_bdr};
+    border-radius:20px; padding:2.8rem 3rem 2.4rem;
+    text-align:center; max-width:400px; width:90%;
+    animation:oram-err-in 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow:0 24px 60px rgba(0,0,0,0.35);
+}}
+</style>
+<div id="oram-err-overlay"><div id="oram-err-card">
+  <div style="font-size:3rem;margin-bottom:1rem">❌</div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;
+              font-weight:700;color:#f87171;margin-bottom:0.6rem">
+    {titulo}
+  </div>
+  <div style="font-family:Inter,sans-serif;font-size:0.9rem;
+              color:{text_muted};line-height:1.6">{mensaje}</div>
+  <div style="margin-top:1.4rem;font-family:Inter,sans-serif;
+              font-size:0.78rem;color:{text_muted};opacity:0.7">
+    Cerrando automáticamente…</div>
+</div></div>
+""", unsafe_allow_html=True)
+    time.sleep(delay)
+    ph.empty()
+    st.rerun()
+
+
 
 def page_header(icon: str, title: str, subtitle: str = ""):
     display = f"{icon} {title}" if icon else title

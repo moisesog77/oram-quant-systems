@@ -5,7 +5,7 @@ Cubre el 100% de las capacidades de la aplicación:
   Backtesting · Risk Manager (Kelly+Ruina) · Watchlist · Panel de Señales
   Calendario Económico · Dashboard completo
 """
-import os, sys, json, logging, math
+import os, sys, json, logging
 from datetime import datetime, time as dtime
 from zoneinfo import ZoneInfo
 
