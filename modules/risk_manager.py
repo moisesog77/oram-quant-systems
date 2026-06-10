@@ -4,79 +4,31 @@ modules/risk_manager.py — ORAM Quant Systems — Gestor de Riesgo Instituciona
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
-from ui.styles import get_colors, page_header, get_theme, inject_module_css
+from ui.styles import get_colors, page_header, get_theme, inject_module_css, oram_bienvenida
 
 
 
 def _resultado_overlay(prob_ruina: float, dark: bool):
-    """Overlay premium con resultado de simulación Monte Carlo."""
-    import time
-
-    overlay_bg = "rgba(6,9,15,0.93)"  if dark else "rgba(238,242,247,0.95)"
-    card_bg    = "#0c1219"            if dark else "#ffffff"
-    text_muted = "#637a94"            if dark else "#7a8fa0"
-
+    """
+    Muestra el resultado de la simulación Monte Carlo usando oram_bienvenida()
+    — diseño idéntico al overlay del Dashboard (anillo verde + checkmark).
+    """
     if prob_ruina > 20:
-        icon    = "❌"
-        color   = "#f87171"
-        card_bdr = "#3d1a1a" if dark else "#f8d0d0"
-        titulo  = "Riesgo de ruina alto"
-        msg     = f"Probabilidad de ruina: <b>{prob_ruina:.1f}%</b>. Reduce el riesgo por trade o mejora tu edge."
+        titulo = "❌ Riesgo de ruina alto"
+        msg    = f"Probabilidad de ruina: <b>{prob_ruina:.1f}%</b>. Reduce el riesgo por trade o mejora tu edge."
     elif prob_ruina > 10:
-        icon    = "⚠️"
-        color   = "#fbbf24"
-        card_bdr = "#3a3010" if dark else "#fef3c7"
-        titulo  = "Riesgo moderado"
-        msg     = f"Probabilidad de ruina: <b>{prob_ruina:.1f}%</b>. Considera reducir el tamaño de posición."
+        titulo = "⚠️ Riesgo moderado"
+        msg    = f"Probabilidad de ruina: <b>{prob_ruina:.1f}%</b>. Considera reducir el tamaño de posición."
     else:
-        icon    = "✅"
-        color   = "#22c55e"
-        card_bdr = "#1b3a24" if dark else "#d1fae5"
-        titulo  = "Gestión de capital sólida"
-        msg     = f"Probabilidad de ruina: <b>{prob_ruina:.1f}%</b>. Riesgo controlado."
+        titulo = "✅ Gestión de capital sólida"
+        msg    = f"Probabilidad de ruina: <b>{prob_ruina:.1f}%</b>. Riesgo controlado."
 
-    ph = st.empty()
-    ph.markdown(f"""
-<style>
-@keyframes oram-rm-in {{
-    from {{ opacity:0; transform:translateY(16px) scale(0.96); }}
-    to   {{ opacity:1; transform:translateY(0) scale(1); }}
-}}
-#oram-rm-overlay {{
-    position:fixed; inset:0; background:{overlay_bg};
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-    z-index:99999; display:flex; align-items:center; justify-content:center;
-}}
-#oram-rm-card {{
-    background:{card_bg}; border:1px solid {card_bdr};
-    border-radius:20px; padding:2.8rem 3.2rem 2.6rem;
-    text-align:center; max-width:420px; width:92%;
-    animation:oram-rm-in 0.42s cubic-bezier(0.22,1,0.36,1) both;
-    box-shadow:0 24px 60px rgba(0,0,0,0.38);
-}}
-</style>
-<div id="oram-rm-overlay"><div id="oram-rm-card">
-  <div style="font-size:3.2rem;margin-bottom:1rem">{icon}</div>
-  <div style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;
-              letter-spacing:2px;color:#22c55e;font-weight:600;margin-bottom:0.4rem">
-    ORAM · Risk Manager
-  </div>
-  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.25rem;
-              font-weight:700;color:{color};margin-bottom:0.7rem">
-    {titulo}
-  </div>
-  <div style="font-family:Inter,sans-serif;font-size:0.9rem;
-              color:{text_muted};line-height:1.6">
-    {msg}
-  </div>
-  <div style="margin-top:1.4rem;font-family:Inter,sans-serif;
-              font-size:0.78rem;color:{text_muted};opacity:0.7">
-    Cerrando automáticamente…
-  </div>
-</div></div>
-""", unsafe_allow_html=True)
-    time.sleep(2.4)
-    ph.empty()
+    oram_bienvenida(
+        titulo        = titulo,
+        subtitulo     = msg,
+        spinner_label = "Cerrando automáticamente…",
+        delay         = 2.4,
+    )
 
 
 def render_risk_manager():

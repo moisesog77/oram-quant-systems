@@ -144,8 +144,19 @@ def render_calendar():
     dias_pasados_f = aplicar_filtros(dias_pasados)
 
     # ── Eventos pendientes (hoy + resto de semana) ─────────────────────────
+    n_pend = len(pendientes_f)
+    container_bg  = "#0c1219" if dark else "#f8fafc"
+    container_bdr = c["border"]
+    st.markdown(
+        "<div style=\"background:" + container_bg + ";border:1px solid " + container_bdr + ";"
+        "border-radius:14px;padding:1rem 1rem 0.5rem;margin-bottom:1rem\">"
+        "<div style=\"font-family:Inter,sans-serif;font-size:0.72rem;font-weight:600;"
+        "letter-spacing:1px;text-transform:uppercase;color:" + c["text_muted"] + ";"
+        "margin-bottom:0.75rem\">📅 " + str(n_pend) + " evento" + ("s" if n_pend != 1 else "") +
+        " pendiente" + ("s" if n_pend != 1 else "") + "</div></div>",
+        unsafe_allow_html=True
+    )
     if pendientes_f:
-        st.markdown(f"**{len(pendientes_f)} evento{'s' if len(pendientes_f)!=1 else ''} pendiente{'s' if len(pendientes_f)!=1 else ''}**")
         for ev in pendientes_f:
             _render_evento(ev, c, dark)
     else:

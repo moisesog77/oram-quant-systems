@@ -6,7 +6,7 @@ Responsabilidades:
   · Inyectar el CSS global premium vía inject_styles()
   · Proveer funciones utilitarias: get_theme(), get_colors(), toggle_theme()
   · Proveer componentes HTML reutilizables: signal_box(), page_header()
-  · Proveer el sistema de notificaciones: oram_notify(), oram_overlay_msg()
+  · Proveer el sistema de notificaciones: oram_notify(), oram_bienvenida()
 
 Principios de diseño:
   · Un solo punto de verdad para todos los estilos (Single Source of Truth)
@@ -779,6 +779,10 @@ div[role="radiogroup"] label p{{color:{c['text']}!important}}
     color: {c['green']} !important;
     font-weight: 600 !important;
 }}
+    background: {'#0f2a1a' if dark else '#dcfce7'} !important;
+    color: {c['green']} !important;
+    font-weight: 600 !important;
+}}
 /* Labels */
 .stTextInput label,.stNumberInput label,.stTextArea label,
 .stSelectbox label,.stSlider label,.stDateInput label,
@@ -1414,7 +1418,7 @@ textarea {{
 }}
 .main [data-testid="stRadio"] label:hover,
 [data-testid="stMainBlockContainer"] [data-testid="stRadio"] label:hover {{
-    border-color: {c['green']} !important;
+    border-color: {c['border2']} !important;
     background: {c['glow']} !important;
 }}
 .main [data-testid="stRadio"] [data-checked="true"] label,
@@ -1447,6 +1451,16 @@ div[role="radiogroup"] div[role="radio"] {{
 div[role="radiogroup"] div[role="radio"][aria-checked="true"] {{
     border-color: {c['green']} !important;
     background: {c['green']} !important;
+}}
+/* Suprimir glow dorado nativo de Streamlit en radio buttons */
+[data-testid="stRadio"] label:focus-within,
+[data-testid="stRadio"] div[role="radio"]:focus,
+[data-testid="stRadio"] div[role="radio"]:hover,
+div[role="radiogroup"] div[role="radio"]:focus,
+div[role="radiogroup"] div[role="radio"]:hover,
+div[role="radiogroup"] label:focus-within {{
+    outline: none !important;
+    box-shadow: none !important;
 }}
 /* SVG/círculo nativo dentro del radio */
 [data-testid="stRadio"] div[role="radio"] > div,
@@ -1687,6 +1701,37 @@ div[data-testid="stAlert"].st-info {{
 """, unsafe_allow_html=True)
 
     # ── Dropdown portal: CSS puro con máxima especificidad real ────────────────
+    # DIAGNÓSTICO FINAL CONFIRMADO:
+    #   window.parent está bloqueado en Streamlit Cloud por same-origin policy.
+    #   components.v1.html corre en un iframe con origen diferente al parent.
+    #
+    # SOLUCIÓN FINAL — CSS @layer + selector de atributo:
+    #   1. @layer oram-dd tiene menos prioridad que estilos sin @layer normalmente,
+    #      PERO con !important en @layer gana sobre TODO incluido inline styles.
+    #   2. Usamos [style] attribute selector para targeting específico de elementos
+    #      con inline style (los que Base Web escribe).
+    #   3. st.markdown() sí inyecta CSS en el documento principal (no en iframe).
+    #   4. El <style> va directo al <head> del parent — funciona en Streamlit Cloud.
+    _bg      = c["bg_card"]
+    _text    = c["text"]
+    _hover   = c["nav_hover"]
+    _bdr2    = c["border2"]
+    _scheme  = "dark" if dark else "light"
+    _shadow  = "0 8px 32px rgba(0,0,0,0.45)" if dark else "0 8px 24px rgba(0,0,0,0.10)"
+
+    # ── Dropdown portal: selector [style*] con color fijo — SOLUCIÓN DEFINITIVA ──
+    # DIAGNÓSTICO RAÍZ CONFIRMADO:
+    #   • Base Web escribe inline style="background: var(--secondary-background-color)"
+    #     en el <ul> del portal (y otros elementos).
+    #   • CSS custom properties (variables) NO soportan !important → ignorado por Chrome.
+    #   • @layer + !important NO puede sobreescribir :root custom properties.
+    #   • window.parent bloqueado en Streamlit Cloud por same-origin policy.
+    #
+    # SOLUCIÓN: selector [style*="secondary-background-color"] + color FIJO hardcoded.
+    #   • No depende de variables CSS → !important sí funciona.
+    #   • st.markdown inyecta en el <head> del documento principal (no iframe).
+    #   • El color fijo viene de Python (dark/light) → cambia con el tema.
+    #   • Especificidad: selector de atributo (0,1,0) + !important = máxima prioridad.
     _bg      = c["bg_card"]
     _text    = c["text"]
     _hover   = c["nav_hover"]
@@ -1762,6 +1807,9 @@ html body [data-baseweb="layer"] [role="option"] {{
 """, unsafe_allow_html=True)
 
     # ── CSS global de alertas premium ORAM ───────────────────────────────────
+    # Reemplaza el estilo nativo de Streamlit para st.success/error/warning/info
+    # con el design system ORAM: bordes de color, fondo semi-transparente,
+    # tipografía Inter, sin iconos nativos (reemplazados por emoji del texto).
     _dark = t == "dark"
     _alert_bg   = "rgba(12,18,25,0.85)"   if _dark else "rgba(248,250,252,0.92)"
     _alert_bdr  = c["border"]
@@ -1881,6 +1929,30 @@ def inject_module_css(
     """
     Inyecta el CSS premium unificado para inputs, selectboxes, botones y
     controles de formulario en cualquier módulo.
+
+    PROPÓSITO / PROBLEMA RESUELTO:
+        Antes de esta función existían 11 funciones _inject_*_css() idénticas
+        (una por módulo) con ~150 líneas CSS cada una → ~1650 líneas duplicadas.
+        Esta función centraliza el CSS en un único punto de verdad (Single
+        Source of Truth) alineado con los principios de diseño de styles.py.
+
+    PARÁMETROS:
+        dark           : bool | None — tema actual. None = leer de session_state.
+        extra_inputs   : bool — incluir NumberInput y TextInput premium.
+        extra_buttons  : bool — incluir botones primary/submit verde ORAM.
+        slider         : bool — incluir labels de slider.
+        multiselect    : bool — incluir tags de MultiSelect (signals_panel).
+        textarea       : bool — incluir TextArea premium (journal).
+        date_input     : bool — incluir DateInput premium (journal).
+        metrics        : bool — incluir métricas con fondo premium (admin).
+
+    USO:
+        # Reemplaza cualquier _inject_xxx_css(dark, c) en módulos:
+        from ui.styles import inject_module_css
+        inject_module_css()           # SelectBox + NumberInput + Button básico
+        inject_module_css(textarea=True, date_input=True)   # Journal
+        inject_module_css(multiselect=True)                 # Signals Panel
+        inject_module_css(metrics=True)                     # Admin Panel
     """
     if dark is None:
         dark = get_theme() == "dark"
@@ -1896,7 +1968,11 @@ def inject_module_css(
     # ── Base: Labels + SelectBox (presentes en TODOS los módulos) ──────────
     css = f"""
 <style>
-/* ══ LABELS — unificado ORAM ══════════════════════════════════════════════ */
+/* ══ LABELS — unificado ORAM ══════════════════════════════════════════════
+   Aplica a todos los tipos de widget para coherencia visual.
+   Texto uppercase + letter-spacing institucional.
+   ════════════════════════════════════════════════════════════════════════ */
+/* Scoped to main content — excludes sidebar nav radio (inject_module_css) */
 .main .stSelectbox label,
 .main .stNumberInput label,
 .main .stTextInput label,
@@ -1918,7 +1994,10 @@ def inject_module_css(
     margin-bottom: 0.3rem !important; display: block !important;
 }}
 
-/* ══ SELECTBOX — campo de selección ORAM ══════════════════════════════════ */
+/* ══ SELECTBOX — campo de selección ORAM ══════════════════════════════════
+   Elimina el borde nativo de Streamlit y aplica estilo premium.
+   El campo real se estiliza en [data-baseweb="select"] > div.
+   ════════════════════════════════════════════════════════════════════════ */
 .stSelectbox, .stSelectbox > div, .stSelectbox > div > div {{
     background: transparent !important;
     border: none !important; box-shadow: none !important;
@@ -1948,7 +2027,7 @@ def inject_module_css(
     fill: {eye_col} !important; opacity: 0.7 !important;
     flex-shrink: 0 !important; pointer-events: none !important;
 }}
-/* Input interno oculto — readonly visual */
+/* Input interno oculto — readonly visual (sin caret, sin escritura libre) */
 .stSelectbox [data-baseweb="select"] input {{
     position: absolute !important; width: 1px !important;
     height: 1px !important; opacity: 0 !important;
@@ -1960,7 +2039,13 @@ def inject_module_css(
     # ── NumberInput + TextInput ────────────────────────────────────────────
     if extra_inputs:
         css += f"""
-/* ══ NUMBER INPUT — campo numérico premium ════════════════════════════════ */
+/* ══ NUMBER INPUT — campo numérico premium ════════════════════════════════
+   Estructura DOM de Streamlit:
+     [data-testid="stNumberInput"]
+       div (1°) — label wrapper         → transparent
+       div (2°) — campo real + botones  → estilizado
+       *:nth-child(n+3)                 → FANTASMA → ocultar
+   ════════════════════════════════════════════════════════════════════════ */
 [data-testid="stNumberInput"] {{
     background: transparent !important; border: none !important;
 }}
@@ -2020,7 +2105,8 @@ def inject_module_css(
     stroke-width: 1.8 !important; pointer-events: none !important;
     display: block !important; flex-shrink: 0 !important;
 }}
-/* Elemento fantasma */
+/* Elemento fantasma — aparece al editar manualmente el campo;
+   Streamlit inyecta un input o div adicional que rompe el layout. */
 [data-testid="stNumberInput"] > input:last-child,
 [data-testid="stNumberInput"] > div:last-child:not(:nth-child(2)),
 [data-testid="stNumberInput"] > *:nth-child(n+3) {{
@@ -2072,7 +2158,12 @@ def inject_module_css(
     # ── Botones primary y submit ───────────────────────────────────────────
     if extra_buttons:
         css += f"""
-/* ══ BOTONES PREMIUM ORAM ═════════════════════════════════════════════════ */
+/* ══ BOTONES PREMIUM ORAM ═════════════════════════════════════════════════
+   Aplica a:
+     · stBaseButton-primary  → st.button(type="primary")
+     · stFormSubmitButton    → st.form_submit_button()
+   Degradado verde institucional con glow y micro-animación.
+   ════════════════════════════════════════════════════════════════════════ */
 [data-testid="stBaseButton-primary"],
 [data-testid="stFormSubmitButton"] button {{
     background: linear-gradient(135deg, #16a34a 0%, #14743d 100%) !important;
@@ -2155,8 +2246,6 @@ def inject_module_css(
 
     # ── MultiSelect ────────────────────────────────────────────────────────
     if multiselect:
-        tag_bg   = "#0f2a1a" if dark else "#dcfce7"
-        tag_text = "#22c55e" if dark else "#15803d"
         css += f"""
 /* ══ MULTISELECT — selección múltiple con tags ORAM ════════════════════ */
 .stMultiSelect > div > div {{
@@ -2181,13 +2270,13 @@ def inject_module_css(
     background: transparent !important; border: none !important;
     box-shadow: none !important; outline: none !important;
 }}
-/* Tags de items seleccionados */
+/* Tags de items seleccionados — estilo neutro (sin color verde/dorado) */
 .stMultiSelect [data-baseweb="tag"],
 [data-testid="stMultiSelect"] [data-baseweb="tag"] {{
-    background: {tag_bg} !important; background-color: {tag_bg} !important;
-    border: 1px solid {focus_clr}66 !important; border-radius: 6px !important;
+    background: {input_bg} !important; background-color: {input_bg} !important;
+    border: 1px solid {input_bdr} !important; border-radius: 6px !important;
     padding: 2px 4px 2px 8px !important; margin: 2px !important;
-    color: {tag_text} !important;
+    color: {input_text} !important;
 }}
 .stMultiSelect [data-baseweb="tag"] *,
 [data-testid="stMultiSelect"] [data-baseweb="tag"] * {{
@@ -2195,12 +2284,12 @@ def inject_module_css(
 }}
 .stMultiSelect [data-baseweb="tag"] span,
 [data-testid="stMultiSelect"] [data-baseweb="tag"] span {{
-    color: {tag_text} !important; -webkit-text-fill-color: {tag_text} !important;
+    color: {input_text} !important; -webkit-text-fill-color: {input_text} !important;
     font-family: Inter, sans-serif !important;
-    font-size: 0.82rem !important; font-weight: 600 !important;
+    font-size: 0.82rem !important; font-weight: 500 !important;
 }}
 .stMultiSelect [data-baseweb="tag"] svg,
-[data-testid="stMultiSelect"] [data-baseweb="tag"] svg {{ fill: {tag_text} !important; }}
+[data-testid="stMultiSelect"] [data-baseweb="tag"] svg {{ fill: {input_text} !important; opacity: 0.6 !important; }}
 """
 
     # ── Metrics ────────────────────────────────────────────────────────────
@@ -2240,6 +2329,82 @@ def inject_module_css(
 
     css += "</style>"
     st.markdown(css, unsafe_allow_html=True)
+
+
+
+
+def oram_overlay_error(
+    mensaje: str,
+    titulo: str = "Campo obligatorio",
+    dark: bool | None = None,
+    delay: float = 2.2,
+) -> None:
+    """
+    Overlay premium de error — centralizado desde journal y admin.
+
+    Muestra una tarjeta de error centrada con animación fade-in,
+    espera `delay` segundos y llama st.rerun() para limpiar el estado.
+
+    Reemplaza las funciones _overlay_error() que existían duplicadas
+    en modules/journal.py y modules/admin.py con lógica idéntica.
+
+    Parámetros:
+        mensaje : Texto del error (soporta HTML básico: <b>, <br>)
+        titulo  : Título del card — default "Campo obligatorio"
+        dark    : bool | None — tema. None = leer de session_state
+        delay   : Segundos antes de st.rerun() — default 2.2
+
+    Uso:
+        from ui.styles import oram_overlay_error
+        oram_overlay_error("Entrada, SL y TP son obligatorios.")
+        oram_overlay_error("Contraseñas distintas.", titulo="Error de validación")
+    """
+    import time
+    if dark is None:
+        dark = get_theme() == "dark"
+
+    overlay_bg = "rgba(6,9,15,0.92)"  if dark else "rgba(238,242,247,0.94)"
+    card_bg    = "#0c1219"            if dark else "#ffffff"
+    card_bdr   = "#3d1a1a"            if dark else "#f8d0d0"
+    text_muted = "#637a94"            if dark else "#7a8fa0"
+
+    ph = st.empty()
+    ph.markdown(f"""
+<style>
+@keyframes oram-err-in {{
+    from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
+    to   {{ opacity:1; transform:translateY(0) scale(1); }}
+}}
+#oram-err-overlay {{
+    position:fixed; inset:0; background:{overlay_bg};
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    z-index:99999; display:flex; align-items:center; justify-content:center;
+}}
+#oram-err-card {{
+    background:{card_bg}; border:1px solid {card_bdr};
+    border-radius:20px; padding:2.8rem 3rem 2.4rem;
+    text-align:center; max-width:400px; width:90%;
+    animation:oram-err-in 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow:0 24px 60px rgba(0,0,0,0.35);
+}}
+</style>
+<div id="oram-err-overlay"><div id="oram-err-card">
+  <div style="font-size:3rem;margin-bottom:1rem">❌</div>
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;
+              font-weight:700;color:#f87171;margin-bottom:0.6rem">
+    {titulo}
+  </div>
+  <div style="font-family:Inter,sans-serif;font-size:0.9rem;
+              color:{text_muted};line-height:1.6">{mensaje}</div>
+  <div style="margin-top:1.4rem;font-family:Inter,sans-serif;
+              font-size:0.78rem;color:{text_muted};opacity:0.7">
+    Cerrando automáticamente…</div>
+</div></div>
+""", unsafe_allow_html=True)
+    time.sleep(delay)
+    ph.empty()
+    st.rerun()
+
 
 
 def page_header(icon: str, title: str, subtitle: str = ""):
@@ -2288,11 +2453,6 @@ def signal_box(tipo: str, descripcion: str, confianza: float = 0) -> str:
     else:
         cls, color = "signal-neutral", c["accent"]
     bar = int(min(confianza, 100))
-    # Para el background inline en caso necesario
-    sb = "rgba(34,197,94,0.07)" if get_theme() == "dark" else "rgba(21,128,61,0.06)"
-    sbr = "rgba(239,68,68,0.07)" if get_theme() == "dark" else "rgba(200,30,30,0.06)"
-    sbn = "rgba(201,162,39,0.07)" if get_theme() == "dark" else "rgba(154,117,16,0.06)"
-    
     return (
         f'<div class="signal-box {cls}">'
         f'<div class="signal-title" style="color:{color}">{tipo}</div>'
@@ -2324,26 +2484,35 @@ def oram_notify(kind: str, message: str, toast: bool = True, banner: bool = Fals
         fn(message)
 
 
-def oram_overlay_msg(
-    kind: str,
+def oram_bienvenida(
     titulo: str,
     subtitulo: str,
     spinner_label: str = "Aplicando cambios\u2026",
     delay: float = 2.2,
 ) -> None:
     """
-    Overlay de confirmación premium unificado para TODA la aplicación.
-    Hereda el diseño exacto de 'oram_bienvenida' pero adapta el color e icono.
-    
-    Tipos soportados (kind):
-      - 'success': Verde (Éxito / Confirmación)
-      - 'error': Rojo (Error / Falla)
-      - 'warning': Dorado (Advertencia)
-      - 'info': Azul (Información neutra)
-    """
-    import time
-    import streamlit as st
+    Overlay de confirmación premium — idéntico al que aparece al crear cuenta.
 
+    Muestra una tarjeta centrada con:
+      • Anillo animado con checkmark verde (pulse infinito)
+      • Logo ORAM coloreado
+      • Título y subtítulo personalizables
+      • Spinner animado mientras espera
+
+    Llama st.rerun() automáticamente tras delay segundos.
+
+    Uso:
+        oram_bienvenida(
+            titulo    = "💾 Capital actualizado",
+            subtitulo = "Tu capital inicial ha sido guardado correctamente.",
+        )
+        oram_bienvenida(
+            titulo        = "✅ Trade guardado",
+            subtitulo     = "EURUSD LONG registrado en tu diario.",
+            spinner_label = "Actualizando historial…",
+            delay         = 2.0,
+        )
+    """
     t    = get_theme()
     dark = t == "dark"
 
@@ -2353,57 +2522,27 @@ def oram_overlay_msg(
     text_main   = "#edf4ff"             if dark else "#0b1824"
     text_muted  = "#637a94"             if dark else "#7a8fa0"
 
-    # Diccionario maestro de estilos por tipo de mensaje
-    configs = {
-        "success": {
-            "color": "#22c55e",
-            "rgba": "rgba(34,197,94,",
-            "svg": '<polyline points="20 6 9 17 4 12"/>'  # Palomita
-        },
-        "error": {
-            "color": "#ef4444",
-            "rgba": "rgba(239,68,68,",
-            "svg": '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'  # Cruz
-        },
-        "warning": {
-            "color": "#c9a227",
-            "rgba": "rgba(201,162,39,",
-            "svg": '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'  # Alerta
-        },
-        "info": {
-            "color": "#3d9be9",
-            "rgba": "rgba(61,155,233,",
-            "svg": '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'  # Info
-        }
-    }
-
-    # Fallback a 'success' si se envía un kind inválido
-    conf = configs.get(kind, configs["success"])
-    hex_color = conf["color"]
-    rgba_base = conf["rgba"]
-    svg_icon  = conf["svg"]
-
     st.markdown(f"""
 <style>
 @keyframes oram-fadein {{
     from {{ opacity: 0; transform: translateY(14px) scale(0.97); }}
     to   {{ opacity: 1; transform: translateY(0)   scale(1);    }}
 }}
-@keyframes oram-pulse-msg {{
-    0%,100% {{ box-shadow: 0 0 0 0    {rgba_base}0.40); }}
-    50%      {{ box-shadow: 0 0 0 18px {rgba_base}0);   }}
+@keyframes oram-pulse {{
+    0%,100% {{ box-shadow: 0 0 0 0    rgba(34,197,94,0.40); }}
+    50%      {{ box-shadow: 0 0 0 18px rgba(34,197,94,0);   }}
 }}
 @keyframes oram-spin {{
     to {{ transform: rotate(360deg); }}
 }}
-#oram-msg-overlay {{
+#oram-welcome-overlay {{
     position: fixed; inset: 0;
     background: {overlay_bg};
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     z-index: 99999;
     display: flex; align-items: center; justify-content: center;
 }}
-#oram-msg-card {{
+#oram-welcome-card {{
     background: {card_bg};
     border: 1px solid {card_border};
     border-radius: 20px;
@@ -2412,16 +2551,16 @@ def oram_overlay_msg(
     animation: oram-fadein 0.45s cubic-bezier(0.22,1,0.36,1) both;
     box-shadow: 0 24px 60px rgba(0,0,0,0.35);
 }}
-.oram-icon-ring {{
+.oram-check-ring {{
     width: 64px; height: 64px; border-radius: 50%;
-    background: {rgba_base}0.12); border: 2px solid {hex_color};
+    background: rgba(34,197,94,0.12); border: 2px solid #22c55e;
     display: flex; align-items: center; justify-content: center;
     margin: 0 auto 1.4rem;
-    animation: oram-pulse-msg 1.6s ease-in-out infinite;
+    animation: oram-pulse 1.6s ease-in-out infinite;
 }}
-.oram-icon-ring svg {{
+.oram-check-ring svg {{
     width: 30px; height: 30px;
-    stroke: {hex_color}; fill: none;
+    stroke: #22c55e; fill: none;
     stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
 }}
 .oram-welcome-logo {{
@@ -2429,12 +2568,12 @@ def oram_overlay_msg(
     font-size: 1.1rem; font-weight: 800;
     letter-spacing: -1px; margin-bottom: 0.15rem;
 }}
-.oram-msg-title {{
+.oram-welcome-title {{
     font-family: 'Inter', sans-serif;
     font-size: 1.15rem; font-weight: 700;
     color: {text_main}; margin-bottom: 0.5rem;
 }}
-.oram-msg-sub {{
+.oram-welcome-sub {{
     font-family: 'Inter', sans-serif;
     font-size: 0.82rem; color: {text_muted};
     margin-bottom: 1.6rem; line-height: 1.5;
@@ -2445,8 +2584,8 @@ def oram_overlay_msg(
 }}
 .oram-spinner {{
     width: 16px; height: 16px;
-    border: 2px solid {rgba_base}0.25);
-    border-top-color: {hex_color}; border-radius: 50%;
+    border: 2px solid rgba(34,197,94,0.25);
+    border-top-color: #22c55e; border-radius: 50%;
     animation: oram-spin 0.75s linear infinite; flex-shrink: 0;
 }}
 .oram-spinner-label {{
@@ -2455,17 +2594,17 @@ def oram_overlay_msg(
     text-transform: uppercase; color: {text_muted};
 }}
 </style>
-<div id="oram-msg-overlay">
-  <div id="oram-msg-card">
-    <div class="oram-icon-ring">
-      <svg viewBox="0 0 24 24">{svg_icon}</svg>
+<div id="oram-welcome-overlay">
+  <div id="oram-welcome-card">
+    <div class="oram-check-ring">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
     </div>
     <div class="oram-welcome-logo">
-      <span style="color:#c9a227">O</span><span style="color:#3d9be9">R</span><span style="color:#00c4a7">A</span><span style="color:{text_main}">M</span>
+      <span style="color:{LOGO_GOLD}">O</span><span style="color:{LOGO_BLUE}">R</span><span style="color:{LOGO_TEAL}">A</span><span style="color:{text_main}">M</span>
       <span style="color:{text_muted};font-weight:500;font-size:0.85rem;letter-spacing:0px"> Quant Systems</span>
     </div>
-    <div class="oram-msg-title">{titulo}</div>
-    <div class="oram-msg-sub">{subtitulo}</div>
+    <div class="oram-welcome-title">{titulo}</div>
+    <div class="oram-welcome-sub">{subtitulo}</div>
     <div class="oram-spinner-row">
       <div class="oram-spinner"></div>
       <span class="oram-spinner-label">{spinner_label}</span>

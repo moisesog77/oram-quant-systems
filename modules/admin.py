@@ -196,62 +196,32 @@ def render_admin():
                 # Overlay premium con botones integrados via sendPrompt JS
                 confirming = st.session_state["admin_confirm_delete"].get(uid, False)
                 if confirming:
-                    # ── Overlay premium de confirmación ───────────────────────
-                    # Usa CSS para la card visual pero botones REALES de Streamlit
-                    # (sin JS onclick) para garantizar que Streamlit detecte los clicks
+                    # ── Confirmación inline — diseño idéntico al overlay del Dashboard ──
+                    # Renderiza la card en el flujo del documento (no fixed/overlay)
+                    # para que los botones estén SIEMPRE dentro del área visible.
                     bg         = "#0c1219" if dark else "#ffffff"
                     bdr        = "#7c2626" if dark else "#fecaca"
                     muted      = "#637a94" if dark else "#7a8fa0"
-                    overlay_bg = "rgba(6,9,15,0.93)" if dark else "rgba(238,242,247,0.95)"
                     text_col   = "#edf4ff" if dark else "#0b1824"
-
-                    # Card de confirmación visual (sin botones HTML — solo estilos)
-                    st.markdown(f"""
-<style>
-@keyframes oad-in {{from{{opacity:0;transform:translateY(14px) scale(0.97)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
-#oad-conf-bg{{position:fixed;inset:0;background:{overlay_bg};
-backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-z-index:99998;display:flex;align-items:flex-start;justify-content:center;padding-top:15vh}}
-#oad-conf-card{{background:{bg};border:1.5px solid {bdr};border-radius:20px;
-padding:2.8rem 3.2rem 2.4rem;text-align:center;max-width:460px;width:92%;
-animation:oad-in 0.42s cubic-bezier(0.22,1,0.36,1) both;
-box-shadow:0 24px 60px rgba(0,0,0,0.45)}}
-</style>
-<div id="oad-conf-bg">
-  <div id="oad-conf-card">
-    <div style="font-size:3rem;margin-bottom:0.8rem">⚠️</div>
-    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.6rem;
-                letter-spacing:2px;color:#f87171;font-weight:700;margin-bottom:0.4rem">
-      ACCIÓN IRREVERSIBLE
-    </div>
-    <div style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;
-                font-weight:700;color:#fbbf24;margin-bottom:0.6rem">
-      ¿Eliminar a <b>{uname}</b>?
-    </div>
-    <div style="font-family:Inter,sans-serif;font-size:0.88rem;color:{muted};line-height:1.7">
-      Se borrarán permanentemente:<br>
-      trades · alertas · watchlist · configuración del bot.
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-                    # Botones Streamlit reales — z-index sobre el overlay para ser clickeables
-                    st.markdown("""<style>
-[data-testid="stHorizontalBlock"]:has([data-testid="stBaseButton-secondary"]) {{
-    position: relative;
-    z-index: 99999 !important;
-    background: transparent;
-    margin-top: -6rem;
-    padding: 0 1rem;
-    justify-content: center;
-    gap: 1rem;
-}}
-[data-testid="stHorizontalBlock"]:has([data-testid="stBaseButton-secondary"]) > div {{
-    flex: 0 1 200px !important;
-    max-width: 200px !important;
-}}
-</style>""", unsafe_allow_html=True)
+                    card_style = (
+                        "background:" + bg + ";border:1.5px solid " + bdr + ";"
+                        "border-radius:20px;padding:2.4rem 2.8rem 2rem;"
+                        "text-align:center;max-width:480px;margin:1.5rem auto;"
+                        "box-shadow:0 16px 48px rgba(0,0,0,0.35);"
+                    )
+                    st.markdown(
+                        "<div style=\"" + card_style + "\">"
+                        "<div style=\"font-size:3rem;margin-bottom:0.8rem\">⚠️</div>"
+                        "<div style=\"font-family:Space Grotesk,sans-serif;font-size:0.6rem;"
+                        "letter-spacing:2px;color:#f87171;font-weight:700;margin-bottom:0.4rem\">ACCIÓN IRREVERSIBLE</div>"
+                        "<div style=\"font-family:Space Grotesk,sans-serif;font-size:1.15rem;"
+                        "font-weight:700;color:#fbbf24;margin-bottom:0.6rem\">¿Eliminar a <b>" + uname + "</b>?</div>"
+                        "<div style=\"font-family:Inter,sans-serif;font-size:0.88rem;color:" + muted + ";line-height:1.7\">"
+                        "Se borrarán permanentemente:<br>"
+                        "trades · alertas · watchlist · configuración del bot.</div>"
+                        "</div>",
+                        unsafe_allow_html=True
+                    )
 
                     col_yes, col_no = st.columns(2)
                     with col_yes:
