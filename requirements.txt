@@ -20,5 +20,8 @@ APScheduler>=3.10.0
 # binary = no requiere compilación — funciona en Railway y Streamlit Cloud
 psycopg2-binary>=2.9.0
 
+# ── HTTP / APIs externas ──────────────────────────────────
+requests>=2.31.0
+
 # ── Utilidades ────────────────────────────────────────────
 python-dotenv>=1.0.0
