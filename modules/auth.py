@@ -4,7 +4,7 @@ modules/auth.py — ORAM Quant Systems
 import time
 import streamlit as st
 from database.db import autenticar_usuario
-from ui.styles import toggle_theme, get_theme, APP_TAGLINE, LOGO_GOLD, LOGO_BLUE, LOGO_TEAL, inject_module_css
+from ui.styles import toggle_theme, get_theme, get_colors, APP_TAGLINE, LOGO_GOLD, LOGO_BLUE, LOGO_TEAL, inject_module_css
 
 
 # ══════════════════════════════════════════════════════
