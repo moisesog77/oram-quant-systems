@@ -344,56 +344,93 @@ else:
 
     # Mostrar animación de carga al cambiar de módulo o al entrar desde login
     if _nav_changed or _just_logged_in:
-        _ph = st.empty()
+        import time as _time
+        from ui.styles import LOGO_GOLD, LOGO_BLUE, LOGO_TEAL
+        _dark  = get_theme() == "dark"
+        _olay  = "rgba(6,9,15,0.92)"    if _dark else "rgba(238,242,247,0.94)"
+        _cbg   = "#0c1219"              if _dark else "#ffffff"
+        _cbdr  = "#1b2a40"              if _dark else "#dde5ef"
+        _tmain = "#edf4ff"              if _dark else "#0b1824"
+        _tmut  = "#637a94"              if _dark else "#7a8fa0"
         _module_name = nav.split(" ", 1)[-1] if " " in nav else nav
+
+        _ph = st.empty()
         _ph.markdown(f"""
 <style>
-@keyframes oram-tr-in {{
-    from {{ opacity:0; transform:translateY(18px); }}
-    to   {{ opacity:1; transform:translateY(0); }}
+@keyframes oram-fadein {{
+    from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
+    to   {{ opacity:1; transform:translateY(0) scale(1); }}
 }}
-@keyframes oram-tr-bar {{
-    from {{ width: 0%; }}
-    to   {{ width: 100%; }}
+@keyframes oram-pulse {{
+    0%,100% {{ box-shadow:0 0 0 0    rgba(34,197,94,0.40); }}
+    50%      {{ box-shadow:0 0 0 18px rgba(34,197,94,0); }}
 }}
-#oram-tr-wrap {{
-    position:fixed;inset:0;
-    background:{'rgba(6,9,15,0.96)' if get_theme()=='dark' else 'rgba(238,242,247,0.97)'};
-    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
-    z-index:99999;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:1.4rem;
+@keyframes oram-spin {{
+    to {{ transform:rotate(360deg); }}
 }}
-#oram-tr-logo {{
-    font-family:'Space Grotesk',sans-serif;font-size:2.2rem;
-    font-weight:800;letter-spacing:-1px;
-    animation:oram-tr-in 0.4s cubic-bezier(.22,1,.36,1) both;
+#oram-tr-overlay {{
+    position:fixed;inset:0;background:{_olay};
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    z-index:99999;display:flex;align-items:center;justify-content:center;
 }}
-#oram-tr-mod {{
-    font-family:'Inter',sans-serif;font-size:0.95rem;font-weight:500;
-    color:{'#c8d8ea' if get_theme()=='dark' else '#2a3f54'};
-    animation:oram-tr-in 0.4s .08s cubic-bezier(.22,1,.36,1) both;
-    letter-spacing:0.2px;
+#oram-tr-card {{
+    background:{_cbg};border:1px solid {_cbdr};border-radius:20px;
+    padding:2.8rem 3rem 2.4rem;text-align:center;
+    max-width:400px;width:90%;
+    animation:oram-fadein 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow:0 24px 60px rgba(0,0,0,0.35);
 }}
-#oram-tr-bar-wrap {{
-    width:220px;height:2px;
-    background:{'rgba(255,255,255,0.08)' if get_theme()=='dark' else 'rgba(0,0,0,0.08)'};
-    border-radius:2px;overflow:hidden;
+.oram-tr-ring {{
+    width:64px;height:64px;border-radius:50%;
+    background:rgba(34,197,94,0.12);border:2px solid #22c55e;
+    display:flex;align-items:center;justify-content:center;
+    margin:0 auto 1.4rem;
+    animation:oram-pulse 1.6s ease-in-out infinite;
 }}
-#oram-tr-bar-fill {{
-    height:100%;background:#22c55e;border-radius:2px;
-    animation:oram-tr-bar 0.55s .1s cubic-bezier(.4,0,.2,1) both;
+.oram-tr-ring svg {{
+    width:30px;height:30px;stroke:#22c55e;fill:none;
+    stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;
+}}
+.oram-tr-logo {{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:1.1rem;font-weight:800;letter-spacing:-1px;margin-bottom:0.15rem;
+}}
+.oram-tr-title {{
+    font-family:'Inter',sans-serif;font-size:1.15rem;font-weight:700;
+    color:{_tmain};margin-bottom:0.5rem;
+}}
+.oram-tr-spin-row {{
+    display:flex;align-items:center;justify-content:center;gap:0.55rem;
+}}
+.oram-tr-spinner {{
+    width:16px;height:16px;
+    border:2px solid rgba(34,197,94,0.25);
+    border-top-color:#22c55e;border-radius:50%;
+    animation:oram-spin 0.75s linear infinite;flex-shrink:0;
+}}
+.oram-tr-label {{
+    font-family:'JetBrains Mono',monospace;font-size:0.72rem;
+    letter-spacing:1.5px;text-transform:uppercase;color:{_tmut};
 }}
 </style>
-<div id="oram-tr-wrap">
-  <div id="oram-tr-logo">
-    <span style="color:#c9a227">O</span><span style="color:#3d9bff">R</span><span style="color:#00bfa5">A</span><span style="color:{'#edf4ff' if get_theme()=='dark' else '#0b1824'}">M</span>
+<div id="oram-tr-overlay">
+  <div id="oram-tr-card">
+    <div class="oram-tr-ring">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="oram-tr-logo">
+      <span style="color:{LOGO_GOLD}">O</span><span style="color:{LOGO_BLUE}">R</span><span style="color:{LOGO_TEAL}">A</span><span style="color:{_tmain}">M</span>
+      <span style="color:{_tmut};font-weight:500;font-size:0.85rem;letter-spacing:0px"> Quant Systems</span>
+    </div>
+    <div class="oram-tr-title">{_module_name}</div>
+    <div class="oram-tr-spin-row">
+      <div class="oram-tr-spinner"></div>
+      <span class="oram-tr-label">Cargando módulo…</span>
+    </div>
   </div>
-  <div id="oram-tr-mod">{_module_name}</div>
-  <div id="oram-tr-bar-wrap"><div id="oram-tr-bar-fill"></div></div>
 </div>
 """, unsafe_allow_html=True)
-        import time as _time
-        _time.sleep(0.55)
+        _time.sleep(0.65)
         _ph.empty()
 
     _PAGE_MAP = {
