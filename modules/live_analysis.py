@@ -460,22 +460,65 @@ def render_live_analysis():
     col_senal, col_niveles, col_riesgo = st.columns([2, 2, 1])
 
     with col_senal:
-        st.markdown(signal_box(tipo, est.get("descripcion", ""), confianza), unsafe_allow_html=True)
-
+        # ── Card 1: Estructura BOS/CHoCH ──────────────────────────────────────
         if "Alcista" in tipo or "LONG" in tipo:
-            st.success("✅ **SEÑAL: COMPRA (LONG)**\nBusca entrada en OB o FVG alcista.")
+            struct_border = "oram-card-green"
+            struct_icon   = "🟢"
         elif "Bajista" in tipo or "SHORT" in tipo:
-            st.error("❌ **SEÑAL: VENTA (SHORT)**\nBusca entrada en OB o FVG bajista.")
+            struct_border = "oram-card-red"
+            struct_icon   = "🔴"
         else:
-            st.warning("⚠️ **ESPERA / RANGO**\nSin tendencia clara definida.")
+            struct_border = "oram-card-gold"
+            struct_icon   = "⚪"
 
+        conf_bar_w  = int(min(confianza, 100))
+        conf_color  = c["green"] if confianza >= 65 else (c["accent"] if confianza >= 40 else c["red"])
+        struct_desc = est.get("descripcion", "")
+
+        st.markdown(
+            f'<div class="oram-card {struct_border}">'
+            f'<div class="card-title">{struct_icon} {tipo}</div>'
+            f'<div class="card-sub" style="margin-bottom:0.5rem">{struct_desc}</div>'
+            f'<div style="height:4px;background:{c["border"]};border-radius:2px;overflow:hidden;margin-bottom:0.3rem">'
+            f'<div style="width:{conf_bar_w}%;height:100%;background:{conf_color};border-radius:2px"></div>'
+            f'</div>'
+            f'<div class="card-sub">Confianza: <b style="color:{conf_color}">{confianza:.0f}%</b></div>'
+            f'</div>',
+            unsafe_allow_html=True)
+
+        # ── Card 2: Señal de trading ───────────────────────────────────────────
+        if "Alcista" in tipo or "LONG" in tipo:
+            senal_border = "oram-card-green"
+            senal_txt    = "✅ SEÑAL: COMPRA (LONG)"
+            senal_sub    = "Busca entrada en OB o FVG alcista."
+        elif "Bajista" in tipo or "SHORT" in tipo:
+            senal_border = "oram-card-red"
+            senal_txt    = "❌ SEÑAL: VENTA (SHORT)"
+            senal_sub    = "Busca entrada en OB o FVG bajista."
+        else:
+            senal_border = "oram-card-gold"
+            senal_txt    = "⚠️ ESPERA / RANGO"
+            senal_sub    = "Sin tendencia clara definida."
+
+        st.markdown(
+            f'<div class="oram-card {senal_border}">'
+            f'<div class="card-title">{senal_txt}</div>'
+            f'<div class="card-sub">{senal_sub}</div>'
+            f'</div>',
+            unsafe_allow_html=True)
+
+        # ── Card 3: Confluencias ───────────────────────────────────────────────
         if factores:
+            factores_html = "".join(
+                f'<div class="card-sub">&#10003; {f}</div>'
+                for f in factores
+            )
             st.markdown(
-                f'<div class="oram-card oram-card-blue" style="margin-top:0.5rem">'
+                f'<div class="oram-card oram-card-blue">'
                 f'<div class="card-title">Confluencias ({conf.get("score",0)}/{conf.get("max",8)})</div>'
-                + "".join([f'<div class="card-sub">&#10003; {f}</div>' for f in factores])
-                + '</div>', unsafe_allow_html=True)
-
+                f'{factores_html}'
+                f'</div>',
+                unsafe_allow_html=True)
     with col_niveles:
         obs  = smc.get("order_blocks", [])
         fvgs = smc.get("fvgs", [])
