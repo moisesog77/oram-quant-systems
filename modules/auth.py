@@ -581,6 +581,8 @@ p[class*="instructions"] {{
                         _start = datetime.now(timezone.utc).timestamp()
                         st.session_state.user = data
                         st.session_state["session_start"] = _start
+                        # Flag para animación de entrada al primer módulo
+                        st.session_state["_just_logged_in"] = True
                         # Escribir cookie de sesión para persistencia en recargas
                         try:
                             import sys, os

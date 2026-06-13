@@ -319,6 +319,24 @@ section[data-testid="stSidebar"] .oram-logo .lm{{
 }}
 .oram-user::before{{content:'▸ ';color:{c['accent3']}}}
 
+/* ── Título MÓDULOS en sidebar — se distingue de los items del nav ──────────
+   No tiene fondo activo, no tiene hover de item.
+   Es solo un separador tipográfico institucional.
+   ────────────────────────────────────────────────────────────────────────── */
+section[data-testid="stSidebar"] .oram-nav-title {{
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.62rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 2.5px !important;
+    text-transform: uppercase !important;
+    color: {c['text_muted']} !important;
+    padding: 0.5rem 0.2rem 0.4rem 0.2rem !important;
+    margin-bottom: 2px !important;
+    border-bottom: 1px solid {c['border']} !important;
+    pointer-events: none !important;
+    user-select: none !important;
+}}
+
 /* ══ NAV SIDEBAR PREMIUM ════════════════════════════════
    Diseño institucional: items espaciados, hover sutil,
    item activo con borde izquierdo verde + fondo suave.

@@ -193,6 +193,28 @@ else:
             unsafe_allow_html=True,
         )
 
+        # ── Título "MENÚ" diferenciado — no es un botón, es una cabecera ──────
+        st.markdown(
+            f'''<div style="
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.62rem;
+                font-weight: 700;
+                letter-spacing: 2.5px;
+                text-transform: uppercase;
+                color: {c['text_muted']};
+                padding: 0.5rem 0.2rem 0.4rem 0.2rem;
+                margin-bottom: 2px;
+                border-bottom: 1px solid {c['border']};
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            ">
+                <span style="color:{c['accent3']};font-size:0.55rem">●</span>
+                MÓDULOS
+            </div>''',
+            unsafe_allow_html=True
+        )
+
         nav_options = [
             "📈 Dashboard",
             "📡 Análisis en Vivo",
@@ -313,6 +335,66 @@ else:
     # La cookie se escribe con el session_start ORIGINAL (no renueva el timer).
     if COOKIES_OK and st.session_state.user:
         _escribir_cookie(user["id"], start)
+
+    # ── Detectar cambio de módulo para mostrar animación de transición ──────
+    _prev_nav = st.session_state.get("_prev_nav")
+    _nav_changed = (_prev_nav is not None and _prev_nav != nav)
+    _just_logged_in = st.session_state.pop("_just_logged_in", False)
+    st.session_state["_prev_nav"] = nav
+
+    # Mostrar animación de carga al cambiar de módulo o al entrar desde login
+    if _nav_changed or _just_logged_in:
+        _ph = st.empty()
+        _module_name = nav.split(" ", 1)[-1] if " " in nav else nav
+        _ph.markdown(f"""
+<style>
+@keyframes oram-tr-in {{
+    from {{ opacity:0; transform:translateY(18px); }}
+    to   {{ opacity:1; transform:translateY(0); }}
+}}
+@keyframes oram-tr-bar {{
+    from {{ width: 0%; }}
+    to   {{ width: 100%; }}
+}}
+#oram-tr-wrap {{
+    position:fixed;inset:0;
+    background:{'rgba(6,9,15,0.96)' if get_theme()=='dark' else 'rgba(238,242,247,0.97)'};
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    z-index:99999;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:1.4rem;
+}}
+#oram-tr-logo {{
+    font-family:'Space Grotesk',sans-serif;font-size:2.2rem;
+    font-weight:800;letter-spacing:-1px;
+    animation:oram-tr-in 0.4s cubic-bezier(.22,1,.36,1) both;
+}}
+#oram-tr-mod {{
+    font-family:'Inter',sans-serif;font-size:0.95rem;font-weight:500;
+    color:{'#c8d8ea' if get_theme()=='dark' else '#2a3f54'};
+    animation:oram-tr-in 0.4s .08s cubic-bezier(.22,1,.36,1) both;
+    letter-spacing:0.2px;
+}}
+#oram-tr-bar-wrap {{
+    width:220px;height:2px;
+    background:{'rgba(255,255,255,0.08)' if get_theme()=='dark' else 'rgba(0,0,0,0.08)'};
+    border-radius:2px;overflow:hidden;
+}}
+#oram-tr-bar-fill {{
+    height:100%;background:#22c55e;border-radius:2px;
+    animation:oram-tr-bar 0.55s .1s cubic-bezier(.4,0,.2,1) both;
+}}
+</style>
+<div id="oram-tr-wrap">
+  <div id="oram-tr-logo">
+    <span style="color:#c9a227">O</span><span style="color:#3d9bff">R</span><span style="color:#00bfa5">A</span><span style="color:{'#edf4ff' if get_theme()=='dark' else '#0b1824'}">M</span>
+  </div>
+  <div id="oram-tr-mod">{_module_name}</div>
+  <div id="oram-tr-bar-wrap"><div id="oram-tr-bar-fill"></div></div>
+</div>
+""", unsafe_allow_html=True)
+        import time as _time
+        _time.sleep(0.55)
+        _ph.empty()
 
     _PAGE_MAP = {
         "📈 Dashboard":            render_dashboard,
