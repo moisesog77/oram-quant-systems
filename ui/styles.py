@@ -321,11 +321,13 @@ section[data-testid="stSidebar"] .oram-logo .lm{{
 /* ── NAV ────────────────────────────────────────────── */
 div[role="radiogroup"] label{{
     font-family:'Inter',sans-serif!important;
-    font-size:0.93rem!important;font-weight:500!important;
-    padding:0.52rem 0.90rem!important;
-    border-radius:8px!important;color:{c['text']}!important;
-    transition:all .15s ease;border:1px solid transparent!important;
-    margin:2px 0!important;
+    font-size:1.0rem!important;font-weight:500!important;
+    padding:0.65rem 1.0rem!important;
+    border-radius:10px!important;color:{c['text']}!important;
+    transition:all .18s ease;border:1px solid transparent!important;
+    margin:3px 0!important;
+    display:flex!important;align-items:center!important;
+    min-height:44px!important;
 }}
 div[role="radiogroup"] label:hover{{
     background:{c['nav_hover']}!important;
@@ -1427,17 +1429,43 @@ textarea {{
     border-color: {c['green']} !important;
     color: {c['green']} !important;
 }}
-/* Sidebar nav radio — sin bordes, solo texto limpio */
+/* Ocultar círculos de radio en sidebar — nav solo con texto */
+section[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radio"] {{
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label > div:first-child {{
+    display: none !important;
+}}
+
+/* Sidebar nav — espaciado premium y texto legible */
 section[data-testid="stSidebar"] [data-testid="stRadio"] label {{
     background: transparent !important;
-    border: none !important;
-    border-radius: 0 !important;
-    padding: 0 !important;
+    border: 1px solid transparent !important;
+    border-radius: 10px !important;
+    padding: 0.65rem 1.0rem !important;
     color: {c['text']} !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 1.0rem !important;
+    font-weight: 500 !important;
+    margin: 3px 0 !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    transition: all .18s ease !important;
+    width: 100% !important;
 }}
 section[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {{
     background: {c['nav_hover']} !important;
-    border: none !important;
+    border-color: {c['border']} !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label p {{
+    color: {c['text']} !important;
+    font-size: 1.0rem !important;
+    font-weight: 500 !important;
+    line-height: 1.3 !important;
+    margin: 0 !important;
 }}
 /* Radio circle dot — verde adaptable */
 [data-testid="stRadio"] div[role="radio"],

@@ -209,29 +209,56 @@ else:
         st.markdown("""
 <script>
 (function() {
+    // Auto-cierra el sidebar al seleccionar un módulo — efecto premium
+    // Intenta múltiples selectores para máxima compatibilidad con versiones de Streamlit
+    function findCollapseBtn() {
+        var selectors = [
+            '[data-testid="stSidebarCollapseButton"] button',
+            '[data-testid="stBaseButton-headerNoPadding"]',
+            'button[aria-label="Close sidebar"]',
+            'button[title="Close sidebar"]',
+            '.stSidebarCollapsedControl button',
+            '[data-testid="collapsedControl"] button',
+        ];
+        for (var i = 0; i < selectors.length; i++) {
+            var btn = document.querySelector(selectors[i]);
+            if (btn) return btn;
+        }
+        return null;
+    }
+
     function attachNavCollapse() {
-        var radioGroup = document.querySelector('[data-testid="stRadio"] div[role="radiogroup"]');
-        if (!radioGroup) return;
-        radioGroup.querySelectorAll('label').forEach(function(label) {
+        var radioGroup = document.querySelector('[data-testid="stSidebar"] div[role="radiogroup"]');
+        if (!radioGroup) return false;
+        var labels = radioGroup.querySelectorAll('label');
+        if (!labels.length) return false;
+
+        labels.forEach(function(label) {
+            // Evitar duplicar listeners
+            if (label._oramCollapse) return;
+            label._oramCollapse = true;
             label.addEventListener('click', function() {
                 setTimeout(function() {
-                    var collapseBtn = document.querySelector('[data-testid="stSidebarCollapseButton"] button');
-                    if (!collapseBtn) collapseBtn = document.querySelector('[data-testid="stBaseButton-headerNoPadding"]');
-                    if (collapseBtn) collapseBtn.click();
-                }, 150);
+                    // Solo colapsar en viewport móvil/tablet (<= 992px)
+                    // En desktop el sidebar siempre visible es mejor UX
+                    if (window.innerWidth <= 992) {
+                        var btn = findCollapseBtn();
+                        if (btn) btn.click();
+                    }
+                }, 220);
             });
         });
+        return true;
     }
+
+    // Esperar a que el DOM esté listo e intentar varias veces
     var attempts = 0;
     var interval = setInterval(function() {
         attempts++;
-        var rg = document.querySelector('[data-testid="stRadio"] div[role="radiogroup"]');
-        if (rg && rg.querySelectorAll('label').length > 0) {
-            attachNavCollapse();
+        if (attachNavCollapse() || attempts > 40) {
             clearInterval(interval);
         }
-        if (attempts > 30) clearInterval(interval);
-    }, 300);
+    }, 250);
 })();
 </script>
 """, unsafe_allow_html=True)
