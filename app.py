@@ -132,23 +132,29 @@ if "user" not in st.session_state:
     st.session_state.user = None
 
 if st.session_state.user is None and COOKIES_OK:
-    cookie_data = _leer_cookie()
-    if cookie_data:
-        session_start = cookie_data.get("session_start", 0)
-        user_id       = cookie_data.get("user_id")
-        if user_id and not _session_expiro(session_start):
-            # Cookie válida — restaurar usuario desde DB
-            try:
-                usuarios = obtener_todos_usuarios()
-                user_db  = next((u for u in usuarios if u["id"] == int(user_id)), None)
-                if user_db:
-                    st.session_state.user          = user_db
-                    st.session_state["session_start"] = session_start
-            except Exception:
+    # Si el usuario acaba de hacer logout, NO restaurar desde cookie
+    # (la cookie puede tardar un render en eliminarse)
+    if st.session_state.get("logged_out"):
+        st.session_state.pop("logged_out", None)
+        _eliminar_cookie()  # intentar eliminar de nuevo
+    else:
+        cookie_data = _leer_cookie()
+        if cookie_data:
+            session_start = cookie_data.get("session_start", 0)
+            user_id       = cookie_data.get("user_id")
+            if user_id and not _session_expiro(session_start):
+                # Cookie válida — restaurar usuario desde DB
+                try:
+                    usuarios = obtener_todos_usuarios()
+                    user_db  = next((u for u in usuarios if u["id"] == int(user_id)), None)
+                    if user_db:
+                        st.session_state.user          = user_db
+                        st.session_state["session_start"] = session_start
+                except Exception:
+                    _eliminar_cookie()
+            else:
+                # Cookie expirada — eliminar
                 _eliminar_cookie()
-        else:
-            # Cookie expirada — eliminar
-            _eliminar_cookie()
 
 # ── Verificar expiración en cada render ──────────────────────────────────────
 if st.session_state.user is not None:
@@ -278,8 +284,11 @@ else:
                 st.rerun()
         with col_s:
             if st.button("🚪 Salir", key="sb_logout"):
+                # Limpiar sesión completamente
                 st.session_state.user = None
                 st.session_state.pop("session_start", None)
+                # Flag que previene que _leer_cookie() restaure la sesión en el siguiente render
+                st.session_state["logged_out"] = True
                 _eliminar_cookie()
                 st.rerun()
 
