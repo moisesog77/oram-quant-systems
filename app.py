@@ -430,7 +430,7 @@ else:
   </div>
 </div>
 """, unsafe_allow_html=True)
-        _time.sleep(0.65)
+        _time.sleep(1.8)
         _ph.empty()
 
     _PAGE_MAP = {
