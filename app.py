@@ -193,25 +193,9 @@ else:
             unsafe_allow_html=True,
         )
 
-        # ── Título "MENÚ" diferenciado — no es un botón, es una cabecera ──────
+        # Separador slim entre logo y menú — sin texto "MÓDULOS"
         st.markdown(
-            f'''<div style="
-                font-family: 'JetBrains Mono', monospace;
-                font-size: 0.62rem;
-                font-weight: 700;
-                letter-spacing: 2.5px;
-                text-transform: uppercase;
-                color: {c['text_muted']};
-                padding: 0.5rem 0.2rem 0.4rem 0.2rem;
-                margin-bottom: 2px;
-                border-bottom: 1px solid {c['border']};
-                display: flex;
-                align-items: center;
-                gap: 6px;
-            ">
-                <span style="color:{c['accent3']};font-size:0.55rem">●</span>
-                MÓDULOS
-            </div>''',
+            f'<div style="height:1px;background:{c["border"]};margin:0.4rem 0 0.6rem 0"></div>',
             unsafe_allow_html=True
         )
 
@@ -232,7 +216,7 @@ else:
         if is_admin:
             nav_options.append("🔐 Admin Panel")
 
-        nav = st.radio("Navegación", nav_options, label_visibility="collapsed")
+        nav = st.radio("", nav_options, label_visibility="hidden")
 
         st.markdown("""
 <script>

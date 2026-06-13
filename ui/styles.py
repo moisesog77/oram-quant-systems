@@ -1529,23 +1529,31 @@ section[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {{
     transform: translateX(2px) !important;
 }}
 
-/* Item ACTIVO — borde izquierdo verde + fondo verde sutil */
+/* ══ ITEM ACTIVO DEL SIDEBAR — múltiples selectores para máxima fiabilidad ══
+   Streamlit usa data-checked en distintas versiones, por eso se cubren todas.
+   ═════════════════════════════════════════════════════════════════════════════ */
 section[data-testid="stSidebar"] [data-testid="stRadio"] [data-checked="true"] label,
-section[data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"] {{
-    background: {'rgba(34,197,94,0.10)' if dark else 'rgba(21,128,61,0.08)'} !important;
-    border-left-color: {c['green']} !important;
+section[data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"],
+section[data-testid="stSidebar"] [data-testid="stRadio"] div[data-checked="true"] ~ label,
+section[data-testid="stSidebar"] [data-testid="stRadio"] [aria-checked="true"] ~ label,
+section[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input[type="radio"]:checked) {{
+    background: {'rgba(34,197,94,0.12)' if dark else 'rgba(21,128,61,0.09)'} !important;
+    border-left: 3px solid {c['green']} !important;
     border-top-color: transparent !important;
     border-right-color: transparent !important;
     border-bottom-color: transparent !important;
     color: {c['green']} !important;
     font-weight: 600 !important;
     transform: none !important;
+    box-shadow: inset 3px 0 8px rgba(34,197,94,0.08) !important;
 }}
 
 /* Texto del item activo */
 section[data-testid="stSidebar"] [data-testid="stRadio"] [data-checked="true"] label p,
-section[data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"] p {{
+section[data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"] p,
+section[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input[type="radio"]:checked) p {{
     color: {c['green']} !important;
+    -webkit-text-fill-color: {c['green']} !important;
     font-weight: 600 !important;
 }}
 
