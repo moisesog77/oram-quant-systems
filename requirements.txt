@@ -23,5 +23,8 @@ psycopg2-binary>=2.9.0
 # ── HTTP / APIs externas ──────────────────────────────────
 requests>=2.31.0
 
+# ── Sesión persistente (cookie manager) ───────────────────
+extra-streamlit-components>=0.1.71
+
 # ── Utilidades ────────────────────────────────────────────
 python-dotenv>=1.0.0

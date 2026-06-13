@@ -577,9 +577,19 @@ p[class*="instructions"] {{
                 else:
                     data = autenticar_usuario(user, pw)
                     if data:
-                        st.session_state.user = data
                         from datetime import datetime, timezone
-                        st.session_state["session_start"] = datetime.now(timezone.utc).timestamp()
+                        _start = datetime.now(timezone.utc).timestamp()
+                        st.session_state.user = data
+                        st.session_state["session_start"] = _start
+                        # Escribir cookie de sesión para persistencia en recargas
+                        try:
+                            import sys, os
+                            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                            import importlib
+                            _appmod = importlib.import_module("app")
+                            _appmod._escribir_cookie(data["id"], _start)
+                        except Exception:
+                            pass  # sin cookie funciona igual, solo no persiste
                         st.rerun()
                     else:
                         st.error("Credenciales incorrectas.")

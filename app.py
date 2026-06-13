@@ -1,24 +1,24 @@
 """
 app.py — ORAM Quant Systems — Punto de entrada principal
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Responsabilidades:
-  · Configurar Streamlit (page_config, tema inicial)
-  · Gestión de sesión con timeout estricto de 60 minutos
-    desde el momento de login (no se renueva con recargas)
-  · Enrutar al módulo correcto según navegación del sidebar
-  · Mostrar sidebar con logo, navegación, tema y countdown
+Sesión persistente de 60 minutos mediante cookie segura.
 
-Patrón de sesión:
-  - Al hacer login → se registra session_start = timestamp_UTC
-  - En cada render  → se verifica (now - session_start) < 3600s
-  - Si expira       → se limpia user y se redirige al login
-  - Recargar página NO reinicia el contador (sesión por login, no por actividad)
+Flujo de sesión:
+  1. Login exitoso → guarda user_id + session_start en cookie (TTL=1h)
+  2. Cada render    → lee cookie, verifica TTL, carga usuario de DB
+  3. Recarga / misma pestaña → cookie persiste, sesión continúa
+  4. Expiración → cookie eliminada, redirige a login
+  5. Salir → cookie eliminada explícitamente
+
+La cookie se llama 'oram_session' y contiene:
+  user_id       : int  — ID del usuario
+  session_start : float — timestamp UTC de login
 """
 
 import streamlit as st
 from datetime import datetime, timezone
+import json
 
-# ── Configuración de página — debe ser la primera llamada Streamlit ─────────
 st.set_page_config(
     page_title="ORAM Quant Systems",
     page_icon="⚡",
@@ -26,49 +26,84 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Tema por defecto: oscuro ──────────────────────────────────────────────────
+# ── Tema por defecto ──────────────────────────────────────────────────────────
 if "theme" not in st.session_state:
     st.session_state["theme"] = "dark"
 
-# ── Constante de timeout de sesión ───────────────────────────────────────────
-SESSION_TIMEOUT_SECS = 60 * 60   # 3600 segundos = 60 minutos exactos
+SESSION_TIMEOUT_SECS = 60 * 60   # 60 minutos exactos
+COOKIE_NAME          = "oram_session"
+
+# ── Cookie Manager ────────────────────────────────────────────────────────────
+try:
+    import extra_streamlit_components as stx
+    _cookie_manager = stx.CookieManager(key="oram_cookie_mgr")
+    COOKIES_OK = True
+except Exception:
+    _cookie_manager = None
+    COOKIES_OK = False
 
 
-def _session_expiro() -> bool:
+def _leer_cookie() -> dict | None:
     """
-    Verifica si la sesión ha expirado comparando el tiempo
-    transcurrido desde session_start (timestamp de login) con
-    SESSION_TIMEOUT_SECS.
-
-    IMPORTANTE: usa session_start (fijo al login), NO el patrón last-activity.
-    Esto garantiza que recargar la página NO reinicia el contador.
-    La sesión dura exactamente 60 min desde que el usuario inició sesión.
-
-    Returns:
-        True  → sesión expirada, cerrar sesión
-        False → sesión vigente
+    Lee la cookie de sesión y retorna su contenido como dict.
+    Retorna None si no existe o está malformada.
     """
-    start = st.session_state.get("session_start")
-    if start is None:
-        return False   # no hay sesión activa
-    elapsed = datetime.now(timezone.utc).timestamp() - start
+    if not COOKIES_OK or _cookie_manager is None:
+        return None
+    try:
+        raw = _cookie_manager.get(COOKIE_NAME)
+        if not raw:
+            return None
+        return json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return None
+
+
+def _escribir_cookie(user_id: int, session_start: float) -> None:
+    """
+    Escribe la cookie de sesión con el user_id y timestamp de login.
+    TTL = SESSION_TIMEOUT_SECS para que el browser la expire automáticamente.
+    """
+    if not COOKIES_OK or _cookie_manager is None:
+        return
+    try:
+        payload = json.dumps({"user_id": user_id, "session_start": session_start})
+        _cookie_manager.set(
+            COOKIE_NAME,
+            payload,
+            max_age=SESSION_TIMEOUT_SECS,
+            key="oram_set_cookie",
+        )
+    except Exception:
+        pass
+
+
+def _eliminar_cookie() -> None:
+    """Elimina la cookie de sesión (logout o expiración)."""
+    if not COOKIES_OK or _cookie_manager is None:
+        return
+    try:
+        _cookie_manager.delete(COOKIE_NAME, key="oram_del_cookie")
+    except Exception:
+        pass
+
+
+def _session_expiro(session_start: float) -> bool:
+    """Verifica si han pasado más de 60 minutos desde el login."""
+    elapsed = datetime.now(timezone.utc).timestamp() - session_start
     return elapsed >= SESSION_TIMEOUT_SECS
 
 
-def _minutos_restantes() -> int:
-    """
-    Calcula los minutos restantes de sesión para mostrar en el sidebar.
-    Retorna 0 si ya expiró.
-    """
-    start = st.session_state.get("session_start", datetime.now(timezone.utc).timestamp())
-    elapsed = datetime.now(timezone.utc).timestamp() - start
+def _minutos_restantes(session_start: float) -> int:
+    """Minutos restantes de sesión para mostrar en sidebar."""
+    elapsed = datetime.now(timezone.utc).timestamp() - session_start
     return max(0, int((SESSION_TIMEOUT_SECS - elapsed) / 60))
 
 
-# ── Imports de módulos internos ───────────────────────────────────────────────
-from ui.styles import inject_styles, toggle_theme, get_theme, get_colors, APP_TAGLINE
+# ── Imports ───────────────────────────────────────────────────────────────────
+from ui.styles     import inject_styles, toggle_theme, get_theme, get_colors, APP_TAGLINE
+from database.db   import inicializar_db, obtener_todos_usuarios
 
-# Inyectar CSS premium global (tema, inputs, botones, scrollbar, etc.)
 inject_styles()
 
 from modules.auth          import render_auth
@@ -85,37 +120,56 @@ from modules.bot_config    import render_bot_config
 from modules.watchlist     import render_watchlist
 from modules.signals_panel import render_signals_panel
 from modules.admin         import render_admin
-from database.db           import inicializar_db
 
-# ── Inicializar base de datos (crea tablas + superadmin si no existen) ────────
 inicializar_db()
 
-# ── Estado inicial de sesión ─────────────────────────────────────────────────
+# ── Restaurar sesión desde cookie si session_state está vacío ────────────────
+# Este bloque se ejecuta en CADA render (incluyendo recargas de página).
+# Si el usuario recargó, session_state.user es None pero la cookie sigue viva.
+# La recuperamos aquí para que la recarga NO cierre la sesión.
+
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# ── Verificar expiración de sesión ────────────────────────────────────────────
-# Se ejecuta en CADA render. Si la sesión expiró → forzar logout.
-if st.session_state.user is not None and _session_expiro():
-    st.session_state.user = None
-    st.session_state.pop("session_start", None)
-    st.rerun()
+if st.session_state.user is None and COOKIES_OK:
+    cookie_data = _leer_cookie()
+    if cookie_data:
+        session_start = cookie_data.get("session_start", 0)
+        user_id       = cookie_data.get("user_id")
+        if user_id and not _session_expiro(session_start):
+            # Cookie válida — restaurar usuario desde DB
+            try:
+                usuarios = obtener_todos_usuarios()
+                user_db  = next((u for u in usuarios if u["id"] == int(user_id)), None)
+                if user_db:
+                    st.session_state.user          = user_db
+                    st.session_state["session_start"] = session_start
+            except Exception:
+                _eliminar_cookie()
+        else:
+            # Cookie expirada — eliminar
+            _eliminar_cookie()
 
-# ── Enrutamiento principal ────────────────────────────────────────────────────
+# ── Verificar expiración en cada render ──────────────────────────────────────
+if st.session_state.user is not None:
+    start   = st.session_state.get("session_start", datetime.now(timezone.utc).timestamp())
+    if _session_expiro(start):
+        st.session_state.user = None
+        st.session_state.pop("session_start", None)
+        _eliminar_cookie()
+        st.rerun()
+
+# ── Enrutamiento ──────────────────────────────────────────────────────────────
 if st.session_state.user is None:
-    # Usuario no autenticado → pantalla de login/registro
     render_auth()
 
 else:
-    # Usuario autenticado → mostrar aplicación completa
     c        = get_colors()
     user     = st.session_state.user
     is_admin = bool(user.get("is_admin", 0))
+    start    = st.session_state.get("session_start", datetime.now(timezone.utc).timestamp())
 
-    # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
-        # ── Logo ORAM ─────────────────────────────────────────────────────────
-        # Variables calculadas fuera del f-string para evitar backslash dentro de {}
         admin_prefix = "🛡️ " if is_admin else ""
         admin_badge  = '&nbsp;<span style="font-size:0.6rem;color:#c9a227;font-weight:700">ADMIN</span>' if is_admin else ""
 
@@ -133,7 +187,6 @@ else:
             unsafe_allow_html=True,
         )
 
-        # ── Navegación ────────────────────────────────────────────────────────
         nav_options = [
             "📈 Dashboard",
             "📡 Análisis en Vivo",
@@ -153,7 +206,6 @@ else:
 
         nav = st.radio("Navegación", nav_options, label_visibility="collapsed")
 
-        # ── Auto-colapsar sidebar al seleccionar módulo (efecto premium) ─────
         st.markdown("""
 <script>
 (function() {
@@ -186,7 +238,6 @@ else:
 
         st.divider()
 
-        # ── Botones Tema / Salir ──────────────────────────────────────────────
         col_t, col_s = st.columns(2)
         with col_t:
             label_tema = "☀️ Claro" if get_theme() == "dark" else "🌙 Oscuro"
@@ -195,20 +246,13 @@ else:
                 st.rerun()
         with col_s:
             if st.button("🚪 Salir", key="sb_logout"):
-                # Limpiar sesión completamente
                 st.session_state.user = None
                 st.session_state.pop("session_start", None)
+                _eliminar_cookie()
                 st.rerun()
 
-        # ── Footer con countdown de sesión ────────────────────────────────────
-        mins = _minutos_restantes()
-        # Color del countdown: verde > 30 min, amarillo 10-30, rojo < 10
-        if mins > 30:
-            countdown_color = c["accent3"]   # teal/verde
-        elif mins > 10:
-            countdown_color = c["accent"]    # dorado/amarillo
-        else:
-            countdown_color = c["red"]       # rojo — urgente
+        mins = _minutos_restantes(start)
+        countdown_color = c["accent3"] if mins > 30 else (c["accent"] if mins > 10 else c["red"])
 
         st.markdown(
             f'<div style="margin-top:.8rem;padding-top:.7rem;'
@@ -223,7 +267,12 @@ else:
             unsafe_allow_html=True,
         )
 
-    # ── Mapa de páginas → funciones de render ────────────────────────────────
+    # ── Guardar/renovar cookie en cada interacción exitosa ───────────────────
+    # Esto mantiene la cookie viva mientras el usuario esté activo.
+    # La cookie se escribe con el session_start ORIGINAL (no renueva el timer).
+    if COOKIES_OK and st.session_state.user:
+        _escribir_cookie(user["id"], start)
+
     _PAGE_MAP = {
         "📈 Dashboard":            render_dashboard,
         "📡 Análisis en Vivo":     render_live_analysis,
