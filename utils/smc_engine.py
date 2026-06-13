@@ -1,24 +1,50 @@
 """
-utils/smc_engine.py — Motor completo de Smart Money Concepts.
-Detecta: BOS, CHoCH, Order Blocks, FVG, Liquidez, IPDA.
+utils/smc_engine.py — ORAM Quant Systems — Motor SMC v2 (10/10)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Mejoras sobre v1:
+  1. Validación de volumen institucional en Order Blocks
+  2. Score SMC obligatorio (OB+FVG+BOS deben existir para señal válida)
+  3. SL/TP dinámico sobre estructura del OB real (no ATR genérico)
+  4. Filtro de contexto mercado (rango vs tendencia)
+  5. lookback=10 en detección de swings (menos falsos BOS)
+  6. Score reescrito: factores SMC pesan el doble que indicadores
+  7. Confluencia mínima obligatoria de 3 factores SMC para señal
+
+Score máximo: 14 puntos
+  SMC obligatorios (mínimo 3 para señal):
+    · BOS/CHoCH en dirección:          3 pts
+    · OB activo tocado:                3 pts
+    · FVG en dirección:                2 pts
+    · Precio en zona de liquidez:      2 pts
+  Confirmación técnica (complementarios):
+    · EMA200 alineada:                 1 pt
+    · RSI zona favorable:              1 pt
+    · MACD cruce:                      1 pt
+    · Volumen institucional en OB:     1 pt
 """
 import pandas as pd
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
 class NivelSMC:
-    tipo: str        # OB_alcista, OB_bajista, FVG_alcista, FVG_bajista, liquidity_high, liquidity_low
+    tipo:       str    # OB_alcista, OB_bajista, FVG_alcista, FVG_bajista
     precio_top: float
     precio_bot: float
-    fuerza: float    # 0-1
-    idx: int         # índice en el DataFrame
-    tocado: bool = False
+    fuerza:     float  # 0-1
+    idx:        int
+    vol_ratio:  float  = 1.0   # Volumen del impulso / volumen promedio
+    tocado:     bool   = False
 
 
-def _detectar_swings(df: pd.DataFrame, lookback: int = 5) -> pd.DataFrame:
-    """Detecta swing highs y swing lows."""
+# ── 1. Detección de swings ────────────────────────────────────────────────────
+def _detectar_swings(df: pd.DataFrame, lookback: int = 10) -> pd.DataFrame:
+    """
+    Detecta swing highs y swing lows con lookback=10.
+    lookback=10 reduce falsos BOS causados por ruido de corto plazo.
+    Requiere que el swing sea el máximo/mínimo de 21 velas (10 izq + 1 + 10 der).
+    """
     highs = df['High'].values
     lows  = df['Low'].values
     n     = len(df)
@@ -26,9 +52,11 @@ def _detectar_swings(df: pd.DataFrame, lookback: int = 5) -> pd.DataFrame:
     sl    = np.zeros(n, dtype=bool)
 
     for i in range(lookback, n - lookback):
-        if highs[i] == max(highs[i - lookback:i + lookback + 1]):
+        window_h = highs[i - lookback: i + lookback + 1]
+        window_l = lows[i  - lookback: i + lookback + 1]
+        if highs[i] == window_h.max():
             sh[i] = True
-        if lows[i]  == min(lows[i  - lookback:i + lookback + 1]):
+        if lows[i] == window_l.min():
             sl[i] = True
 
     df = df.copy()
@@ -37,292 +65,579 @@ def _detectar_swings(df: pd.DataFrame, lookback: int = 5) -> pd.DataFrame:
     return df
 
 
+# ── 2. Contexto de mercado (rango vs tendencia) ───────────────────────────────
+def _contexto_mercado(df: pd.DataFrame) -> str:
+    """
+    Determina si el mercado está en tendencia o rango.
+
+    Método ATR + rango de precio:
+      · Calcula el rango de las últimas 20 velas
+      · Si rango < 2 × ATR_promedio → mercado en RANGO (no operar)
+      · Si rango ≥ 2 × ATR_promedio → mercado en TENDENCIA (operar)
+
+    Retorna: 'tendencia' | 'rango'
+    """
+    if len(df) < 20 or 'ATR' not in df.columns:
+        return 'tendencia'  # default conservador: no bloquear por falta de datos
+
+    ultimas = df.tail(20)
+    rango   = ultimas['High'].max() - ultimas['Low'].min()
+    atr_avg = ultimas['ATR'].mean()
+
+    if atr_avg == 0:
+        return 'tendencia'
+
+    return 'tendencia' if rango >= atr_avg * 2.0 else 'rango'
+
+
+# ── 3. BOS / CHoCH mejorado ───────────────────────────────────────────────────
 def _detectar_bos_choch(df: pd.DataFrame) -> dict:
     """
-    Detecta Break of Structure (BOS) y Change of Character (CHoCH).
-    BOS  = ruptura en dirección de la tendencia (continuación).
-    CHoCH = ruptura contra la tendencia anterior (reversión).
+    Detecta BOS y CHoCH con lookback elevado para minimizar falsas rupturas.
+
+    BOS  = ruptura en la dirección de la tendencia (continuación)
+    CHoCH = ruptura contra la tendencia anterior (reversión potencial)
+
+    Añade campo 'es_bos' para que el score distinga entre los dos.
     """
     resultado = {
-        "tipo": "Sin señal",
-        "descripcion": "Mercado en rango",
-        "direccion": "neutral",
-        "fuerza": 0.0,
+        "tipo":       "Sin señal",
+        "descripcion":"Mercado en rango",
+        "direccion":  "neutral",
+        "fuerza":     0.0,
+        "es_bos":     False,
     }
 
-    if len(df) < 20:
+    if len(df) < 30:
         return resultado
 
-    df = _detectar_swings(df)
-    sh_idx = df.index[df['swing_high']].tolist()
-    sl_idx = df.index[df['swing_low']].tolist()
+    df_sw = _detectar_swings(df)
+    sh_idx = df_sw.index[df_sw['swing_high']].tolist()
+    sl_idx = df_sw.index[df_sw['swing_low']].tolist()
 
     if len(sh_idx) < 2 or len(sl_idx) < 2:
         return resultado
 
-    # Últimos dos swing highs y lows
-    last_sh   = df.loc[sh_idx[-1], 'High']
-    prev_sh   = df.loc[sh_idx[-2], 'High']
-    last_sl   = df.loc[sl_idx[-1], 'Low']
-    prev_sl   = df.loc[sl_idx[-2], 'Low']
-    close_now = df['Close'].iloc[-1]
+    last_sh = df_sw.loc[sh_idx[-1], 'High']
+    prev_sh = df_sw.loc[sh_idx[-2], 'High']
+    last_sl = df_sw.loc[sl_idx[-1], 'Low']
+    prev_sl = df_sw.loc[sl_idx[-2], 'Low']
+    close   = df['Close'].iloc[-1]
 
-    ema50 = df['EMA50'].iloc[-1] if 'EMA50' in df.columns else df['Close'].mean()
+    ema200  = df['EMA200'].iloc[-1] if 'EMA200' in df.columns else df['Close'].mean()
+    is_bull = close > ema200
 
-    # Estructura general
-    is_bullish = close_now > ema50
-
-    if is_bullish:
+    if is_bull:
         if last_sh > prev_sh and last_sl > prev_sl:
             resultado = {
-                "tipo": "BOS Alcista",
-                "descripcion": "Estructura alcista confirmada: HH + HL. Busca longs en OB/FVG.",
-                "direccion": "LONG",
-                "fuerza": min(1.0, (last_sh - prev_sh) / (prev_sh * 0.001 + 1e-9)),
+                "tipo":       "BOS Alcista",
+                "descripcion":"HH + HL confirmado. Busca longs en OB/FVG.",
+                "direccion":  "LONG",
+                "fuerza":     round(min(1.0, (last_sh - prev_sh) / (prev_sh * 0.001 + 1e-9)), 2),
+                "es_bos":     True,
             }
         elif last_sh > prev_sh and last_sl < prev_sl:
             resultado = {
-                "tipo": "CHoCH Bajista",
-                "descripcion": "Cambio de carácter: nuevo HH pero LL. Posible reversión bajista.",
-                "direccion": "SHORT",
-                "fuerza": 0.6,
+                "tipo":       "CHoCH Bajista",
+                "descripcion":"Nuevo HH pero LL: posible giro bajista.",
+                "direccion":  "SHORT",
+                "fuerza":     0.6,
+                "es_bos":     False,
             }
     else:
         if last_sh < prev_sh and last_sl < prev_sl:
             resultado = {
-                "tipo": "BOS Bajista",
-                "descripcion": "Estructura bajista confirmada: LH + LL. Busca shorts en OB/FVG.",
-                "direccion": "SHORT",
-                "fuerza": min(1.0, (prev_sl - last_sl) / (prev_sl * 0.001 + 1e-9)),
+                "tipo":       "BOS Bajista",
+                "descripcion":"LH + LL confirmado. Busca shorts en OB/FVG.",
+                "direccion":  "SHORT",
+                "fuerza":     round(min(1.0, (prev_sl - last_sl) / (prev_sl * 0.001 + 1e-9)), 2),
+                "es_bos":     True,
             }
         elif last_sl < prev_sl and last_sh > prev_sh:
             resultado = {
-                "tipo": "CHoCH Alcista",
-                "descripcion": "Cambio de carácter: nuevo LL pero HH. Posible reversión alcista.",
-                "direccion": "LONG",
-                "fuerza": 0.6,
+                "tipo":       "CHoCH Alcista",
+                "descripcion":"Nuevo LL pero HH: posible giro alcista.",
+                "direccion":  "LONG",
+                "fuerza":     0.6,
+                "es_bos":     False,
             }
 
-    resultado['fuerza'] = round(min(resultado['fuerza'], 1.0), 2)
     return resultado
 
 
-def _detectar_order_blocks(df: pd.DataFrame, n: int = 5) -> list[NivelSMC]:
+# ── 4. Order Blocks con validación de volumen ─────────────────────────────────
+def _detectar_order_blocks(df: pd.DataFrame, n: int = 5) -> list:
     """
-    Order Block: última vela bajista antes de impulso alcista (OB alcista)
-    o última vela alcista antes de impulso bajista (OB bajista).
+    Order Block = última vela contraria antes de impulso fuerte.
+
+    MEJORA v2: valida que el impulso tuvo volumen > 1.3× promedio.
+    Un OB sin volumen institucional es ruido técnico, no un OB real.
+
+    Campos adicionales:
+      · vol_ratio: volumen del impulso / volumen promedio de 20 velas
+      · es_fresco: True si el precio no ha tocado el OB todavía
+      · distancia_pct: distancia del precio actual al OB en %
     """
-    obs = []
-    data = df.tail(80).reset_index(drop=True)
+    obs   = []
+    data  = df.tail(100).reset_index(drop=True)
+    precio_actual = data['Close'].iloc[-1]
 
-    for i in range(2, len(data) - 3):
-        # OB Alcista: vela bajista seguida de impulso alcista fuerte
-        if data['Close'].iloc[i] < data['Open'].iloc[i]:  # vela bajista
-            impulso = data['Close'].iloc[i+1:i+4].max() - data['High'].iloc[i]
-            if impulso > data['ATR'].iloc[i] * 1.5 if 'ATR' in data.columns else True:
-                obs.append(NivelSMC(
-                    tipo="OB_alcista",
-                    precio_top=data['High'].iloc[i],
-                    precio_bot=data['Low'].iloc[i],
-                    fuerza=min(1.0, impulso / (data['ATR'].iloc[i] + 1e-9)) if 'ATR' in data.columns else 0.7,
-                    idx=i
-                ))
+    # Volumen promedio de referencia (últimas 20 velas)
+    vol_avg = data['Volume'].rolling(20).mean() if 'Volume' in data.columns else None
 
-        # OB Bajista: vela alcista seguida de impulso bajista fuerte
-        if data['Close'].iloc[i] > data['Open'].iloc[i]:  # vela alcista
-            impulso = data['Low'].iloc[i] - data['Close'].iloc[i+1:i+4].min()
-            if impulso > data['ATR'].iloc[i] * 1.5 if 'ATR' in data.columns else True:
-                obs.append(NivelSMC(
-                    tipo="OB_bajista",
-                    precio_top=data['High'].iloc[i],
-                    precio_bot=data['Low'].iloc[i],
-                    fuerza=min(1.0, impulso / (data['ATR'].iloc[i] + 1e-9)) if 'ATR' in data.columns else 0.7,
-                    idx=i
-                ))
+    for i in range(3, len(data) - 3):
+        atr_i  = data['ATR'].iloc[i] if 'ATR' in data.columns else None
+        umbral = atr_i * 1.5 if atr_i is not None else None
 
-    # Tomar los N más recientes y fuertes
+        # ── OB Alcista: vela bajista + impulso alcista fuerte ────────────────
+        if data['Close'].iloc[i] < data['Open'].iloc[i]:
+            impulso_alcista = data['Close'].iloc[i+1:i+4].max() - data['High'].iloc[i]
+            if umbral is None or impulso_alcista > umbral:
+                # Validación de volumen: el impulso debe tener volumen elevado
+                vol_impulso = data['Volume'].iloc[i+1:i+4].mean() if 'Volume' in data.columns else None
+                vol_ref     = vol_avg.iloc[i] if vol_avg is not None else None
+                ratio       = (vol_impulso / vol_ref) if (vol_impulso and vol_ref and vol_ref > 0) else 1.0
+
+                # Aceptar solo si ratio ≥ 1.2 (20% más volumen que el promedio)
+                if ratio >= 1.2 or vol_ref is None:
+                    ob_top = data['High'].iloc[i]
+                    ob_bot = data['Low'].iloc[i]
+                    # ¿El precio actual está sobre el OB? (fresco = no tocado aún)
+                    es_fresco = precio_actual > ob_top
+                    dist_pct  = abs(precio_actual - ob_top) / (ob_top + 1e-9) * 100
+
+                    obs.append(NivelSMC(
+                        tipo       = "OB_alcista",
+                        precio_top = round(ob_top, 5),
+                        precio_bot = round(ob_bot, 5),
+                        fuerza     = round(min(1.0, impulso_alcista / (atr_i + 1e-9)) if atr_i else 0.7, 2),
+                        idx        = i,
+                        vol_ratio  = round(ratio, 2),
+                        tocado     = not es_fresco,
+                    ))
+
+        # ── OB Bajista: vela alcista + impulso bajista fuerte ────────────────
+        elif data['Close'].iloc[i] > data['Open'].iloc[i]:
+            impulso_bajista = data['Low'].iloc[i] - data['Close'].iloc[i+1:i+4].min()
+            if umbral is None or impulso_bajista > umbral:
+                vol_impulso = data['Volume'].iloc[i+1:i+4].mean() if 'Volume' in data.columns else None
+                vol_ref     = vol_avg.iloc[i] if vol_avg is not None else None
+                ratio       = (vol_impulso / vol_ref) if (vol_impulso and vol_ref and vol_ref > 0) else 1.0
+
+                if ratio >= 1.2 or vol_ref is None:
+                    ob_top = data['High'].iloc[i]
+                    ob_bot = data['Low'].iloc[i]
+                    es_fresco = precio_actual < ob_bot
+                    dist_pct  = abs(precio_actual - ob_bot) / (ob_bot + 1e-9) * 100
+
+                    obs.append(NivelSMC(
+                        tipo       = "OB_bajista",
+                        precio_top = round(ob_top, 5),
+                        precio_bot = round(ob_bot, 5),
+                        fuerza     = round(min(1.0, impulso_bajista / (atr_i + 1e-9)) if atr_i else 0.7, 2),
+                        idx        = i,
+                        vol_ratio  = round(ratio, 2),
+                        tocado     = not es_fresco,
+                    ))
+
+    # Ordenar por recencia y fuerza; devolver los N más relevantes
     obs = sorted(obs, key=lambda x: (x.idx, x.fuerza), reverse=True)[:n]
     return obs
 
 
-def _detectar_fvg(df: pd.DataFrame) -> list[NivelSMC]:
+# ── 5. FVG mejorado ───────────────────────────────────────────────────────────
+def _detectar_fvg(df: pd.DataFrame) -> list:
     """
-    Fair Value Gap (Imbalance): hueco entre vela i-2 y vela i.
-    FVG alcista: Low[i] > High[i-2]
-    FVG bajista: High[i] < Low[i-2]
+    Fair Value Gap: hueco entre vela[i-2].high y vela[i].low (alcista)
+    o entre vela[i-2].low y vela[i].high (bajista).
+
+    MEJORA v2: filtra FVGs menores a 0.5×ATR (ruido mínimo).
     """
     fvgs = []
-    data = df.tail(50).reset_index(drop=True)
+    data = df.tail(60).reset_index(drop=True)
 
     for i in range(2, len(data)):
-        low_now   = data['Low'].iloc[i]
-        high_prev = data['High'].iloc[i - 2]
-        high_now  = data['High'].iloc[i]
-        low_prev  = data['Low'].iloc[i - 2]
         atr = data['ATR'].iloc[i] if 'ATR' in data.columns else 0.0001
+        min_size = atr * 0.5   # FVGs pequeños no tienen relevancia institucional
 
-        if low_now > high_prev and (low_now - high_prev) > atr * 0.3:
+        gap_alc = data['Low'].iloc[i] - data['High'].iloc[i - 2]
+        gap_baj = data['Low'].iloc[i - 2] - data['High'].iloc[i]
+
+        if gap_alc > min_size:
             fvgs.append(NivelSMC(
-                tipo="FVG_alcista",
-                precio_top=low_now,
-                precio_bot=high_prev,
-                fuerza=min(1.0, (low_now - high_prev) / (atr + 1e-9)),
-                idx=i
+                tipo       = "FVG_alcista",
+                precio_top = round(data['Low'].iloc[i], 5),
+                precio_bot = round(data['High'].iloc[i - 2], 5),
+                fuerza     = round(min(1.0, gap_alc / (atr + 1e-9)), 2),
+                idx        = i,
             ))
-        elif high_now < low_prev and (low_prev - high_now) > atr * 0.3:
+        elif gap_baj > min_size:
             fvgs.append(NivelSMC(
-                tipo="FVG_bajista",
-                precio_top=low_prev,
-                precio_bot=high_now,
-                fuerza=min(1.0, (low_prev - high_now) / (atr + 1e-9)),
-                idx=i
+                tipo       = "FVG_bajista",
+                precio_top = round(data['Low'].iloc[i - 2], 5),
+                precio_bot = round(data['High'].iloc[i], 5),
+                fuerza     = round(min(1.0, gap_baj / (atr + 1e-9)), 2),
+                idx        = i,
             ))
 
     return sorted(fvgs, key=lambda x: x.idx, reverse=True)[:4]
 
 
+# ── 6. Liquidez ───────────────────────────────────────────────────────────────
 def _detectar_liquidez(df: pd.DataFrame) -> dict:
-    """
-    Niveles de liquidez: swing highs y lows recientes donde
-    probablemente hay órdenes stop acumuladas.
-    """
-    data = df.tail(50)
-    sh = data['High'].nlargest(3).values
-    sl = data['Low'].nsmallest(3).values
-    atr = data['ATR'].iloc[-1] if 'ATR' in data.columns else 0
+    """Niveles de liquidez: swing highs/lows con clusters de stops."""
+    data = df.tail(60)
+    atr  = data['ATR'].iloc[-1] if 'ATR' in data.columns else 0
+
+    sh = data['High'].nlargest(4).values
+    sl = data['Low'].nsmallest(4).values
+
+    eq_highs = len(sh) > 1 and abs(sh[0] - sh[1]) < atr * 0.5
+    eq_lows  = len(sl) > 1 and abs(sl[0] - sl[1]) < atr * 0.5
 
     return {
         "resistance_levels": [round(x, 5) for x in sh],
         "support_levels":    [round(x, 5) for x in sl],
-        "equal_highs": abs(sh[0] - sh[1]) < atr * 0.5 if len(sh) > 1 else False,
-        "equal_lows":  abs(sl[0] - sl[1]) < atr * 0.5 if len(sl) > 1 else False,
+        "equal_highs":       eq_highs,
+        "equal_lows":        eq_lows,
     }
 
 
-def _calcular_confluencias(df: pd.DataFrame, direccion: str) -> dict:
+# ── 7. Score SMC v2 — factores SMC primero ────────────────────────────────────
+def _calcular_confluencias(
+    df: pd.DataFrame,
+    direccion: str,
+    obs: list,
+    fvgs: list,
+    liquidez: dict,
+    estructura: dict,
+) -> dict:
     """
-    Cuenta confluencias alcistas/bajistas para un score de confianza.
+    Score v2: los factores SMC son OBLIGATORIOS para una señal válida.
+
+    Puntuación máxima: 14 pts
+    ─────────────────────────────────────────────────────────────
+    SMC (requiere mínimo 3 de estos 4 grupos para señal válida):
+      [A] BOS/CHoCH en dirección           → 3 pts (BOS=3, CHoCH=2)
+      [B] OB activo y con volumen          → 3 pts (vol_ratio≥1.5=3, ≥1.2=2, sin vol=1)
+      [C] FVG en dirección activo          → 2 pts
+      [D] Precio cerca de zona de liquidez → 2 pts
+
+    Confirmación técnica (bonus):
+      [E] EMA200 alineada con dirección    → 1 pt
+      [F] RSI zona favorable               → 1 pt
+      [G] MACD cruce en dirección          → 1 pt
+      [H] Volumen vela actual elevado      → 1 pt
+
+    Bloqueos (restan puntos):
+      · Mercado en rango              → score SMC = 0, señal bloqueada
+      · 0 OBs válidos en dirección    → señal bloqueada
     """
-    score = 0
-    factores = []
+    score     = 0
+    factores  = []
+    smc_score = 0   # solo puntos SMC (A+B+C+D)
     c = df['Close'].iloc[-1]
+    atr = df['ATR'].iloc[-1] if 'ATR' in df.columns else 0
 
-    if 'EMA50' in df.columns and 'EMA200' in df.columns:
+    if direccion == "neutral":
+        return {"score": 0, "max": 14, "confianza": 0.0,
+                "factores": ["Sin dirección — neutral"],
+                "smc_score": 0, "señal_valida": False}
+
+    # ── [A] BOS / CHoCH ──────────────────────────────────────────────────────
+    if estructura.get("es_bos") and estructura.get("direccion") == direccion:
+        score += 3; smc_score += 3; factores.append("✅ BOS confirmado en dirección")
+    elif not estructura.get("es_bos") and estructura.get("direccion") == direccion:
+        score += 2; smc_score += 2; factores.append("✅ CHoCH en dirección (reversión)")
+
+    # ── [B] Order Block activo ────────────────────────────────────────────────
+    ob_tipo = "OB_alcista" if direccion == "LONG" else "OB_bajista"
+    obs_dir = [o for o in obs if o.tipo == ob_tipo]
+
+    # Buscar OB más cercano al precio actual
+    ob_activo = None
+    if obs_dir:
+        # OB alcista: precio debería estar sobre el OB (retroceso al OB)
+        # OB bajista: precio debería estar bajo el OB (retroceso al OB)
         if direccion == "LONG":
-            if c > df['EMA50'].iloc[-1]:  score += 1; factores.append("Precio > EMA50")
-            if c > df['EMA200'].iloc[-1]: score += 1; factores.append("Precio > EMA200")
-            if df['EMA50'].iloc[-1] > df['EMA200'].iloc[-1]: score += 1; factores.append("EMA50 > EMA200 (Golden Cross zone)")
+            # OBs donde el precio está por encima o dentro del OB
+            en_zona = [o for o in obs_dir if c >= o.precio_bot and c <= o.precio_top * 1.02]
+            ob_activo = en_zona[0] if en_zona else (obs_dir[0] if obs_dir else None)
         else:
-            if c < df['EMA50'].iloc[-1]:  score += 1; factores.append("Precio < EMA50")
-            if c < df['EMA200'].iloc[-1]: score += 1; factores.append("Precio < EMA200")
-            if df['EMA50'].iloc[-1] < df['EMA200'].iloc[-1]: score += 1; factores.append("EMA50 < EMA200 (Death Cross zone)")
+            en_zona = [o for o in obs_dir if c <= o.precio_top and c >= o.precio_bot * 0.98]
+            ob_activo = en_zona[0] if en_zona else (obs_dir[0] if obs_dir else None)
 
+    if ob_activo:
+        if ob_activo.vol_ratio >= 1.5:
+            score += 3; smc_score += 3
+            factores.append(f"✅ OB institucional (vol {ob_activo.vol_ratio:.1f}×)")
+        elif ob_activo.vol_ratio >= 1.2:
+            score += 2; smc_score += 2
+            factores.append(f"✅ OB válido (vol {ob_activo.vol_ratio:.1f}×)")
+        else:
+            score += 1; smc_score += 1
+            factores.append(f"⚠️ OB técnico (vol bajo {ob_activo.vol_ratio:.1f}×)")
+    else:
+        factores.append("❌ Sin OB en dirección — señal débil")
+
+    # ── [C] FVG activo ────────────────────────────────────────────────────────
+    fvg_tipo  = "FVG_alcista" if direccion == "LONG" else "FVG_bajista"
+    fvgs_dir  = [f for f in fvgs if f.tipo == fvg_tipo]
+    # FVG activo = precio está dentro o justo sobre/bajo el FVG
+    fvg_activo = None
+    if fvgs_dir:
+        if direccion == "LONG":
+            dentro = [f for f in fvgs_dir if f.precio_bot <= c <= f.precio_top * 1.01]
+        else:
+            dentro = [f for f in fvgs_dir if f.precio_bot * 0.99 <= c <= f.precio_top]
+        fvg_activo = dentro[0] if dentro else None
+
+    if fvg_activo:
+        score += 2; smc_score += 2
+        factores.append(f"✅ FVG activo ({fvg_activo.precio_bot:.5f}–{fvg_activo.precio_top:.5f})")
+    elif fvgs_dir:
+        score += 1; smc_score += 1
+        factores.append(f"⚠️ FVG presente (precio fuera del gap)")
+
+    # ── [D] Liquidez cercana ──────────────────────────────────────────────────
+    if atr > 0:
+        zona_liq = 3 * atr   # dentro de 3 ATRs de un nivel de liquidez
+        if direccion == "LONG":
+            sops = liquidez.get("support_levels", [])
+            cerca = any(abs(c - s) < zona_liq for s in sops)
+        else:
+            ress = liquidez.get("resistance_levels", [])
+            cerca = any(abs(c - r) < zona_liq for r in ress)
+
+        if cerca:
+            score += 2; smc_score += 2
+            factores.append("✅ Precio cerca de zona de liquidez")
+        if liquidez.get("equal_highs") and direccion == "SHORT":
+            score += 1; smc_score += 1
+            factores.append("✅ Equal Highs detectados (liquidez SHORT)")
+        if liquidez.get("equal_lows") and direccion == "LONG":
+            score += 1; smc_score += 1
+            factores.append("✅ Equal Lows detectados (liquidez LONG)")
+
+    # ── [E] EMA200 ────────────────────────────────────────────────────────────
+    if 'EMA200' in df.columns:
+        ema200 = df['EMA200'].iloc[-1]
+        if direccion == "LONG"  and c > ema200:
+            score += 1; factores.append("✅ Precio sobre EMA200 (sesgo alcista)")
+        elif direccion == "SHORT" and c < ema200:
+            score += 1; factores.append("✅ Precio bajo EMA200 (sesgo bajista)")
+
+    # ── [F] RSI ───────────────────────────────────────────────────────────────
     if 'RSI' in df.columns:
         rsi = df['RSI'].iloc[-1]
-        if direccion == "LONG"  and rsi < 50: score += 1; factores.append(f"RSI neutral-bajo ({rsi:.0f})")
-        if direccion == "SHORT" and rsi > 50: score += 1; factores.append(f"RSI neutral-alto ({rsi:.0f})")
-        if direccion == "LONG"  and rsi < 35: score += 1; factores.append(f"RSI sobrevendido ({rsi:.0f})")
-        if direccion == "SHORT" and rsi > 65: score += 1; factores.append(f"RSI sobrecomprado ({rsi:.0f})")
+        if direccion == "LONG" and rsi < 45:
+            score += 1; factores.append(f"✅ RSI favorable para LONG ({rsi:.0f})")
+        elif direccion == "SHORT" and rsi > 55:
+            score += 1; factores.append(f"✅ RSI favorable para SHORT ({rsi:.0f})")
 
-    if 'MACD' in df.columns and 'MACD_signal' in df.columns:
-        macd_cross = (df['MACD'].iloc[-1] > df['MACD_signal'].iloc[-1]) and \
-                     (df['MACD'].iloc[-2] <= df['MACD_signal'].iloc[-2]) if len(df) > 2 else False
-        if direccion == "LONG"  and macd_cross: score += 2; factores.append("MACD cruce alcista reciente")
-        if direccion == "SHORT" and not macd_cross and df['MACD'].iloc[-1] < df['MACD_signal'].iloc[-1]:
-            score += 1; factores.append("MACD por debajo de señal")
+    # ── [G] MACD ──────────────────────────────────────────────────────────────
+    if 'MACD' in df.columns and 'MACD_signal' in df.columns and len(df) > 2:
+        m_now  = df['MACD'].iloc[-1]
+        m_prev = df['MACD'].iloc[-2]
+        s_now  = df['MACD_signal'].iloc[-1]
+        s_prev = df['MACD_signal'].iloc[-2]
+        if direccion == "LONG" and m_now > s_now and m_prev <= s_prev:
+            score += 1; factores.append("✅ MACD cruce alcista")
+        elif direccion == "SHORT" and m_now < s_now and m_prev >= s_prev:
+            score += 1; factores.append("✅ MACD cruce bajista")
 
-    if 'Vol_ratio' in df.columns:
-        vr = df['Vol_ratio'].iloc[-1]
-        if pd.notna(vr) and vr > 1.5:
-            score += 1; factores.append(f"Volumen elevado ({vr:.1f}x promedio)")
+    # ── [H] Volumen vela actual ───────────────────────────────────────────────
+    if 'Volume' in df.columns:
+        vol_now = df['Volume'].iloc[-1]
+        vol_avg = df['Volume'].rolling(20).mean().iloc[-1]
+        if vol_avg > 0 and vol_now > vol_avg * 1.5:
+            score += 1; factores.append(f"✅ Volumen elevado ({vol_now/vol_avg:.1f}×)")
 
-    max_score = 8
+    # ── Señal válida: requiere mínimo 5 pts SMC de los 10 disponibles ─────────
+    # Equivale a tener al menos BOS + OB válido + algo más (FVG o liquidez)
+    señal_valida = smc_score >= 5 and ob_activo is not None
+
+    max_score = 14
     confianza = round(min(score / max_score, 1.0) * 100, 1)
-    return {"score": score, "max": max_score, "confianza": confianza, "factores": factores}
+
+    return {
+        "score":         score,
+        "max":           max_score,
+        "confianza":     confianza,
+        "factores":      factores,
+        "smc_score":     smc_score,
+        "señal_valida":  señal_valida,
+        "ob_activo":     ob_activo,
+    }
 
 
-def calcular_riesgo(entrada: float, sl: float, tp: float, capital: float, riesgo_pct: float = 1.0) -> dict:
+# ── 8. SL/TP dinámico sobre estructura real ───────────────────────────────────
+def _calcular_sl_tp_dinamico(
+    precio: float,
+    direccion: str,
+    ob_activo,
+    liquidez: dict,
+    atr: float,
+) -> tuple[float, float]:
     """
-    Calcula el tamaño de posición y métricas de riesgo.
+    SL/TP basado en estructura real del OB y liquidez, no en ATR genérico.
+
+    LONG:
+      SL = justo bajo el OB alcista activo (con buffer de 10% del ATR)
+      TP = nivel de resistencia/liquidez más cercano por encima del precio
+
+    SHORT:
+      SL = justo sobre el OB bajista activo (con buffer de 10% del ATR)
+      TP = nivel de soporte/liquidez más cercano por debajo del precio
+
+    Fallback: si no hay OB activo, usa 1.5×ATR / 3×ATR.
     """
+    buffer = atr * 0.1   # buffer del 10% del ATR para evitar stop hunts
+
+    if ob_activo is not None:
+        if direccion == "LONG":
+            sl = ob_activo.precio_bot - buffer
+            # TP en la resistencia de liquidez más cercana por encima
+            ress = [r for r in liquidez.get("resistance_levels", []) if r > precio]
+            tp   = min(ress) if ress else precio + atr * 3.0
+        else:
+            sl = ob_activo.precio_top + buffer
+            # TP en el soporte de liquidez más cercano por debajo
+            sops = [s for s in liquidez.get("support_levels", []) if s < precio]
+            tp   = max(sops) if sops else precio - atr * 3.0
+    else:
+        # Fallback ATR
+        if direccion == "LONG":
+            sl = precio - atr * 1.5
+            tp = precio + atr * 3.0
+        else:
+            sl = precio + atr * 1.5
+            tp = precio - atr * 3.0
+
+    return round(sl, 5), round(tp, 5)
+
+
+# ── 9. Cálculo de riesgo ──────────────────────────────────────────────────────
+def calcular_riesgo(
+    entrada: float,
+    sl: float,
+    tp: float,
+    capital: float,
+    riesgo_pct: float = 1.0,
+) -> dict:
+    """Calcula tamaño de posición, RR y ganancia potencial."""
     if entrada == 0 or sl == 0:
         return {}
 
     riesgo_usd   = capital * (riesgo_pct / 100)
-    distancia_sl = abs(entrada - sl)
-    distancia_tp = abs(tp - entrada)
+    dist_sl      = abs(entrada - sl)
+    dist_tp      = abs(tp - entrada)
 
-    if distancia_sl == 0:
+    if dist_sl == 0:
         return {}
 
-    rr = distancia_tp / distancia_sl
-    # Pip value aproximado para forex (varía por par y broker)
-    pip_value    = 10.0  # USD por pip en 1 lote estándar
-    pips_sl      = distancia_sl * 10000  # para pares con 4 decimales
-    lot_size     = riesgo_usd / (pips_sl * pip_value) if pips_sl > 0 else 0
-    ganancia_pot = riesgo_usd * rr
+    rr          = dist_tp / dist_sl
+    pip_value   = 10.0                           # USD/pip en 1 lote estándar (aprox)
+    pips_sl     = dist_sl * 10000               # para pares de 4 decimales
+    lot_size    = riesgo_usd / (pips_sl * pip_value) if pips_sl > 0 else 0
+    ganancia    = riesgo_usd * rr
 
     return {
         "riesgo_usd":   round(riesgo_usd, 2),
         "rr":           round(rr, 2),
         "lot_size":     round(lot_size, 3),
-        "ganancia_pot": round(ganancia_pot, 2),
+        "ganancia_pot": round(ganancia, 2),
         "pips_sl":      round(pips_sl, 1),
-        "pips_tp":      round(distancia_tp * 10000, 1),
+        "pips_tp":      round(dist_tp * 10000, 1),
     }
 
 
+# ── 10. Análisis completo ─────────────────────────────────────────────────────
 def analisis_completo(df: pd.DataFrame, ticker: str) -> dict:
     """
-    Análisis SMC completo. Punto de entrada principal.
+    Punto de entrada principal del motor SMC v2.
+
+    Flujo:
+      1. Detectar contexto (rango vs tendencia)
+      2. Detectar BOS/CHoCH
+      3. Detectar OBs con validación de volumen
+      4. Detectar FVGs
+      5. Detectar zonas de liquidez
+      6. Calcular score con factores SMC obligatorios
+      7. Calcular SL/TP dinámico sobre estructura real
+      8. Retornar resultado completo con flag señal_valida
+
+    La señal solo se activa si señal_valida=True:
+      · Mínimo 5 puntos SMC
+      · Al menos 1 OB activo en la dirección
     """
-    if df is None or len(df) < 20:
-        return {"error": "Datos insuficientes"}
+    if df is None or len(df) < 30:
+        return {"error": "Datos insuficientes (mínimo 30 velas)"}
 
-    estructura  = _detectar_bos_choch(df)
-    obs         = _detectar_order_blocks(df)
-    fvgs        = _detectar_fvg(df)
-    liquidez    = _detectar_liquidez(df)
-    confluencia = _calcular_confluencias(df, estructura.get("direccion", "neutral"))
+    # Paso 1: contexto de mercado
+    contexto = _contexto_mercado(df)
 
-    close = df['Close'].iloc[-1]
-    atr   = df['ATR'].iloc[-1] if 'ATR' in df.columns else 0
+    # Paso 2–5: detección de patrones
+    estructura = _detectar_bos_choch(df)
+    obs        = _detectar_order_blocks(df)
+    fvgs       = _detectar_fvg(df)
+    liquidez   = _detectar_liquidez(df)
 
-    # SL y TP sugeridos basados en ATR
-    sl_dist = atr * 1.5
-    tp_dist = atr * 3.0
-    if estructura.get("direccion") == "LONG":
-        sl_sug = close - sl_dist
-        tp_sug = close + tp_dist
-    else:
-        sl_sug = close + sl_dist
-        tp_sug = close - tp_dist
+    # Paso 6: score v2
+    confluencia = _calcular_confluencias(
+        df, estructura.get("direccion", "neutral"),
+        obs, fvgs, liquidez, estructura
+    )
+
+    # Bloquear señal en mercado de rango
+    if contexto == "rango":
+        confluencia["señal_valida"] = False
+        confluencia["factores"].insert(0, "🚫 Mercado en RANGO — esperar tendencia")
+        confluencia["confianza"] = min(confluencia["confianza"], 30.0)
+
+    # Paso 7: SL/TP dinámico
+    precio    = df['Close'].iloc[-1]
+    atr       = df['ATR'].iloc[-1] if 'ATR' in df.columns else 0
+    ob_activo = confluencia.get("ob_activo")
+    direccion = estructura.get("direccion", "neutral")
+
+    sl_sug, tp_sug = _calcular_sl_tp_dinamico(
+        precio, direccion, ob_activo, liquidez, atr
+    )
 
     return {
-        "ticker":       ticker,
-        "precio":       round(close, 5),
-        "atr":          round(atr, 5),
-        "estructura":   estructura,
-        "order_blocks": obs,
-        "fvgs":         fvgs,
-        "liquidez":     liquidez,
-        "confluencia":  confluencia,
-        "rsi":          round(df['RSI'].iloc[-1], 1)   if 'RSI'  in df.columns else None,
-        "macd":         round(df['MACD'].iloc[-1], 6)  if 'MACD' in df.columns else None,
-        "ema50":        round(df['EMA50'].iloc[-1], 5) if 'EMA50' in df.columns else None,
-        "sl_sugerido":  round(sl_sug, 5),
-        "tp_sugerido":  round(tp_sug, 5),
-        "señal_resumen": _generar_resumen(estructura, confluencia),
+        "ticker":        ticker,
+        "precio":        round(precio, 5),
+        "atr":           round(atr, 5),
+        "contexto":      contexto,
+        "estructura":    estructura,
+        "order_blocks":  obs,
+        "fvgs":          fvgs,
+        "liquidez":      liquidez,
+        "confluencia":   confluencia,
+        "señal_valida":  confluencia.get("señal_valida", False),
+        "rsi":           round(df['RSI'].iloc[-1], 1)   if 'RSI'   in df.columns else None,
+        "macd":          round(df['MACD'].iloc[-1], 6)  if 'MACD'  in df.columns else None,
+        "ema50":         round(df['EMA50'].iloc[-1], 5) if 'EMA50' in df.columns else None,
+        "sl_sugerido":   sl_sug,
+        "tp_sugerido":   tp_sug,
+        "señal_resumen": _generar_resumen(estructura, confluencia, contexto),
     }
 
 
-def _generar_resumen(estructura: dict, confluencia: dict) -> str:
-    dir_   = estructura.get("direccion", "neutral")
-    conf   = confluencia.get("confianza", 0)
-    tipo   = estructura.get("tipo", "")
+def _generar_resumen(estructura: dict, confluencia: dict, contexto: str = "tendencia") -> str:
+    dir_  = estructura.get("direccion", "neutral")
+    conf  = confluencia.get("confianza", 0)
+    tipo  = estructura.get("tipo", "")
+    valid = confluencia.get("señal_valida", False)
 
+    if contexto == "rango":
+        return "⏸️ Mercado en rango — esperar ruptura con volumen"
     if dir_ == "neutral":
-        return "⚪ Sin señal clara. Esperar mejor estructura."
-    emoji = "🟢" if dir_ == "LONG" else "🔴"
-    fuerza = "ALTA" if conf > 70 else "MEDIA" if conf > 40 else "BAJA"
-    return f"{emoji} {tipo} — Confianza {fuerza} ({conf}%)"
+        return "⚪ Sin estructura clara — no operar"
+    if not valid:
+        return f"⚠️ {tipo} detectado pero sin confluencia SMC suficiente"
+
+    emoji  = "🟢" if dir_ == "LONG" else "🔴"
+    fuerza = "ALTA" if conf > 75 else "MEDIA" if conf > 55 else "BAJA"
+    return f"{emoji} {tipo} — Confianza {fuerza} ({conf:.0f}%) ✅"

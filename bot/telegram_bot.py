@@ -1104,6 +1104,9 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     sl    = smc.get("sl_sugerido", 0)
                     tp_   = smc.get("tp_sugerido", 0)
                     if dir_ == "neutral" or conf < umbral: continue
+                    # FILTRO v2: señal_valida requiere OB activo + mínimo SMC score
+                    # Esto elimina señales con score alto pero sin estructura real
+                    if not smc.get("señal_valida", False): continue
                     # Deduplicación: no re-enviar si misma señal en últimos 18 min
                     if (ticker, dir_) in tickers_ya_enviados: continue
                     sig_id = registrar_señal(ticker, tf, tipo, dir_, conf, precio, sl, tp_)
@@ -1169,6 +1172,10 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     mtf = analisis_mtf(ticker, tf_alto, tf_bajo)
                     if not mtf.get("alineacion"): continue
                     if mtf.get("confianza_mtf", 0) < UMBRAL_MTF_ALINEADO: continue
+                    # Verificar que AMBOS timeframes tienen señal válida SMC
+                    smc_alto = mtf.get("smc_alto", {})
+                    smc_bajo = mtf.get("smc_bajo", {})
+                    if not smc_alto.get("señal_valida") or not smc_bajo.get("señal_valida"): continue
                     await _send(ctx.bot, chat_id, "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker))
                 except Exception as e:
                     logger.error(f"job_mtf {ticker}: {e}")

@@ -62,7 +62,15 @@ def analisis_mtf(ticker: str, tf_alto: str, tf_bajo: str) -> dict:
     atr_bajo = smc_bajo.get("atr", 0)
 
     if alineados:
+        # Solo calcular confianza MTF si ambos TFs tienen señal válida SMC
+        valid_alto = smc_alto.get("señal_valida", False)
+        valid_bajo = smc_bajo.get("señal_valida", False)
         confianza_mtf = round((conf_alto * 0.6 + conf_bajo * 0.4), 1)
+        # Si ningún TF tiene señal válida, reducir confianza drásticamente
+        if not valid_alto and not valid_bajo:
+            confianza_mtf = confianza_mtf * 0.3
+        elif not valid_alto or not valid_bajo:
+            confianza_mtf = confianza_mtf * 0.6
         resultado["confianza_mtf"] = confianza_mtf
 
         tipo_alto = smc_alto.get("estructura", {}).get("tipo", "")
@@ -76,14 +84,13 @@ def analisis_mtf(ticker: str, tf_alto: str, tf_bajo: str) -> dict:
             f"Confianza MTF combinada: {confianza_mtf:.0f}%"
         )
 
-        if dir_alto == "LONG":
-            resultado["sl_sugerido"]      = round(precio - atr_bajo * 1.5, 5)
-            resultado["tp_sugerido"]      = round(precio + atr_bajo * 4.0, 5)
-            resultado["entrada_sugerida"] = round(precio, 5)
-        else:
-            resultado["sl_sugerido"]      = round(precio + atr_bajo * 1.5, 5)
-            resultado["tp_sugerido"]      = round(precio - atr_bajo * 4.0, 5)
-            resultado["entrada_sugerida"] = round(precio, 5)
+        from utils.smc_engine import _calcular_sl_tp_dinamico
+        ob_activo = smc_bajo.get("confluencia", {}).get("ob_activo")
+        liquidez  = smc_bajo.get("liquidez", {})
+        sl_din, tp_din = _calcular_sl_tp_dinamico(precio, dir_alto, ob_activo, liquidez, atr_bajo)
+        resultado["sl_sugerido"]      = sl_din
+        resultado["tp_sugerido"]      = tp_din
+        resultado["entrada_sugerida"] = round(precio, 5)
 
     elif dir_alto != "neutral" and dir_bajo == "neutral":
         resultado["señal_mtf"] = f"⏳ Esperar entrada en {tf_bajo}"

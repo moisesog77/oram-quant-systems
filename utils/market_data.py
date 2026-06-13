@@ -123,6 +123,11 @@ def _agregar_indicadores(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     df["BB_upper"] = sma20 + 2 * std20
     df["BB_lower"] = sma20 - 2 * std20
     df["BB_mid"]   = sma20
+    # Ratio de volumen (volumen actual / promedio 20 velas)
+    # Usado por smc_engine para validar OBs institucionales
+    if "Volume" in df.columns:
+        vol_avg = df["Volume"].rolling(20).mean()
+        df["Vol_ratio"] = df["Volume"] / vol_avg.replace(0, float("nan"))
     return df
 
 
