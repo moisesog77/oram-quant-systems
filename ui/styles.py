@@ -270,13 +270,7 @@ section[data-testid="stSidebar"] .block-container{{
     padding:0 0.75rem 1rem 0.75rem!important;
     background:transparent!important;
 }}
-/* Nav label "Navegación" — versión premium: ocultar el título */
-section[data-testid="stSidebar"] [data-testid="stRadio"] > div > label:first-child {{
-    display: none !important;
-}}
-section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] {{
-    display: none !important;
-}}
+/* Nav label "Navegación" — ya oculto por label_visibility="collapsed" en Python */
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span,
@@ -1545,10 +1539,7 @@ section[data-testid="stSidebar"] [data-testid="stRadio"] label p {{
     margin: 0 !important;
 }}
 
-/* Título "Navegación" oculto — solo mostrar las opciones */
-section[data-testid="stSidebar"] [data-testid="stRadio"] > label {{
-    display: none !important;
-}}
+/* Título "Navegación" ya oculto por label_visibility="collapsed" */
 /* Radio circle dot — verde adaptable */
 [data-testid="stRadio"] div[role="radio"],
 [data-testid="stRadio"] span[data-testid="stWidgetLabel"] ~ div div[role="radio"],
