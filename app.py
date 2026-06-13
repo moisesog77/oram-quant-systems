@@ -208,57 +208,62 @@ else:
 
         st.markdown("""
 <script>
-(function() {
-    // Auto-cierra el sidebar al seleccionar un módulo — efecto premium
-    // Intenta múltiples selectores para máxima compatibilidad con versiones de Streamlit
-    function findCollapseBtn() {
-        var selectors = [
-            '[data-testid="stSidebarCollapseButton"] button',
-            '[data-testid="stBaseButton-headerNoPadding"]',
-            'button[aria-label="Close sidebar"]',
-            'button[title="Close sidebar"]',
-            '.stSidebarCollapsedControl button',
-            '[data-testid="collapsedControl"] button',
-        ];
-        for (var i = 0; i < selectors.length; i++) {
-            var btn = document.querySelector(selectors[i]);
-            if (btn) return btn;
+(function () {
+    /* ── ORAM sidebar auto-close ─────────────────────────────────────────
+       Mecanismo: sessionStorage como puente entre renders de Streamlit.
+       
+       RENDER N  (usuario hace click en label):
+         · listener detecta el click → guarda timestamp en sessionStorage
+       
+       RENDER N+1 (Streamlit recarga por cambio de radio):
+         · JS nuevo revisa sessionStorage
+         · Si el timestamp es reciente (< 1.5s) → click en botón colapsar
+         · Borra el flag para no colapsar en el siguiente render
+       ──────────────────────────────────────────────────────────────────── */
+    var FLAG = 'oram_nav_click_ts';
+
+    /* Paso 1: ¿venimos de un click de nav? Colapsar el sidebar */
+    var ts = sessionStorage.getItem(FLAG);
+    if (ts && (Date.now() - parseInt(ts, 10)) < 1500) {
+        sessionStorage.removeItem(FLAG);
+        /* Intentar colapsar con múltiples selectores para máxima compatibilidad */
+        function tryCollapse(attempts) {
+            var selectors = [
+                '[data-testid="stSidebarCollapseButton"] button',
+                '[data-testid="stBaseButton-headerNoPadding"]',
+                'button[aria-label="Close sidebar"]',
+                'button[kind="header"]',
+                '[data-testid="stSidebar"] button[aria-expanded="true"]',
+            ];
+            for (var i = 0; i < selectors.length; i++) {
+                var btn = document.querySelector(selectors[i]);
+                if (btn) { btn.click(); return; }
+            }
+            if (attempts > 0) setTimeout(function(){ tryCollapse(attempts - 1); }, 150);
         }
-        return null;
+        setTimeout(function(){ tryCollapse(8); }, 80);
     }
 
-    function attachNavCollapse() {
-        var radioGroup = document.querySelector('[data-testid="stSidebar"] div[role="radiogroup"]');
-        if (!radioGroup) return false;
-        var labels = radioGroup.querySelectorAll('label');
+    /* Paso 2: adjuntar listeners a los labels del sidebar */
+    function attachListeners() {
+        var sidebar = document.querySelector('[data-testid="stSidebar"]');
+        if (!sidebar) return false;
+        var labels = sidebar.querySelectorAll('div[role="radiogroup"] label');
         if (!labels.length) return false;
-
-        labels.forEach(function(label) {
-            // Evitar duplicar listeners
-            if (label._oramCollapse) return;
-            label._oramCollapse = true;
-            label.addEventListener('click', function() {
-                setTimeout(function() {
-                    // Solo colapsar en viewport móvil/tablet (<= 992px)
-                    // En desktop el sidebar siempre visible es mejor UX
-                    if (window.innerWidth <= 992) {
-                        var btn = findCollapseBtn();
-                        if (btn) btn.click();
-                    }
-                }, 220);
+        labels.forEach(function (lbl) {
+            if (lbl._oramBound) return;
+            lbl._oramBound = true;
+            lbl.addEventListener('mousedown', function () {
+                sessionStorage.setItem(FLAG, Date.now().toString());
             });
         });
         return true;
     }
 
-    // Esperar a que el DOM esté listo e intentar varias veces
-    var attempts = 0;
-    var interval = setInterval(function() {
-        attempts++;
-        if (attachNavCollapse() || attempts > 40) {
-            clearInterval(interval);
-        }
-    }, 250);
+    var tries = 0;
+    var t = setInterval(function () {
+        if (attachListeners() || ++tries > 50) clearInterval(t);
+    }, 150);
 })();
 </script>
 """, unsafe_allow_html=True)

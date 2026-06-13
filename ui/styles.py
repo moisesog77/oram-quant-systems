@@ -267,8 +267,15 @@ section[data-testid="stSidebar"]{{
     border-right:1px solid {c['border']}!important;
 }}
 section[data-testid="stSidebar"] .block-container{{
-    padding:0 1rem 1rem 1rem!important;
+    padding:0 0.75rem 1rem 0.75rem!important;
     background:transparent!important;
+}}
+/* Nav label "Navegación" — versión premium: ocultar el título */
+section[data-testid="stSidebar"] [data-testid="stRadio"] > div > label:first-child {{
+    display: none !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] {{
+    display: none !important;
 }}
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
@@ -318,22 +325,57 @@ section[data-testid="stSidebar"] .oram-logo .lm{{
 }}
 .oram-user::before{{content:'▸ ';color:{c['accent3']}}}
 
-/* ── NAV ────────────────────────────────────────────── */
-div[role="radiogroup"] label{{
-    font-family:'Inter',sans-serif!important;
-    font-size:1.0rem!important;font-weight:500!important;
-    padding:0.65rem 1.0rem!important;
-    border-radius:10px!important;color:{c['text']}!important;
-    transition:all .18s ease;border:1px solid transparent!important;
-    margin:3px 0!important;
-    display:flex!important;align-items:center!important;
-    min-height:44px!important;
+/* ══ NAV SIDEBAR PREMIUM ════════════════════════════════
+   Diseño institucional: items espaciados, hover sutil,
+   item activo con borde izquierdo verde + fondo suave.
+   Los círculos de radio se ocultan — el check se muestra
+   con color verde en el texto del item activo.
+   ═══════════════════════════════════════════════════════ */
+
+/* Contenedor de opciones del nav */
+div[role="radiogroup"] {{
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    padding: 0 !important;
 }}
-div[role="radiogroup"] label:hover{{
-    background:{c['nav_hover']}!important;
-    border-color:{c['border']}!important;
+
+/* Cada opción del nav */
+div[role="radiogroup"] label {{
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.95rem !important;
+    font-weight: 500 !important;
+    padding: 0.72rem 1.1rem !important;
+    border-radius: 10px !important;
+    color: {c['text']} !important;
+    transition: all .18s cubic-bezier(.4,0,.2,1) !important;
+    border: 1px solid transparent !important;
+    border-left: 3px solid transparent !important;
+    margin: 1px 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    min-height: 46px !important;
+    cursor: pointer !important;
+    letter-spacing: 0.1px !important;
 }}
-div[role="radiogroup"] label p{{color:{c['text']}!important}}
+
+/* Hover */
+div[role="radiogroup"] label:hover {{
+    background: {c['nav_hover']} !important;
+    border-color: transparent !important;
+    border-left-color: {c['border2']} !important;
+    color: {c['text_strong']} !important;
+    transform: translateX(2px) !important;
+}}
+
+/* Texto dentro del label */
+div[role="radiogroup"] label p {{
+    color: inherit !important;
+    font-size: 0.95rem !important;
+    font-weight: 500 !important;
+    line-height: 1.3 !important;
+    margin: 0 !important;
+}}
 
 /* ── MÉTRICAS ───────────────────────────────────────── */
 [data-testid="stMetricValue"]{{
@@ -1429,43 +1471,83 @@ textarea {{
     border-color: {c['green']} !important;
     color: {c['green']} !important;
 }}
-/* Ocultar círculos de radio en sidebar — nav solo con texto */
-section[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radio"] {{
-    display: none !important;
-    width: 0 !important;
-    min-width: 0 !important;
-}}
+/* ══ SIDEBAR NAV — estilos específicos del sidebar ══════════
+   Oculta los círculos de radio. El item activo muestra:
+   · Borde izquierdo verde (3px)
+   · Fondo semitransparente verde muy sutil
+   · Texto en verde / color primario
+   · Indicador "›" implícito en el texto (emoji del módulo)
+   ═══════════════════════════════════════════════════════════ */
+
+/* Ocultar círculos de radio — solo mostrar texto e ícono */
+section[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radio"],
 section[data-testid="stSidebar"] [data-testid="stRadio"] label > div:first-child {{
     display: none !important;
+    width: 0 !important; min-width: 0 !important;
+    height: 0 !important; margin: 0 !important; padding: 0 !important;
+    overflow: hidden !important; opacity: 0 !important;
+    position: absolute !important; pointer-events: none !important;
 }}
 
-/* Sidebar nav — espaciado premium y texto legible */
+/* Labels del sidebar */
 section[data-testid="stSidebar"] [data-testid="stRadio"] label {{
     background: transparent !important;
     border: 1px solid transparent !important;
-    border-radius: 10px !important;
-    padding: 0.65rem 1.0rem !important;
+    border-left: 3px solid transparent !important;
+    border-radius: 0 10px 10px 0 !important;
+    padding: 0.72rem 1.1rem 0.72rem 1.0rem !important;
     color: {c['text']} !important;
     font-family: 'Inter', sans-serif !important;
-    font-size: 1.0rem !important;
+    font-size: 0.95rem !important;
     font-weight: 500 !important;
-    margin: 3px 0 !important;
-    min-height: 44px !important;
+    margin: 1px 0 !important;
+    min-height: 46px !important;
     display: flex !important;
     align-items: center !important;
-    transition: all .18s ease !important;
+    transition: all .18s cubic-bezier(.4,0,.2,1) !important;
     width: 100% !important;
+    cursor: pointer !important;
 }}
+
+/* Hover sidebar */
 section[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {{
     background: {c['nav_hover']} !important;
-    border-color: {c['border']} !important;
+    border-left-color: {c['border2']} !important;
+    color: {c['text_strong']} !important;
+    transform: translateX(2px) !important;
 }}
+
+/* Item ACTIVO — borde izquierdo verde + fondo verde sutil */
+section[data-testid="stSidebar"] [data-testid="stRadio"] [data-checked="true"] label,
+section[data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"] {{
+    background: {'rgba(34,197,94,0.10)' if dark else 'rgba(21,128,61,0.08)'} !important;
+    border-left-color: {c['green']} !important;
+    border-top-color: transparent !important;
+    border-right-color: transparent !important;
+    border-bottom-color: transparent !important;
+    color: {c['green']} !important;
+    font-weight: 600 !important;
+    transform: none !important;
+}}
+
+/* Texto del item activo */
+section[data-testid="stSidebar"] [data-testid="stRadio"] [data-checked="true"] label p,
+section[data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"] p {{
+    color: {c['green']} !important;
+    font-weight: 600 !important;
+}}
+
+/* Texto dentro de cualquier label del sidebar */
 section[data-testid="stSidebar"] [data-testid="stRadio"] label p {{
-    color: {c['text']} !important;
-    font-size: 1.0rem !important;
-    font-weight: 500 !important;
+    color: inherit !important;
+    font-size: 0.95rem !important;
     line-height: 1.3 !important;
     margin: 0 !important;
+}}
+
+/* Título "Navegación" oculto — solo mostrar las opciones */
+section[data-testid="stSidebar"] [data-testid="stRadio"] > label {{
+    display: none !important;
 }}
 /* Radio circle dot — verde adaptable */
 [data-testid="stRadio"] div[role="radio"],
