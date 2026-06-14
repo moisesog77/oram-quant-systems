@@ -279,36 +279,45 @@ else:
 
     # ── FASE NORMAL: sidebar + módulo ────────────────────────────────────────
     else:
-        # ── Cerrar sidebar forzado post-transición ───────────────────────────
-        if st.session_state.pop("_force_close_sidebar", False):
+        # ── Cerrar sidebar post-transición ───────────────────────────────────
+        # Estrategia: CSS permanente controlado por atributo `data-sb-closed`
+        # en el <body>. El JS lo activa cuando debe cerrarse, y lo desactiva
+        # cuando el usuario clica el botón hamburger para abrir el sidebar.
+        _should_close = st.session_state.pop("_force_close_sidebar", False)
+        if _should_close:
             st.markdown("""
+<style>
+/* Mientras body tiene data-sb-closed, el sidebar permanece oculto */
+body[data-sb-closed="1"] section[data-testid="stSidebar"] {
+    transform: translateX(-110%) !important;
+    transition: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+/* El botón hamburger siempre visible para poder re-abrir */
+body[data-sb-closed="1"] [data-testid="stSidebarCollapsedControl"] {
+    visibility: visible !important;
+    pointer-events: auto !important;
+}
+</style>
 <script>
 (function() {
-    function closeSidebar() {
-        try {
-            for (var k in localStorage) {
-                if (k.indexOf('sidebar') !== -1) {
-                    localStorage.setItem(k, JSON.stringify({isClosed: true}));
-                }
-            }
-            localStorage.setItem('sidebar.isClosed', 'true');
-        } catch(e) {}
-        var selectors = [
-            '[data-testid="stSidebarCollapseButton"] button',
-            '[data-testid="stBaseButton-headerNoPadding"]',
-            'button[aria-label*="ollapse"], button[aria-label*="lose"]'
-        ];
-        var sidebar = document.querySelector('section[data-testid="stSidebar"]');
-        if (sidebar && sidebar.getBoundingClientRect().width > 50) {
-            for (var i = 0; i < selectors.length; i++) {
-                var btn = document.querySelector(selectors[i]);
-                if (btn) { btn.click(); break; }
-            }
+    // Marcar body como "sidebar cerrado"
+    document.body.setAttribute('data-sb-closed', '1');
+
+    // Cuando el usuario clique el botón hamburger (stSidebarCollapsedControl),
+    // quitar el atributo para dejar que el sidebar se muestre normalmente.
+    function watchHamburger() {
+        var btn = document.querySelector('[data-testid="stSidebarCollapsedControl"] button');
+        if (btn) {
+            btn.addEventListener('click', function() {
+                document.body.removeAttribute('data-sb-closed');
+            }, {once: true});
+        } else {
+            setTimeout(watchHamburger, 100);
         }
     }
-    if (document.readyState === 'complete') { closeSidebar(); }
-    else { window.addEventListener('load', closeSidebar); }
-    setTimeout(closeSidebar, 300);
+    watchHamburger();
 })();
 </script>
 """, unsafe_allow_html=True)
