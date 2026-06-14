@@ -256,11 +256,9 @@ else:
 </div>
 <script>
 (function() {{
-    // Durante la transición: limpiar la preferencia del usuario para que
-    // el sidebar quede cerrado cuando vuelva a la fase normal.
-    try {{
-        sessionStorage.removeItem('oram_sb_user_opened');
-    }} catch(e) {{}}
+    // Durante la transición: borrar preferencia del usuario para que
+    // el sidebar arranque cerrado al volver a la fase normal.
+    try {{ sessionStorage.removeItem('oram_sb_open'); }} catch(e) {{}}
 }})();
 </script>
 """, unsafe_allow_html=True)
@@ -272,101 +270,106 @@ else:
 
     # ── FASE NORMAL: sidebar + módulo ────────────────────────────────────────
     else:
-        # ── Control de estado del sidebar ────────────────────────────────────
-        # Problema raíz: Streamlit restaura el estado visual del sidebar desde
-        # su propio state interno en cada rerun, ignorando initial_sidebar_state
-        # después del primer render. El CSS/JS se debe inyectar SIEMPRE (no solo
-        # en el primer render) para que funcione después de cada rerun/transición.
+        # ── Cerrar sidebar post-transición ───────────────────────────────────
+        # ESTRATEGIA DEFINITIVA: simular el click nativo en el botón de colapso
+        # de Streamlit. Esto deja que React maneje su propio state correctamente.
         #
-        # Estrategia:
-        #   - `_sb_user_opened`: True cuando el usuario abrió el sidebar
-        #     manualmente con el hamburger. Se guarda en session_state via
-        #     sessionStorage para sobrevivir reruns sin perder el dato.
-        #   - Si hay un `_force_close_sidebar` pendiente (post-login o
-        #     post-transición) → cerrar siempre, ignorar preferencia.
-        #   - Si no hay flag pendiente Y el usuario abrió el sidebar → dejarlo.
-        #   - En cualquier otro caso → cerrar.
+        # - `_force_close_sidebar` (session_state): se activa tras login o tras
+        #   cada transición de módulo. Le dice al JS que DEBE cerrar el sidebar.
+        # - `oram_sb_open` (sessionStorage): guardado en el browser. Se activa
+        #   cuando el usuario abre el sidebar manualmente. Sobrevive reruns.
+        # - Lógica: cerrar siempre que haya _force_close O que el usuario no lo
+        #   haya abierto voluntariamente en esta sesión del browser.
         _force_close = st.session_state.pop("_force_close_sidebar", False)
 
-        st.markdown("""
-<style>
-/* CSS que oculta el sidebar mientras body tenga data-sb-closed="1" */
-body[data-sb-closed="1"] section[data-testid="stSidebar"] {
-    transform: translateX(-110%) !important;
-    transition: none !important;
-    pointer-events: none !important;
-    visibility: hidden !important;
-}
-/* El botón hamburger siempre visible para poder re-abrir */
-body[data-sb-closed="1"] [data-testid="stSidebarCollapsedControl"] {
-    visibility: visible !important;
-    pointer-events: auto !important;
-}
-</style>
-<script>
-(function() {
-    var STORAGE_KEY = 'oram_sb_user_opened';
-    var forceClose  = """ + ("true" if _force_close else "false") + """;
+        # Este bloque SE INYECTA SIEMPRE (no solo cuando _force_close es True)
+        # para que el listener del hamburger esté activo en cada rerun.
+        st.markdown(
+            f"""<script>
+(function() {{
+    var OPEN_KEY   = 'oram_sb_open';
+    var forceClose = {'true' if _force_close else 'false'};
 
-    function applySidebarState() {
-        var userOpened = sessionStorage.getItem(STORAGE_KEY) === '1';
+    // Si es forzado, limpiar preferencia guardada
+    if (forceClose) {{
+        try {{ sessionStorage.removeItem(OPEN_KEY); }} catch(e) {{}}
+    }}
 
-        if (forceClose || !userOpened) {
-            // Cerrar: marcar body y resetear preferencia si es forzado
-            document.body.setAttribute('data-sb-closed', '1');
-            if (forceClose) {
-                sessionStorage.removeItem(STORAGE_KEY);
-            }
-        } else {
-            // El usuario abrió el sidebar antes del rerun → mantener abierto
-            document.body.removeAttribute('data-sb-closed');
-        }
+    var userWantsOpen = false;
+    try {{ userWantsOpen = sessionStorage.getItem(OPEN_KEY) === '1'; }} catch(e) {{}}
 
-        // Observar el botón hamburger para detectar apertura manual
-        watchHamburger();
-        // Observar el botón de cierre dentro del sidebar (flecha «)
-        watchSidebarClose();
-    }
+    var shouldClose = forceClose || !userWantsOpen;
 
-    function watchHamburger() {
-        var btn = document.querySelector('[data-testid="stSidebarCollapsedControl"] button');
-        if (btn) {
-            btn.addEventListener('click', function() {
-                // Usuario abrió el sidebar: quitar cierre y guardar preferencia
-                sessionStorage.setItem(STORAGE_KEY, '1');
-                document.body.removeAttribute('data-sb-closed');
-                // Re-observar el botón de cierre interior
-                setTimeout(watchSidebarClose, 200);
-            }, {once: true});
-        } else {
+    function closeSidebar() {{
+        // Buscar el botón de colapso DENTRO del sidebar (nativo de Streamlit)
+        var btn = document.querySelector('[data-testid="stSidebarCollapseButton"] button');
+        if (btn) {{
+            btn.click();
+        }} else {{
+            // Sidebar todavía no montado, reintentar
+            setTimeout(closeSidebar, 80);
+        }}
+    }}
+
+    function watchHamburger() {{
+        // Observar el botón externo (hamburger) para saber si usuario abre el sidebar
+        var hbtn = document.querySelector('[data-testid="stSidebarCollapsedControl"] button');
+        if (hbtn) {{
+            hbtn.addEventListener('click', function() {{
+                try {{ sessionStorage.setItem(OPEN_KEY, '1'); }} catch(e) {{}}
+                // Cuando el sidebar se abra, observar su botón de cierre
+                setTimeout(watchCollapseButton, 300);
+            }}, {{once: true}});
+        }} else {{
             setTimeout(watchHamburger, 100);
-        }
-    }
+        }}
+    }}
 
-    function watchSidebarClose() {
-        // El botón de colapsar está dentro del sidebar (data-testid="stSidebarCollapseButton")
-        var closeBtn = document.querySelector('[data-testid="stSidebarCollapseButton"] button');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', function() {
-                // Usuario cerró el sidebar manualmente
-                sessionStorage.removeItem(STORAGE_KEY);
-                document.body.setAttribute('data-sb-closed', '1');
+    function watchCollapseButton() {{
+        // Si el usuario cierra el sidebar manualmente, limpiar preferencia
+        var cbtn = document.querySelector('[data-testid="stSidebarCollapseButton"] button');
+        if (cbtn) {{
+            cbtn.addEventListener('click', function() {{
+                try {{ sessionStorage.removeItem(OPEN_KEY); }} catch(e) {{}}
                 setTimeout(watchHamburger, 200);
-            }, {once: true});
-        } else {
-            setTimeout(watchSidebarClose, 150);
-        }
-    }
+            }}, {{once: true}});
+        }} else {{
+            setTimeout(watchCollapseButton, 100);
+        }}
+    }}
 
-    // Ejecutar cuando el DOM esté listo
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', applySidebarState);
-    } else {
-        applySidebarState();
-    }
-})();
-</script>
-""", unsafe_allow_html=True)
+    function run() {{
+        if (shouldClose) {{
+            // Verificar si el sidebar está visible antes de intentar cerrarlo
+            var sb = document.querySelector('[data-testid="stSidebar"]');
+            if (sb) {{
+                closeSidebar();
+            }} else {{
+                // Sidebar no está en el DOM aún, esperar
+                setTimeout(function() {{
+                    var sb2 = document.querySelector('[data-testid="stSidebar"]');
+                    if (sb2) {{ closeSidebar(); }} else {{ watchHamburger(); }}
+                }}, 150);
+                return;
+            }}
+            // Después de cerrar, observar el hamburger
+            setTimeout(watchHamburger, 400);
+        }} else {{
+            // Sidebar debe quedar abierto — solo observar cierre manual
+            watchCollapseButton();
+        }}
+    }}
+
+    if (document.readyState === 'loading') {{
+        document.addEventListener('DOMContentLoaded', run);
+    }} else {{
+        // DOM ya listo; dar un tick para que Streamlit monte el sidebar
+        setTimeout(run, 50);
+    }}
+}})();
+</script>""",
+            unsafe_allow_html=True,
+        )
 
         nav_options = [
             "📈 Dashboard",
