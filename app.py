@@ -161,16 +161,17 @@ else:
     start    = st.session_state.get("session_start", datetime.now(timezone.utc).timestamp())
 
     # ── Estado de navegación ─────────────────────────────────────────────────
-    # _current_nav : módulo que se está mostrando AHORA
-    # _transitioning: True durante el render del overlay (sidebar NO se renderiza)
+    # _current_nav  : módulo visible actualmente
+    # _transitioning: True durante el render del overlay de carga
+    # _sb_locked    : True = sidebar debe permanecer cerrado (se limpia solo
+    #                 cuando el usuario abre el sidebar manualmente)
     if "_current_nav" not in st.session_state:
         st.session_state["_current_nav"] = "📈 Dashboard"
-        # Primera carga tras login: forzar cierre del sidebar
-        st.session_state["_force_close_sidebar"] = True
+        st.session_state["_sb_locked"] = True   # primera carga: cerrado
 
     _transitioning = st.session_state.pop("_transitioning", False)
 
-    # ── FASE DE TRANSICIÓN: solo overlay, sin sidebar ────────────────────────
+    # ── FASE DE TRANSICIÓN: overlay de carga ─────────────────────────────────
     if _transitioning:
         _nav_target  = st.session_state["_current_nav"]
         _dark  = get_theme() == "dark"
@@ -181,22 +182,16 @@ else:
         _tmut  = "#637a94"            if _dark else "#7a8fa0"
         _module_name = _nav_target.split(" ", 1)[-1] if " " in _nav_target else _nav_target
 
-        # PASO 1: Ocultar el sidebar INMEDIATAMENTE con CSS antes del overlay.
-        # Usamos display:none con !important para que desaparezca al instante,
-        # sin animación y sin pelear con React. El sidebar vuelve a aparecer
-        # cuando Streamlit lo re-renderiza en la fase normal post-transición.
-        st.markdown("""
-<style>
-section[data-testid="stSidebar"] {
-    display: none !important;
-}
-[data-testid="stSidebarCollapsedControl"] {
-    display: none !important;
-}
-</style>
-""", unsafe_allow_html=True)
+        # Bloquear sidebar y mostrar overlay — el atributo data-sb-force-closed
+        # en <html> + el CSS en inject_styles() ocultan sidebar y hamburger.
+        # El iframe lo pone en el <html> del parent; persiste entre reruns
+        # porque Streamlit hace partial DOM updates, no full page reloads.
+        _stc.html("""<script>
+try {
+    window.parent.document.documentElement.setAttribute('data-sb-force-closed','1');
+} catch(e) {}
+</script>""", height=0)
 
-        # PASO 2: Mostrar el overlay de carga encima (sidebar ya oculto)
         st.markdown(f"""
 <style>
 @keyframes oram-fadein {{
@@ -272,67 +267,73 @@ section[data-testid="stSidebar"] {
 """, unsafe_allow_html=True)
 
         _time.sleep(1.5)
-        # Marcar que al renderizar la fase normal se debe cerrar el sidebar via JS
-        st.session_state["_force_close_sidebar"] = True
+        st.session_state["_sb_locked"] = True   # mantener sidebar cerrado al volver
         st.rerun()
 
     # ── FASE NORMAL: sidebar + módulo ────────────────────────────────────────
     else:
-        # ── Cerrar sidebar post-transición ───────────────────────────────────
-        # Usa st.components.v1.html (iframe) — único método que garantiza
-        # ejecución de JS en Streamlit. Accede al DOM del parent via window.parent.
-        _force_close = st.session_state.pop("_force_close_sidebar", False)
-        _fc = "true" if _force_close else "false"
+        # ── Control del sidebar via atributo en <html> ────────────────────────
+        # Arquitectura:
+        #   - El CSS en inject_styles() oculta sidebar/hamburger cuando
+        #     <html data-sb-force-closed> está presente.
+        #   - El iframe pone ese atributo en el <html> del parent al arrancar.
+        #   - El atributo persiste entre reruns (Streamlit hace partial DOM updates).
+        #   - _sb_locked en session_state: True solo en el PRIMER render tras
+        #     login o tras transición. Después se pone a False para que los
+        #     reruns subsiguientes no vuelvan a bloquear.
+        #   - El JS gestiona la interacción: quita atributo cuando el usuario
+        #     abre el hamburger, lo pone de nuevo si cierra manualmente.
+        _sb_locked = st.session_state.pop("_sb_locked", False)
+        _lock_js   = "true" if _sb_locked else "false"
+
         _stc.html(f"""<script>
 (function() {{
     var p; try {{ p = window.parent; }} catch(e) {{ return; }}
-    var doc = p.document, ss = p.sessionStorage, KEY = 'oram_sb_open';
-    var force = {_fc};
+    var html = p.document.documentElement;
+    var lockNow = {_lock_js};
 
-    if (force) {{ try {{ ss.removeItem(KEY); }} catch(e) {{}} }}
-
-    var userOpen = false;
-    try {{ userOpen = ss.getItem(KEY) === '1'; }} catch(e) {{}}
-    var shouldClose = force || !userOpen;
-
-    function isSidebarOpen() {{
-        return !!doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
+    // Si este render pide bloqueo explícito, poner el atributo
+    if (lockNow) {{
+        html.setAttribute('data-sb-force-closed', '1');
     }}
+    // Si NO pide bloqueo, NO tocar el atributo — puede estar puesto o no
+    // según lo que el usuario haya hecho antes (persiste en el DOM).
 
-    function closeSidebar(n) {{
-        n = n || 0; if (n > 20) {{ watchHamburger(); return; }}
-        var btn = doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
-        if (btn) {{ btn.click(); setTimeout(watchHamburger, 300); }}
-        else if (doc.querySelector('[data-testid="stSidebarCollapsedControl"]')) {{ watchHamburger(); }}
-        else {{ setTimeout(function(){{ closeSidebar(n+1); }}, 80); }}
-    }}
-
+    // Observar hamburger: cuando usuario hace click, quitar atributo
     function watchHamburger() {{
-        var h = doc.querySelector('[data-testid="stSidebarCollapsedControl"] button');
+        var h = p.document.querySelector('[data-testid="stSidebarCollapsedControl"] button');
         if (h) {{
             h.addEventListener('click', function() {{
-                try {{ ss.setItem(KEY, '1'); }} catch(e) {{}}
-                setTimeout(watchCloseBtn, 300);
-            }}, {{once:true}});
-        }} else {{ setTimeout(watchHamburger, 100); }}
+                html.removeAttribute('data-sb-force-closed');
+                setTimeout(watchCloseBtn, 400);
+            }}, {{once: true}});
+        }} else {{
+            setTimeout(watchHamburger, 100);
+        }}
     }}
 
+    // Observar botón de cierre interior: si usuario cierra, poner atributo de nuevo
     function watchCloseBtn() {{
-        var b = doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
+        var b = p.document.querySelector('[data-testid="stSidebarCollapseButton"] button');
         if (b) {{
             b.addEventListener('click', function() {{
-                try {{ ss.removeItem(KEY); }} catch(e) {{}}
+                html.setAttribute('data-sb-force-closed', '1');
                 setTimeout(watchHamburger, 200);
-            }}, {{once:true}});
-        }} else {{ setTimeout(watchCloseBtn, 100); }}
+            }}, {{once: true}});
+        }} else {{
+            setTimeout(watchCloseBtn, 100);
+        }}
     }}
 
     setTimeout(function() {{
-        if (shouldClose) {{
-            if (isSidebarOpen()) {{ closeSidebar(); }}
-            else {{ watchHamburger(); }}
-        }} else {{ watchCloseBtn(); }}
-    }}, 60);
+        // Si el atributo está activo, el sidebar está oculto → observar hamburger
+        if (html.hasAttribute('data-sb-force-closed')) {{
+            watchHamburger();
+        }} else {{
+            // Sidebar visible → observar cierre manual
+            watchCloseBtn();
+        }}
+    }}, 80);
 }})();
 </script>""", height=0)
 
@@ -508,11 +509,7 @@ section[data-testid="stSidebar"] {
         if nav != st.session_state["_current_nav"]:
             st.session_state["_current_nav"] = nav
             st.session_state["_transitioning"] = True
-            # Limpiar preferencia del sidebar para que cierre tras el overlay
-            try:
-                pass  # limpieza se hace vía JS abajo
-            except Exception:
-                pass
+            st.session_state["_sb_locked"] = True   # cerrar sidebar tras la transición
             st.rerun()
 
         # ── Renderizar módulo actual ─────────────────────────────────────────
