@@ -1,109 +1,75 @@
 """
 app.py — ORAM Quant Systems — Punto de entrada principal
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Sesión persistente de 60 minutos mediante cookie segura.
+Responsabilidades:
+  · Configurar Streamlit (page_config, tema inicial)
+  · Gestión de sesión con timeout estricto de 60 minutos
+    desde el momento de login (no se renueva con recargas)
+  · Enrutar al módulo correcto según navegación del sidebar
+  · Mostrar sidebar con logo, navegación, tema y countdown
 
-Flujo de sesión:
-  1. Login exitoso → guarda user_id + session_start en cookie (TTL=1h)
-  2. Cada render    → lee cookie, verifica TTL, carga usuario de DB
-  3. Recarga / misma pestaña → cookie persiste, sesión continúa
-  4. Expiración → cookie eliminada, redirige a login
-  5. Salir → cookie eliminada explícitamente
-
-La cookie se llama 'oram_session' y contiene:
-  user_id       : int  — ID del usuario
-  session_start : float — timestamp UTC de login
+Patrón de sesión:
+  - Al hacer login → se registra session_start = timestamp_UTC
+  - En cada render  → se verifica (now - session_start) < 3600s
+  - Si expira       → se limpia user y se redirige al login
+  - Recargar página NO reinicia el contador (sesión por login, no por actividad)
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 from datetime import datetime, timezone
-import json
 
+# ── Configuración de página — debe ser la primera llamada Streamlit ─────────
 st.set_page_config(
     page_title="ORAM Quant Systems",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-# ── Tema por defecto ──────────────────────────────────────────────────────────
+# ── Tema por defecto: oscuro ──────────────────────────────────────────────────
 if "theme" not in st.session_state:
     st.session_state["theme"] = "dark"
 
-SESSION_TIMEOUT_SECS = 60 * 60   # 60 minutos exactos
-COOKIE_NAME          = "oram_session"
-
-# ── Cookie Manager ────────────────────────────────────────────────────────────
-try:
-    import extra_streamlit_components as stx
-    _cookie_manager = stx.CookieManager(key="oram_cookie_mgr")
-    COOKIES_OK = True
-except Exception:
-    _cookie_manager = None
-    COOKIES_OK = False
+# ── Constante de timeout de sesión ───────────────────────────────────────────
+SESSION_TIMEOUT_SECS = 60 * 60   # 3600 segundos = 60 minutos exactos
 
 
-def _leer_cookie() -> dict | None:
+def _session_expiro() -> bool:
     """
-    Lee la cookie de sesión y retorna su contenido como dict.
-    Retorna None si no existe o está malformada.
+    Verifica si la sesión ha expirado comparando el tiempo
+    transcurrido desde session_start (timestamp de login) con
+    SESSION_TIMEOUT_SECS.
+
+    IMPORTANTE: usa session_start (fijo al login), NO el patrón last-activity.
+    Esto garantiza que recargar la página NO reinicia el contador.
+    La sesión dura exactamente 60 min desde que el usuario inició sesión.
+
+    Returns:
+        True  → sesión expirada, cerrar sesión
+        False → sesión vigente
     """
-    if not COOKIES_OK or _cookie_manager is None:
-        return None
-    try:
-        raw = _cookie_manager.get(COOKIE_NAME)
-        if not raw:
-            return None
-        return json.loads(raw) if isinstance(raw, str) else raw
-    except Exception:
-        return None
-
-
-def _escribir_cookie(user_id: int, session_start: float) -> None:
-    """
-    Escribe la cookie de sesión con el user_id y timestamp de login.
-    TTL = SESSION_TIMEOUT_SECS para que el browser la expire automáticamente.
-    """
-    if not COOKIES_OK or _cookie_manager is None:
-        return
-    try:
-        payload = json.dumps({"user_id": user_id, "session_start": session_start})
-        _cookie_manager.set(
-            COOKIE_NAME,
-            payload,
-            max_age=SESSION_TIMEOUT_SECS,
-            key="oram_set_cookie",
-        )
-    except Exception:
-        pass
-
-
-def _eliminar_cookie() -> None:
-    """Elimina la cookie de sesión (logout o expiración)."""
-    if not COOKIES_OK or _cookie_manager is None:
-        return
-    try:
-        _cookie_manager.delete(COOKIE_NAME, key="oram_del_cookie")
-    except Exception:
-        pass
-
-
-def _session_expiro(session_start: float) -> bool:
-    """Verifica si han pasado más de 60 minutos desde el login."""
-    elapsed = datetime.now(timezone.utc).timestamp() - session_start
+    start = st.session_state.get("session_start")
+    if start is None:
+        return False   # no hay sesión activa
+    elapsed = datetime.now(timezone.utc).timestamp() - start
     return elapsed >= SESSION_TIMEOUT_SECS
 
 
-def _minutos_restantes(session_start: float) -> int:
-    """Minutos restantes de sesión para mostrar en sidebar."""
-    elapsed = datetime.now(timezone.utc).timestamp() - session_start
+def _minutos_restantes() -> int:
+    """
+    Calcula los minutos restantes de sesión para mostrar en el sidebar.
+    Retorna 0 si ya expiró.
+    """
+    start = st.session_state.get("session_start", datetime.now(timezone.utc).timestamp())
+    elapsed = datetime.now(timezone.utc).timestamp() - start
     return max(0, int((SESSION_TIMEOUT_SECS - elapsed) / 60))
 
 
-# ── Imports ───────────────────────────────────────────────────────────────────
-from ui.styles     import inject_styles, toggle_theme, get_theme, get_colors, APP_TAGLINE
-from database.db   import inicializar_db, obtener_todos_usuarios
+# ── Imports de módulos internos ───────────────────────────────────────────────
+from ui.styles import inject_styles, toggle_theme, get_theme, get_colors, APP_TAGLINE
 
+# Inyectar CSS premium global (tema, inputs, botones, scrollbar, etc.)
 inject_styles()
 
 from modules.auth          import render_auth
@@ -120,62 +86,37 @@ from modules.bot_config    import render_bot_config
 from modules.watchlist     import render_watchlist
 from modules.signals_panel import render_signals_panel
 from modules.admin         import render_admin
+from database.db           import inicializar_db
 
+# ── Inicializar base de datos (crea tablas + superadmin si no existen) ────────
 inicializar_db()
 
-# ── Restaurar sesión desde cookie si session_state está vacío ────────────────
-# Este bloque se ejecuta en CADA render (incluyendo recargas de página).
-# Si el usuario recargó, session_state.user es None pero la cookie sigue viva.
-# La recuperamos aquí para que la recarga NO cierre la sesión.
-
+# ── Estado inicial de sesión ─────────────────────────────────────────────────
 if "user" not in st.session_state:
     st.session_state.user = None
 
-if st.session_state.user is None and COOKIES_OK:
-    # Si el usuario acaba de hacer logout, NO restaurar desde cookie
-    # (la cookie puede tardar un render en eliminarse)
-    if st.session_state.get("logged_out"):
-        st.session_state.pop("logged_out", None)
-        _eliminar_cookie()  # intentar eliminar de nuevo
-    else:
-        cookie_data = _leer_cookie()
-        if cookie_data:
-            session_start = cookie_data.get("session_start", 0)
-            user_id       = cookie_data.get("user_id")
-            if user_id and not _session_expiro(session_start):
-                # Cookie válida — restaurar usuario desde DB
-                try:
-                    usuarios = obtener_todos_usuarios()
-                    user_db  = next((u for u in usuarios if u["id"] == int(user_id)), None)
-                    if user_db:
-                        st.session_state.user          = user_db
-                        st.session_state["session_start"] = session_start
-                except Exception:
-                    _eliminar_cookie()
-            else:
-                # Cookie expirada — eliminar
-                _eliminar_cookie()
+# ── Verificar expiración de sesión ────────────────────────────────────────────
+# Se ejecuta en CADA render. Si la sesión expiró → forzar logout.
+if st.session_state.user is not None and _session_expiro():
+    st.session_state.user = None
+    st.session_state.pop("session_start", None)
+    st.rerun()
 
-# ── Verificar expiración en cada render ──────────────────────────────────────
-if st.session_state.user is not None:
-    start   = st.session_state.get("session_start", datetime.now(timezone.utc).timestamp())
-    if _session_expiro(start):
-        st.session_state.user = None
-        st.session_state.pop("session_start", None)
-        _eliminar_cookie()
-        st.rerun()
-
-# ── Enrutamiento ──────────────────────────────────────────────────────────────
+# ── Enrutamiento principal ────────────────────────────────────────────────────
 if st.session_state.user is None:
+    # Usuario no autenticado → pantalla de login/registro
     render_auth()
 
 else:
+    # Usuario autenticado → mostrar aplicación completa
     c        = get_colors()
     user     = st.session_state.user
     is_admin = bool(user.get("is_admin", 0))
-    start    = st.session_state.get("session_start", datetime.now(timezone.utc).timestamp())
 
+    # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
+        # ── Logo ORAM ─────────────────────────────────────────────────────────
+        # Variables calculadas fuera del f-string para evitar backslash dentro de {}
         admin_prefix = "🛡️ " if is_admin else ""
         admin_badge  = '&nbsp;<span style="font-size:0.6rem;color:#c9a227;font-weight:700">ADMIN</span>' if is_admin else ""
 
@@ -193,6 +134,7 @@ else:
             unsafe_allow_html=True,
         )
 
+        # ── Navegación ────────────────────────────────────────────────────────
         nav_options = [
             "📈 Dashboard",
             "📡 Análisis en Vivo",
@@ -212,70 +154,61 @@ else:
 
         nav = st.radio("", nav_options, label_visibility="hidden")
 
-        st.markdown("""
+        # ── Auto-colapsar sidebar al seleccionar módulo (efecto premium) ─────
+        # JS via components.html - el unico metodo que ejecuta JS en Streamlit Cloud
+        components.html("""
 <script>
 (function () {
-    /* ── ORAM sidebar auto-close ─────────────────────────────────────────
-       Mecanismo: sessionStorage como puente entre renders de Streamlit.
-       
-       RENDER N  (usuario hace click en label):
-         · listener detecta el click → guarda timestamp en sessionStorage
-       
-       RENDER N+1 (Streamlit recarga por cambio de radio):
-         · JS nuevo revisa sessionStorage
-         · Si el timestamp es reciente (< 1.5s) → click en botón colapsar
-         · Borra el flag para no colapsar en el siguiente render
-       ──────────────────────────────────────────────────────────────────── */
-    var FLAG = 'oram_nav_click_ts';
-
-    /* Paso 1: ¿venimos de un click de nav? Colapsar el sidebar */
-    var ts = sessionStorage.getItem(FLAG);
-    if (ts && (Date.now() - parseInt(ts, 10)) < 1500) {
-        sessionStorage.removeItem(FLAG);
-        /* Intentar colapsar con múltiples selectores para máxima compatibilidad */
-        function tryCollapse(attempts) {
-            var selectors = [
-                '[data-testid="stSidebarCollapseButton"] button',
-                '[data-testid="stBaseButton-headerNoPadding"]',
-                'button[aria-label="Close sidebar"]',
-                'button[kind="header"]',
-                '[data-testid="stSidebar"] button[aria-expanded="true"]',
-            ];
-            for (var i = 0; i < selectors.length; i++) {
-                var btn = document.querySelector(selectors[i]);
-                if (btn) { btn.click(); return; }
-            }
-            if (attempts > 0) setTimeout(function(){ tryCollapse(attempts - 1); }, 150);
+    var P = window.parent, doc = P.document, ss = P.sessionStorage;
+    var FLAG = "oram_sb_close";
+    function doCollapse() {
+        var sels = [
+            '[data-testid="stSidebarCollapseButton"] button',
+            '[data-testid="stSidebarCollapseButton"]',
+            '[data-testid="stBaseButton-headerNoPadding"]',
+            'button[aria-label="Close sidebar"]',
+            'button[aria-label="Collapse sidebar"]',
+            'section[data-testid="stSidebar"] button',
+        ];
+        for (var i = 0; i < sels.length; i++) {
+            var el = doc.querySelector(sels[i]);
+            if (el && el.offsetParent !== null) { el.click(); return true; }
         }
-        setTimeout(function(){ tryCollapse(8); }, 80);
+        return false;
     }
-
-    /* Paso 2: adjuntar listeners a los labels del sidebar */
-    function attachListeners() {
-        var sidebar = document.querySelector('[data-testid="stSidebar"]');
-        if (!sidebar) return false;
-        var labels = sidebar.querySelectorAll('div[role="radiogroup"] label');
+    var ts = ss.getItem(FLAG);
+    if (ts && (Date.now() - parseInt(ts, 10)) < 4000) {
+        ss.removeItem(FLAG);
+        var tries = 0;
+        var iv = setInterval(function () {
+            if (doCollapse() || ++tries > 40) clearInterval(iv);
+        }, 80);
+    }
+    function bindLabels() {
+        var sb = doc.querySelector('[data-testid="stSidebar"]');
+        if (!sb) return false;
+        var labels = sb.querySelectorAll('div[role="radiogroup"] label');
         if (!labels.length) return false;
-        labels.forEach(function (lbl) {
-            if (lbl._oramBound) return;
-            lbl._oramBound = true;
-            lbl.addEventListener('mousedown', function () {
-                sessionStorage.setItem(FLAG, Date.now().toString());
+        labels.forEach(function (lb) {
+            if (lb._oramBound) return;
+            lb._oramBound = true;
+            lb.addEventListener("mousedown", function () {
+                ss.setItem(FLAG, String(Date.now()));
             });
         });
         return true;
     }
-
-    var tries = 0;
-    var t = setInterval(function () {
-        if (attachListeners() || ++tries > 50) clearInterval(t);
-    }, 150);
+    var t = 0;
+    var iv2 = setInterval(function () {
+        if (bindLabels() || ++t > 80) clearInterval(iv2);
+    }, 100);
 })();
 </script>
-""", unsafe_allow_html=True)
+""", height=0, scrolling=False)
 
         st.divider()
 
+        # ── Botones Tema / Salir ──────────────────────────────────────────────
         col_t, col_s = st.columns(2)
         with col_t:
             label_tema = "☀️ Claro" if get_theme() == "dark" else "🌙 Oscuro"
@@ -284,106 +217,20 @@ else:
                 st.rerun()
         with col_s:
             if st.button("🚪 Salir", key="sb_logout"):
-                # ── Overlay premium de despedida ──────────────────────────────
-                _dark_lo  = get_theme() == "dark"
-                _olay_lo  = "rgba(6,9,15,0.92)"  if _dark_lo else "rgba(238,242,247,0.94)"
-                _cbg_lo   = "#0c1219"             if _dark_lo else "#ffffff"
-                _cbdr_lo  = "#1b2a40"             if _dark_lo else "#dde5ef"
-                _tmain_lo = "#edf4ff"             if _dark_lo else "#0b1824"
-                _tmut_lo  = "#637a94"             if _dark_lo else "#7a8fa0"
-                _user_lo  = user.get("username", "").upper()
-                from ui.styles import LOGO_GOLD, LOGO_BLUE, LOGO_TEAL
-                import time as _tlo
-                _ph_lo = st.empty()
-                _ph_lo.markdown(f"""
-<style>
-@keyframes oram-lo-in {{
-    from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
-    to   {{ opacity:1; transform:translateY(0) scale(1); }}
-}}
-@keyframes oram-lo-pulse {{
-    0%,100% {{ box-shadow:0 0 0 0    rgba(201,162,39,0.40); }}
-    50%      {{ box-shadow:0 0 0 18px rgba(201,162,39,0); }}
-}}
-@keyframes oram-lo-spin {{ to {{ transform:rotate(360deg); }} }}
-#oram-lo-overlay {{
-    position:fixed;inset:0;background:{_olay_lo};
-    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-    z-index:99999;display:flex;align-items:center;justify-content:center;
-}}
-#oram-lo-card {{
-    background:{_cbg_lo};border:1px solid {_cbdr_lo};border-radius:20px;
-    padding:2.8rem 3rem 2.4rem;text-align:center;
-    max-width:400px;width:90%;
-    animation:oram-lo-in 0.45s cubic-bezier(0.22,1,0.36,1) both;
-    box-shadow:0 24px 60px rgba(0,0,0,0.35);
-}}
-.oram-lo-ring {{
-    width:64px;height:64px;border-radius:50%;
-    background:rgba(201,162,39,0.12);border:2px solid {LOGO_GOLD};
-    display:flex;align-items:center;justify-content:center;
-    margin:0 auto 1.4rem;
-    animation:oram-lo-pulse 1.6s ease-in-out infinite;
-}}
-.oram-lo-ring svg {{
-    width:28px;height:28px;stroke:{LOGO_GOLD};fill:none;
-    stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
-}}
-.oram-lo-logo {{
-    font-family:'Space Grotesk',sans-serif;
-    font-size:1.1rem;font-weight:800;letter-spacing:-1px;margin-bottom:0.15rem;
-}}
-.oram-lo-title {{
-    font-family:'Inter',sans-serif;font-size:1.1rem;font-weight:700;
-    color:{_tmain_lo};margin-bottom:0.3rem;
-}}
-.oram-lo-sub {{
-    font-family:'Inter',sans-serif;font-size:0.82rem;
-    color:{_tmut_lo};margin-bottom:1.6rem;line-height:1.5;
-}}
-.oram-lo-spin-row {{
-    display:flex;align-items:center;justify-content:center;gap:0.55rem;
-}}
-.oram-lo-spinner {{
-    width:16px;height:16px;
-    border:2px solid rgba(201,162,39,0.25);
-    border-top-color:{LOGO_GOLD};border-radius:50%;
-    animation:oram-lo-spin 0.75s linear infinite;flex-shrink:0;
-}}
-.oram-lo-label {{
-    font-family:'JetBrains Mono',monospace;font-size:0.72rem;
-    letter-spacing:1.5px;text-transform:uppercase;color:{_tmut_lo};
-}}
-</style>
-<div id="oram-lo-overlay">
-  <div id="oram-lo-card">
-    <div class="oram-lo-ring">
-      <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-    </div>
-    <div class="oram-lo-logo">
-      <span style="color:{LOGO_GOLD}">O</span><span style="color:{LOGO_BLUE}">R</span><span style="color:{LOGO_TEAL}">A</span><span style="color:{_tmain_lo}">M</span>
-      <span style="color:{_tmut_lo};font-weight:500;font-size:0.85rem;letter-spacing:0"> Quant Systems</span>
-    </div>
-    <div class="oram-lo-title">Hasta pronto, {_user_lo}</div>
-    <div class="oram-lo-sub">Tu sesión ha sido cerrada de forma segura.</div>
-    <div class="oram-lo-spin-row">
-      <div class="oram-lo-spinner"></div>
-      <span class="oram-lo-label">Cerrando sesión…</span>
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-                _tlo.sleep(2.0)
-                _ph_lo.empty()
-                # Limpiar sesión y cookie
+                # Limpiar sesión completamente
                 st.session_state.user = None
                 st.session_state.pop("session_start", None)
-                st.session_state["logged_out"] = True
-                _eliminar_cookie()
                 st.rerun()
 
-        mins = _minutos_restantes(start)
-        countdown_color = c["accent3"] if mins > 30 else (c["accent"] if mins > 10 else c["red"])
+        # ── Footer con countdown de sesión ────────────────────────────────────
+        mins = _minutos_restantes()
+        # Color del countdown: verde > 30 min, amarillo 10-30, rojo < 10
+        if mins > 30:
+            countdown_color = c["accent3"]   # teal/verde
+        elif mins > 10:
+            countdown_color = c["accent"]    # dorado/amarillo
+        else:
+            countdown_color = c["red"]       # rojo — urgente
 
         st.markdown(
             f'<div style="margin-top:.8rem;padding-top:.7rem;'
@@ -398,109 +245,7 @@ else:
             unsafe_allow_html=True,
         )
 
-    # ── Guardar/renovar cookie en cada interacción exitosa ───────────────────
-    # Esto mantiene la cookie viva mientras el usuario esté activo.
-    # La cookie se escribe con el session_start ORIGINAL (no renueva el timer).
-    if COOKIES_OK and st.session_state.user:
-        _escribir_cookie(user["id"], start)
-
-    # ── Detectar cambio de módulo para mostrar animación de transición ──────
-    _prev_nav = st.session_state.get("_prev_nav")
-    _nav_changed = (_prev_nav is not None and _prev_nav != nav)
-    _just_logged_in = st.session_state.pop("_just_logged_in", False)
-    st.session_state["_prev_nav"] = nav
-
-    # Mostrar animación de carga al cambiar de módulo o al entrar desde login
-    if _nav_changed or _just_logged_in:
-        import time as _time
-        from ui.styles import LOGO_GOLD, LOGO_BLUE, LOGO_TEAL
-        _dark  = get_theme() == "dark"
-        _olay  = "rgba(6,9,15,0.92)"    if _dark else "rgba(238,242,247,0.94)"
-        _cbg   = "#0c1219"              if _dark else "#ffffff"
-        _cbdr  = "#1b2a40"              if _dark else "#dde5ef"
-        _tmain = "#edf4ff"              if _dark else "#0b1824"
-        _tmut  = "#637a94"              if _dark else "#7a8fa0"
-        _module_name = nav.split(" ", 1)[-1] if " " in nav else nav
-
-        _ph = st.empty()
-        _ph.markdown(f"""
-<style>
-@keyframes oram-fadein {{
-    from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
-    to   {{ opacity:1; transform:translateY(0) scale(1); }}
-}}
-@keyframes oram-pulse {{
-    0%,100% {{ box-shadow:0 0 0 0    rgba(34,197,94,0.40); }}
-    50%      {{ box-shadow:0 0 0 18px rgba(34,197,94,0); }}
-}}
-@keyframes oram-spin {{
-    to {{ transform:rotate(360deg); }}
-}}
-#oram-tr-overlay {{
-    position:fixed;inset:0;background:{_olay};
-    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-    z-index:99999;display:flex;align-items:center;justify-content:center;
-}}
-#oram-tr-card {{
-    background:{_cbg};border:1px solid {_cbdr};border-radius:20px;
-    padding:2.8rem 3rem 2.4rem;text-align:center;
-    max-width:400px;width:90%;
-    animation:oram-fadein 0.45s cubic-bezier(0.22,1,0.36,1) both;
-    box-shadow:0 24px 60px rgba(0,0,0,0.35);
-}}
-.oram-tr-ring {{
-    width:64px;height:64px;border-radius:50%;
-    background:rgba(34,197,94,0.12);border:2px solid #22c55e;
-    display:flex;align-items:center;justify-content:center;
-    margin:0 auto 1.4rem;
-    animation:oram-pulse 1.6s ease-in-out infinite;
-}}
-.oram-tr-ring svg {{
-    width:30px;height:30px;stroke:#22c55e;fill:none;
-    stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;
-}}
-.oram-tr-logo {{
-    font-family:'Space Grotesk',sans-serif;
-    font-size:1.1rem;font-weight:800;letter-spacing:-1px;margin-bottom:0.15rem;
-}}
-.oram-tr-title {{
-    font-family:'Inter',sans-serif;font-size:1.15rem;font-weight:700;
-    color:{_tmain};margin-bottom:0.5rem;
-}}
-.oram-tr-spin-row {{
-    display:flex;align-items:center;justify-content:center;gap:0.55rem;
-}}
-.oram-tr-spinner {{
-    width:16px;height:16px;
-    border:2px solid rgba(34,197,94,0.25);
-    border-top-color:#22c55e;border-radius:50%;
-    animation:oram-spin 0.75s linear infinite;flex-shrink:0;
-}}
-.oram-tr-label {{
-    font-family:'JetBrains Mono',monospace;font-size:0.72rem;
-    letter-spacing:1.5px;text-transform:uppercase;color:{_tmut};
-}}
-</style>
-<div id="oram-tr-overlay">
-  <div id="oram-tr-card">
-    <div class="oram-tr-ring">
-      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-    </div>
-    <div class="oram-tr-logo">
-      <span style="color:{LOGO_GOLD}">O</span><span style="color:{LOGO_BLUE}">R</span><span style="color:{LOGO_TEAL}">A</span><span style="color:{_tmain}">M</span>
-      <span style="color:{_tmut};font-weight:500;font-size:0.85rem;letter-spacing:0px"> Quant Systems</span>
-    </div>
-    <div class="oram-tr-title">{_module_name}</div>
-    <div class="oram-tr-spin-row">
-      <div class="oram-tr-spinner"></div>
-      <span class="oram-tr-label">Cargando módulo…</span>
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-        _time.sleep(1.8)
-        _ph.empty()
-
+    # ── Mapa de páginas → funciones de render ────────────────────────────────
     _PAGE_MAP = {
         "📈 Dashboard":            render_dashboard,
         "📡 Análisis en Vivo":     render_live_analysis,
