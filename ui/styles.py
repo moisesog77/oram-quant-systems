@@ -2042,32 +2042,6 @@ div[data-testid="stAlert"]:has(svg[data-testid="stIconMaterial"]:first-child) {{
 </style>
 """, unsafe_allow_html=True)
 
-    # ── Control permanente del sidebar ────────────────────────────────────────
-    # Este CSS vive en inject_styles() → está presente en CADA render.
-    # El atributo `data-sb-force-closed` en <html> activa/desactiva el bloqueo.
-    # El JS en app.py (via iframe) pone/quita el atributo directamente en el DOM.
-    # Como Streamlit hace partial DOM updates (no full reload), el atributo
-    # en <html> persiste entre reruns — exactamente lo que necesitamos.
-    st.markdown("""
-<style>
-/* Cuando html tiene data-sb-force-closed, ocultar sidebar completamente */
-html[data-sb-force-closed] section[data-testid="stSidebar"],
-html[data-sb-force-closed] [data-testid="stSidebarCollapsedControl"] {
-    display: none !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-}
-/* El iframe de height=0 de components.v1.html no debe ocupar espacio */
-iframe[title="st_components_v1.html"] {
-    display: block !important;
-    height: 0 !important;
-    border: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
 
 def inject_module_css(
     dark: bool | None = None,
