@@ -215,42 +215,14 @@ else:
         st.markdown("""
 <script>
 (function () {
-    /* ── ORAM sidebar auto-close ─────────────────────────────────────────
-       Mecanismo: sessionStorage como puente entre renders de Streamlit.
-       
-       RENDER N  (usuario hace click en label):
-         · listener detecta el click → guarda timestamp en sessionStorage
-       
-       RENDER N+1 (Streamlit recarga por cambio de radio):
-         · JS nuevo revisa sessionStorage
-         · Si el timestamp es reciente (< 1.5s) → click en botón colapsar
-         · Borra el flag para no colapsar en el siguiente render
+    /* ── ORAM sidebar nav listeners ──────────────────────────────────────
+       RENDER N (usuario hace click en label):
+         · listener mousedown → guarda timestamp + nombre en sessionStorage
+       El collapse real ocurre en el área principal (render N+1), ANTES
+       que el overlay de carga, usando CSS hide + JS click.
        ──────────────────────────────────────────────────────────────────── */
     var FLAG = 'oram_nav_click_ts';
 
-    /* Paso 1: ¿venimos de un click de nav? Colapsar el sidebar */
-    var ts = sessionStorage.getItem(FLAG);
-    if (ts && (Date.now() - parseInt(ts, 10)) < 1500) {
-        sessionStorage.removeItem(FLAG);
-        /* Intentar colapsar con múltiples selectores para máxima compatibilidad */
-        function tryCollapse(attempts) {
-            var selectors = [
-                '[data-testid="stSidebarCollapseButton"] button',
-                '[data-testid="stBaseButton-headerNoPadding"]',
-                'button[aria-label="Close sidebar"]',
-                'button[kind="header"]',
-                '[data-testid="stSidebar"] button[aria-expanded="true"]',
-            ];
-            for (var i = 0; i < selectors.length; i++) {
-                var btn = document.querySelector(selectors[i]);
-                if (btn) { btn.click(); return; }
-            }
-            if (attempts > 0) setTimeout(function(){ tryCollapse(attempts - 1); }, 150);
-        }
-        setTimeout(function(){ tryCollapse(8); }, 80);
-    }
-
-    /* Paso 2: adjuntar listeners a los labels del sidebar */
     function attachListeners() {
         var sidebar = document.querySelector('[data-testid="stSidebar"]');
         if (!sidebar) return false;
@@ -425,6 +397,14 @@ else:
         _ph = st.empty()
         _ph.markdown(f"""
 <style>
+/* ── Colapsar sidebar INSTANTÁNEAMENTE durante la transición ─────────────
+   El overlay cubre todo (z-index 99999), pero también ocultamos el sidebar
+   directamente para que no haya ningún flash visible del menú abierto.    */
+[data-testid="stSidebar"] {{
+    transform: translateX(-110%) !important;
+    transition: transform 0.18s cubic-bezier(0.4,0,0.2,1) !important;
+}}
+
 @keyframes oram-fadein {{
     from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
     to   {{ opacity:1; transform:translateY(0) scale(1); }}
@@ -481,6 +461,33 @@ else:
     letter-spacing:1.5px;text-transform:uppercase;color:{_tmut};
 }}
 </style>
+<script>
+/* ── Collapse sidebar via botón Y limpiar flag de sessionStorage ────────
+   Se ejecuta en este mismo render (N+1), justo cuando el overlay aparece.
+   El CSS ya ocultó visualmente el sidebar; ahora hacemos el click para que
+   Streamlit actualice su estado interno y el sidebar siga colapsado
+   después de que el overlay desaparezca.                                 */
+(function () {{
+    var FLAG = 'oram_nav_click_ts';
+    sessionStorage.removeItem(FLAG);   // limpiar flag
+
+    function tryCollapse(attempts) {{
+        var selectors = [
+            '[data-testid="stSidebarCollapseButton"] button',
+            '[data-testid="stBaseButton-headerNoPadding"]',
+            'button[aria-label="Close sidebar"]',
+            'button[kind="header"]',
+            '[data-testid="stSidebar"] button[aria-expanded="true"]',
+        ];
+        for (var i = 0; i < selectors.length; i++) {{
+            var btn = document.querySelector(selectors[i]);
+            if (btn) {{ btn.click(); return; }}
+        }}
+        if (attempts > 0) setTimeout(function () {{ tryCollapse(attempts - 1); }}, 100);
+    }}
+    tryCollapse(12);   /* intentos: 12 × 100ms = hasta 1.2s de margen */
+}})();
+</script>
 <div id="oram-tr-overlay">
   <div id="oram-tr-card">
     <div class="oram-tr-ring">
