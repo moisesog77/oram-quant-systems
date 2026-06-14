@@ -23,7 +23,7 @@ st.set_page_config(
     page_title="ORAM Quant Systems",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="auto",
+    initial_sidebar_state="collapsed",
 )
 
 # ── Tema por defecto ──────────────────────────────────────────────────────────
@@ -175,57 +175,6 @@ else:
     is_admin = bool(user.get("is_admin", 0))
     start    = st.session_state.get("session_start", datetime.now(timezone.utc).timestamp())
 
-    # ── Mantener sidebar colapsado si el usuario acaba de navegar ──────────────
-    # Streamlit no expone set_sidebar_state() en caliente, pero sí respeta
-    # el estado interno si lo forzamos via JS en el área principal ANTES
-    # de que el sidebar se renderice. Usamos session_state como flag.
-    if st.session_state.get("_sidebar_collapsed"):
-        st.markdown("""
-<style>
-/* ── Colapsar sidebar preservando el botón hamburguesa ──────────────────
-   Ocultamos SOLO el contenido interior del sidebar, NO el botón de abrir.
-   El área principal se expande al 100% via margin-left:0.              */
-[data-testid="stSidebar"] > div:first-child {
-    transform: translateX(-110%) !important;
-    transition: none !important;
-}
-/* Expande el área de contenido principal al 100% del ancho disponible */
-[data-testid="stAppViewContainer"] > section.main {
-    padding-left: 1rem !important;
-    margin-left: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-}
-/* Asegura que el botón de abrir el sidebar (hamburguesa) sea visible */
-[data-testid="stSidebarCollapseButton"],
-[data-testid="collapsedControl"] {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-</style>
-<script>
-(function () {
-    function collapseNow(attempts) {
-        var selectors = [
-            '[data-testid="stSidebarCollapseButton"] button',
-            '[data-testid="stBaseButton-headerNoPadding"]',
-            'button[aria-label="Close sidebar"]',
-            '[data-testid="stSidebar"] button[aria-expanded="true"]',
-        ];
-        for (var i = 0; i < selectors.length; i++) {
-            var btn = document.querySelector(selectors[i]);
-            if (btn) { btn.click(); return; }
-        }
-        if (attempts > 0) setTimeout(function () { collapseNow(attempts - 1); }, 80);
-    }
-    collapseNow(20);
-})();
-</script>
-""", unsafe_allow_html=True)
-        # Limpiar el flag inmediatamente para no volver a colapsar en el siguiente render
-        del st.session_state["_sidebar_collapsed"]
-
     with st.sidebar:
         admin_prefix = "🛡️ " if is_admin else ""
         admin_badge  = '&nbsp;<span style="font-size:0.6rem;color:#c9a227;font-weight:700">ADMIN</span>' if is_admin else ""
@@ -262,40 +211,6 @@ else:
             nav_options.append("🔐 Admin Panel")
 
         nav = st.radio("", nav_options, label_visibility="hidden")
-
-        st.markdown("""
-<script>
-(function () {
-    /* ── ORAM sidebar nav listeners ──────────────────────────────────────
-       RENDER N (usuario hace click en label):
-         · listener mousedown → guarda timestamp + nombre en sessionStorage
-       El collapse real ocurre en el área principal (render N+1), ANTES
-       que el overlay de carga, usando CSS hide + JS click.
-       ──────────────────────────────────────────────────────────────────── */
-    var FLAG = 'oram_nav_click_ts';
-
-    function attachListeners() {
-        var sidebar = document.querySelector('[data-testid="stSidebar"]');
-        if (!sidebar) return false;
-        var labels = sidebar.querySelectorAll('div[role="radiogroup"] label');
-        if (!labels.length) return false;
-        labels.forEach(function (lbl) {
-            if (lbl._oramBound) return;
-            lbl._oramBound = true;
-            lbl.addEventListener('mousedown', function () {
-                sessionStorage.setItem(FLAG, Date.now().toString());
-            });
-        });
-        return true;
-    }
-
-    var tries = 0;
-    var t = setInterval(function () {
-        if (attachListeners() || ++tries > 50) clearInterval(t);
-    }, 150);
-})();
-</script>
-""", unsafe_allow_html=True)
 
         st.divider()
 
@@ -428,15 +343,21 @@ else:
         _escribir_cookie(user["id"], start)
 
     # ── Detectar cambio de módulo para mostrar animación de transición ──────
+    # Flujo definitivo:
+    #   RENDER A (usuario clickea nav): nav cambia, _prev_nav != nav
+    #     → mostramos overlay fullscreen
+    #     → sleep(1.5s) mientras el usuario ve la animación
+    #     → guardamos el nav destino en session_state["_nav_target"]
+    #     → llamamos st.rerun()
+    #
+    #   RENDER B (rerun): initial_sidebar_state="collapsed" → sidebar CERRADO
+    #     → el módulo correcto ocupa el 100% del ancho
+    #     → no hay flash, no hay layout shift
     _prev_nav = st.session_state.get("_prev_nav")
     _just_logged_in = st.session_state.pop("_just_logged_in", False)
-    # _nav_changed es True cuando:
-    #   · el usuario cambia de módulo (prev != nav), O
-    #   · es la primera navegación real post-login (prev era None y no es login)
     _nav_changed = (_prev_nav != nav) and not _just_logged_in
     st.session_state["_prev_nav"] = nav
 
-    # Mostrar animación de carga al cambiar de módulo o al entrar desde login
     if _nav_changed or _just_logged_in:
         import time as _time
         from ui.styles import LOGO_GOLD, LOGO_BLUE, LOGO_TEAL
@@ -451,10 +372,6 @@ else:
         _ph = st.empty()
         _ph.markdown(f"""
 <style>
-/* ── El overlay full-screen (z-index 99999) cubre todo incluyendo el sidebar.
-   No necesitamos mover el sidebar — el overlay ya lo tapa completamente.
-   Esto evita el flash y el layout shift durante la transición.           */
-
 @keyframes oram-fadein {{
     from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
     to   {{ opacity:1; transform:translateY(0) scale(1); }}
@@ -466,6 +383,7 @@ else:
 @keyframes oram-spin {{
     to {{ transform:rotate(360deg); }}
 }}
+/* Overlay fullscreen — tapa todo incluyendo el sidebar abierto */
 #oram-tr-overlay {{
     position:fixed;inset:0;background:{_olay};
     backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
@@ -511,33 +429,6 @@ else:
     letter-spacing:1.5px;text-transform:uppercase;color:{_tmut};
 }}
 </style>
-<script>
-/* ── Collapse sidebar via botón Y limpiar flag de sessionStorage ────────
-   Se ejecuta en este mismo render (N+1), justo cuando el overlay aparece.
-   El CSS ya ocultó visualmente el sidebar; ahora hacemos el click para que
-   Streamlit actualice su estado interno y el sidebar siga colapsado
-   después de que el overlay desaparezca.                                 */
-(function () {{
-    var FLAG = 'oram_nav_click_ts';
-    sessionStorage.removeItem(FLAG);   // limpiar flag
-
-    function tryCollapse(attempts) {{
-        var selectors = [
-            '[data-testid="stSidebarCollapseButton"] button',
-            '[data-testid="stBaseButton-headerNoPadding"]',
-            'button[aria-label="Close sidebar"]',
-            'button[kind="header"]',
-            '[data-testid="stSidebar"] button[aria-expanded="true"]',
-        ];
-        for (var i = 0; i < selectors.length; i++) {{
-            var btn = document.querySelector(selectors[i]);
-            if (btn) {{ btn.click(); return; }}
-        }}
-        if (attempts > 0) setTimeout(function () {{ tryCollapse(attempts - 1); }}, 100);
-    }}
-    tryCollapse(12);   /* intentos: 12 × 100ms = hasta 1.2s de margen */
-}})();
-</script>
 <div id="oram-tr-overlay">
   <div id="oram-tr-card">
     <div class="oram-tr-ring">
@@ -555,10 +446,13 @@ else:
   </div>
 </div>
 """, unsafe_allow_html=True)
-        _time.sleep(1.8)
-        _ph.empty()
-        # Flag para que el PRÓXIMO render mantenga el sidebar colapsado
-        st.session_state["_sidebar_collapsed"] = True
+        # Esperar mientras el usuario ve la animación premium
+        _time.sleep(1.5)
+        # st.rerun() → Streamlit re-arranca con initial_sidebar_state="collapsed"
+        # El sidebar queda CERRADO y el módulo ocupa el 100% del ancho.
+        # session_state["_prev_nav"] ya tiene el nav correcto guardado arriba,
+        # por lo que en el rerun _nav_changed será False y no habrá loop.
+        st.rerun()
 
     _PAGE_MAP = {
         "📈 Dashboard":            render_dashboard,
