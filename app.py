@@ -23,7 +23,7 @@ st.set_page_config(
     page_title="ORAM Quant Systems",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ── Tema por defecto ──────────────────────────────────────────────────────────
@@ -215,61 +215,79 @@ else:
         st.markdown("""
 <script>
 (function () {
-    /* ── ORAM sidebar auto-close ─────────────────────────────────────────
-       Mecanismo: sessionStorage como puente entre renders de Streamlit.
-       
-       RENDER N  (usuario hace click en label):
-         · listener detecta el click → guarda timestamp en sessionStorage
-       
-       RENDER N+1 (Streamlit recarga por cambio de radio):
-         · JS nuevo revisa sessionStorage
-         · Si el timestamp es reciente (< 1.5s) → click en botón colapsar
-         · Borra el flag para no colapsar en el siguiente render
-       ──────────────────────────────────────────────────────────────────── */
-    var FLAG = 'oram_nav_click_ts';
+    /*
+     * ORAM Auto-Collapse Sidebar — estrategia dual garantizada
+     * ──────────────────────────────────────────────────────────
+     * PASO A (mousedown en label): guarda FLAG en sessionStorage
+     * PASO B (nuevo render):       lee FLAG → intenta 3 métodos:
+     *   1. Click en botón nativo de Streamlit (todos los selectores)
+     *   2. Simular tecla Escape (cierra sidebar en Streamlit)
+     *   3. Click en el overlay oscuro detrás del sidebar (mobile)
+     * Reintentos cada 100ms hasta 20 veces (2 segundos de ventana)
+     */
+    var FLAG = 'oram_sb_close';
 
-    /* Paso 1: ¿venimos de un click de nav? Colapsar el sidebar */
-    var ts = sessionStorage.getItem(FLAG);
-    if (ts && (Date.now() - parseInt(ts, 10)) < 1500) {
-        sessionStorage.removeItem(FLAG);
-        /* Intentar colapsar con múltiples selectores para máxima compatibilidad */
-        function tryCollapse(attempts) {
-            var selectors = [
-                '[data-testid="stSidebarCollapseButton"] button',
-                '[data-testid="stBaseButton-headerNoPadding"]',
-                'button[aria-label="Close sidebar"]',
-                'button[kind="header"]',
-                '[data-testid="stSidebar"] button[aria-expanded="true"]',
-            ];
-            for (var i = 0; i < selectors.length; i++) {
-                var btn = document.querySelector(selectors[i]);
-                if (btn) { btn.click(); return; }
-            }
-            if (attempts > 0) setTimeout(function(){ tryCollapse(attempts - 1); }, 150);
+    function doCollapse() {
+        /* Método 1: Botón nativo — todos los selectores conocidos de Streamlit */
+        var selectors = [
+            '[data-testid="stSidebarCollapseButton"] button',
+            '[data-testid="stSidebarCollapseButton"]',
+            'button[data-testid="stBaseButton-headerNoPadding"]',
+            '[data-testid="stSidebar"] [data-testid="stBaseButton-headerNoPadding"]',
+            'section[data-testid="stSidebar"] button[kind]',
+            'button[aria-label="Close sidebar"]',
+            'button[aria-label="Collapse sidebar"]',
+            '.stSidebarCollapsedControl button',
+            '[data-testid="collapsedControl"] button',
+        ];
+        for (var i = 0; i < selectors.length; i++) {
+            var el = document.querySelector(selectors[i]);
+            if (el) { el.click(); return true; }
         }
-        setTimeout(function(){ tryCollapse(8); }, 80);
+
+        /* Método 2: Escape key */
+        document.dispatchEvent(new KeyboardEvent('keydown',
+            { key: 'Escape', keyCode: 27, bubbles: true }));
+
+        /* Método 3: Click en área principal (cierra sidebar en mobile overlay) */
+        var main = document.querySelector('.main, [data-testid="stMainBlockContainer"]');
+        if (main) main.click();
+
+        return false;
     }
 
-    /* Paso 2: adjuntar listeners a los labels del sidebar */
-    function attachListeners() {
-        var sidebar = document.querySelector('[data-testid="stSidebar"]');
-        if (!sidebar) return false;
-        var labels = sidebar.querySelectorAll('div[role="radiogroup"] label');
+    /* RENDER N+1 → colapsar si el flag existe y es reciente */
+    var ts = sessionStorage.getItem(FLAG);
+    if (ts && (Date.now() - parseInt(ts, 10)) < 3000) {
+        sessionStorage.removeItem(FLAG);
+        var ok = false;
+        var n = 0;
+        var iv = setInterval(function () {
+            ok = doCollapse();
+            if (ok || ++n > 20) clearInterval(iv);
+        }, 100);
+    }
+
+    /* RENDER N → guardar flag en mousedown (antes del rerender de Streamlit) */
+    function bindLabels() {
+        var sb = document.querySelector('[data-testid="stSidebar"]');
+        if (!sb) return false;
+        var labels = sb.querySelectorAll('div[role="radiogroup"] label');
         if (!labels.length) return false;
-        labels.forEach(function (lbl) {
-            if (lbl._oramBound) return;
-            lbl._oramBound = true;
-            lbl.addEventListener('mousedown', function () {
-                sessionStorage.setItem(FLAG, Date.now().toString());
+        labels.forEach(function (lb) {
+            if (lb._oram) return;
+            lb._oram = true;
+            lb.addEventListener('mousedown', function () {
+                sessionStorage.setItem(FLAG, String(Date.now()));
             });
         });
         return true;
     }
 
-    var tries = 0;
-    var t = setInterval(function () {
-        if (attachListeners() || ++tries > 50) clearInterval(t);
-    }, 150);
+    var t = 0;
+    var iv2 = setInterval(function () {
+        if (bindLabels() || ++t > 60) clearInterval(iv2);
+    }, 100);
 })();
 </script>
 """, unsafe_allow_html=True)
