@@ -16,7 +16,7 @@ La cookie se llama 'oram_session' y contiene:
 """
 
 import streamlit as st
-import streamlit.components.v1 as _st_components
+import streamlit.components.v1 as _stc
 from datetime import datetime, timezone
 import json
 
@@ -181,8 +181,22 @@ else:
         _tmut  = "#637a94"            if _dark else "#7a8fa0"
         _module_name = _nav_target.split(" ", 1)[-1] if " " in _nav_target else _nav_target
 
-        # Sin sidebar en el DOM → el browser lo resetea a "collapsed"
-        # cuando Streamlit vuelva a renderizarlo en el siguiente rerun.
+        # PASO 1: Ocultar el sidebar INMEDIATAMENTE con CSS antes del overlay.
+        # Usamos display:none con !important para que desaparezca al instante,
+        # sin animación y sin pelear con React. El sidebar vuelve a aparecer
+        # cuando Streamlit lo re-renderiza en la fase normal post-transición.
+        st.markdown("""
+<style>
+section[data-testid="stSidebar"] {
+    display: none !important;
+}
+[data-testid="stSidebarCollapsedControl"] {
+    display: none !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+        # PASO 2: Mostrar el overlay de carga encima (sidebar ya oculto)
         st.markdown(f"""
 <style>
 @keyframes oram-fadein {{
@@ -265,105 +279,62 @@ else:
     # ── FASE NORMAL: sidebar + módulo ────────────────────────────────────────
     else:
         # ── Cerrar sidebar post-transición ───────────────────────────────────
-        # ESTRATEGIA DEFINITIVA: simular el click nativo en el botón de colapso
-        # de Streamlit. Esto deja que React maneje su propio state correctamente.
-        #
-        # - `_force_close_sidebar` (session_state): se activa tras login o tras
-        #   cada transición de módulo. Le dice al JS que DEBE cerrar el sidebar.
-        # - `oram_sb_open` (sessionStorage del parent): guardado en el browser.
-        #   Se activa cuando el usuario abre el sidebar manualmente.
-        # - TÉCNICA: st.components.v1.html() crea un iframe que SÍ ejecuta JS.
-        #   Desde el iframe, window.parent.document accede al DOM de Streamlit.
+        # Usa st.components.v1.html (iframe) — único método que garantiza
+        # ejecución de JS en Streamlit. Accede al DOM del parent via window.parent.
         _force_close = st.session_state.pop("_force_close_sidebar", False)
-
-        # JS inyectado via iframe (garantizado ejecutar) — accede al parent DOM
-        _fc_js = "true" if _force_close else "false"
-        _st_components.html(
-            f"""<script>
+        _fc = "true" if _force_close else "false"
+        _stc.html(f"""<script>
 (function() {{
-    var p;
-    try {{ p = window.parent; }} catch(e) {{ return; }}
-    var doc = p.document;
-    var ss  = p.sessionStorage;
-    var OPEN_KEY = 'oram_sb_open';
-    var forceClose = {_fc_js};
+    var p; try {{ p = window.parent; }} catch(e) {{ return; }}
+    var doc = p.document, ss = p.sessionStorage, KEY = 'oram_sb_open';
+    var force = {_fc};
 
-    if (forceClose) {{
-        try {{ ss.removeItem(OPEN_KEY); }} catch(e) {{}}
-    }}
+    if (force) {{ try {{ ss.removeItem(KEY); }} catch(e) {{}} }}
 
-    var userWantsOpen = false;
-    try {{ userWantsOpen = ss.getItem(OPEN_KEY) === '1'; }} catch(e) {{}}
-    var shouldClose = forceClose || !userWantsOpen;
+    var userOpen = false;
+    try {{ userOpen = ss.getItem(KEY) === '1'; }} catch(e) {{}}
+    var shouldClose = force || !userOpen;
 
-    // Devuelve true si el sidebar está VISIBLE (tiene el botón de colapso interior)
     function isSidebarOpen() {{
         return !!doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
     }}
 
-    // Simula click en el botón nativo de colapso (solo si está abierto)
-    function closeSidebar(attempts) {{
-        attempts = attempts || 0;
-        if (attempts > 15) {{ watchHamburger(); return; }}  // evitar loop infinito
+    function closeSidebar(n) {{
+        n = n || 0; if (n > 20) {{ watchHamburger(); return; }}
         var btn = doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
-        if (btn) {{
-            btn.click();
-            setTimeout(watchHamburger, 300);
-        }} else {{
-            // Si no hay botón interior, el sidebar ya está cerrado — OK
-            var collapsed = doc.querySelector('[data-testid="stSidebarCollapsedControl"]');
-            if (collapsed) {{
-                watchHamburger();  // sidebar ya cerrado, solo observar hamburger
-            }} else {{
-                setTimeout(function() {{ closeSidebar(attempts + 1); }}, 80);
-            }}
-        }}
+        if (btn) {{ btn.click(); setTimeout(watchHamburger, 300); }}
+        else if (doc.querySelector('[data-testid="stSidebarCollapsedControl"]')) {{ watchHamburger(); }}
+        else {{ setTimeout(function(){{ closeSidebar(n+1); }}, 80); }}
     }}
 
-    // Observa el hamburger externo para detectar apertura manual del usuario
     function watchHamburger() {{
-        var hbtn = doc.querySelector('[data-testid="stSidebarCollapsedControl"] button');
-        if (hbtn) {{
-            hbtn.addEventListener('click', function() {{
-                try {{ ss.setItem(OPEN_KEY, '1'); }} catch(e) {{}}
-                setTimeout(watchCollapseButton, 300);
-            }}, {{once: true}});
-        }} else {{
-            setTimeout(watchHamburger, 100);
-        }}
+        var h = doc.querySelector('[data-testid="stSidebarCollapsedControl"] button');
+        if (h) {{
+            h.addEventListener('click', function() {{
+                try {{ ss.setItem(KEY, '1'); }} catch(e) {{}}
+                setTimeout(watchCloseBtn, 300);
+            }}, {{once:true}});
+        }} else {{ setTimeout(watchHamburger, 100); }}
     }}
 
-    // Observa el botón de cierre interior para detectar cuando el usuario cierra
-    function watchCollapseButton() {{
-        var cbtn = doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
-        if (cbtn) {{
-            cbtn.addEventListener('click', function() {{
-                try {{ ss.removeItem(OPEN_KEY); }} catch(e) {{}}
+    function watchCloseBtn() {{
+        var b = doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
+        if (b) {{
+            b.addEventListener('click', function() {{
+                try {{ ss.removeItem(KEY); }} catch(e) {{}}
                 setTimeout(watchHamburger, 200);
-            }}, {{once: true}});
-        }} else {{
-            setTimeout(watchCollapseButton, 100);
-        }}
+            }}, {{once:true}});
+        }} else {{ setTimeout(watchCloseBtn, 100); }}
     }}
 
-    function run() {{
+    setTimeout(function() {{
         if (shouldClose) {{
-            if (isSidebarOpen()) {{
-                closeSidebar();
-            }} else {{
-                // Sidebar ya cerrado — solo poner listener al hamburger
-                watchHamburger();
-            }}
-        }} else {{
-            watchCollapseButton();
-        }}
-    }}
-
-    setTimeout(run, 60);
+            if (isSidebarOpen()) {{ closeSidebar(); }}
+            else {{ watchHamburger(); }}
+        }} else {{ watchCloseBtn(); }}
+    }}, 60);
 }})();
-</script>""",
-            height=0,
-        )
+</script>""", height=0)
 
         nav_options = [
             "📈 Dashboard",
@@ -535,23 +506,13 @@ else:
 
         # ── Detectar cambio de módulo ────────────────────────────────────────
         if nav != st.session_state["_current_nav"]:
-            # Cerrar sidebar y limpiar preferencia ANTES de la transición
-            # Este iframe sí ejecuta porque no hacemos st.rerun() inmediatamente
-            _st_components.html(
-                "<script>"
-                "try{"
-                "  var d=window.parent.document;"
-                "  var btn=d.querySelector('[data-testid=\"stSidebarCollapseButton\"] button');"
-                "  if(btn){btn.click();}"
-                "  window.parent.sessionStorage.removeItem('oram_sb_open');"
-                "}catch(e){}"
-                "</script>",
-                height=0,
-            )
-            # Guardar el módulo destino y activar la fase de transición
             st.session_state["_current_nav"] = nav
             st.session_state["_transitioning"] = True
-            _time.sleep(0.15)  # dar tiempo al iframe para ejecutar antes del rerun
+            # Limpiar preferencia del sidebar para que cierre tras el overlay
+            try:
+                pass  # limpieza se hace vía JS abajo
+            except Exception:
+                pass
             st.rerun()
 
         # ── Renderizar módulo actual ─────────────────────────────────────────
