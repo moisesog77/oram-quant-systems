@@ -23,7 +23,7 @@ st.set_page_config(
     page_title="ORAM Quant Systems",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 # ── Tema por defecto ──────────────────────────────────────────────────────────
@@ -174,6 +174,42 @@ else:
     user     = st.session_state.user
     is_admin = bool(user.get("is_admin", 0))
     start    = st.session_state.get("session_start", datetime.now(timezone.utc).timestamp())
+
+    # ── Mantener sidebar colapsado si el usuario acaba de navegar ──────────────
+    # Streamlit no expone set_sidebar_state() en caliente, pero sí respeta
+    # el estado interno si lo forzamos via JS en el área principal ANTES
+    # de que el sidebar se renderice. Usamos session_state como flag.
+    if st.session_state.get("_sidebar_collapsed"):
+        st.markdown("""
+<style>
+/* Mantiene el sidebar colapsado hasta que el usuario lo abra manualmente */
+[data-testid="stSidebar"][aria-expanded="true"] {
+    margin-left: calc(-1 * var(--sidebar-width, 21rem)) !important;
+    visibility: hidden !important;
+}
+</style>
+<script>
+(function () {
+    /* Colapsar sidebar y limpiar flag via postMessage a Streamlit */
+    function collapseNow(attempts) {
+        var selectors = [
+            '[data-testid="stSidebarCollapseButton"] button',
+            '[data-testid="stBaseButton-headerNoPadding"]',
+            'button[aria-label="Close sidebar"]',
+            '[data-testid="stSidebar"] button[aria-expanded="true"]',
+        ];
+        for (var i = 0; i < selectors.length; i++) {
+            var btn = document.querySelector(selectors[i]);
+            if (btn) { btn.click(); return; }
+        }
+        if (attempts > 0) setTimeout(function () { collapseNow(attempts - 1); }, 80);
+    }
+    collapseNow(15);
+})();
+</script>
+""", unsafe_allow_html=True)
+        # Limpiar el flag inmediatamente para no volver a colapsar en el siguiente render
+        del st.session_state["_sidebar_collapsed"]
 
     with st.sidebar:
         admin_prefix = "🛡️ " if is_admin else ""
@@ -507,6 +543,8 @@ else:
 """, unsafe_allow_html=True)
         _time.sleep(1.8)
         _ph.empty()
+        # Flag para que el PRÓXIMO render mantenga el sidebar colapsado
+        st.session_state["_sidebar_collapsed"] = True
 
     _PAGE_MAP = {
         "📈 Dashboard":            render_dashboard,
