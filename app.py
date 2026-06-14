@@ -164,6 +164,8 @@ else:
     # _transitioning: True durante el render del overlay (sidebar NO se renderiza)
     if "_current_nav" not in st.session_state:
         st.session_state["_current_nav"] = "📈 Dashboard"
+        # Primera carga tras login: forzar cierre del sidebar
+        st.session_state["_force_close_sidebar"] = True
 
     _transitioning = st.session_state.pop("_transitioning", False)
 
@@ -252,14 +254,65 @@ else:
     </div>
   </div>
 </div>
+<script>
+(function() {{
+    // Forzar sidebar cerrado en localStorage antes del rerun final.
+    // Streamlit usa esta clave para restaurar el estado del sidebar al montar.
+    try {{
+        // Buscar la clave real de Streamlit en localStorage (varía por ruta/puerto)
+        for (var key in localStorage) {{
+            if (key.indexOf('sidebar') !== -1) {{
+                localStorage.setItem(key, JSON.stringify({{isClosed: true}}));
+            }}
+        }}
+        // Fallback: escritura directa con el patrón más común
+        localStorage.setItem('sidebar.isClosed', 'true');
+    }} catch(e) {{}}
+}})();
+</script>
 """, unsafe_allow_html=True)
 
         _time.sleep(1.5)
-        # Rerun final: sidebar vuelve al DOM → browser lo ve como "nuevo" → collapsed
+        # Marcar que al renderizar la fase normal se debe cerrar el sidebar via JS
+        st.session_state["_force_close_sidebar"] = True
         st.rerun()
 
     # ── FASE NORMAL: sidebar + módulo ────────────────────────────────────────
     else:
+        # ── Cerrar sidebar forzado post-transición ───────────────────────────
+        if st.session_state.pop("_force_close_sidebar", False):
+            st.markdown("""
+<script>
+(function() {
+    function closeSidebar() {
+        try {
+            for (var k in localStorage) {
+                if (k.indexOf('sidebar') !== -1) {
+                    localStorage.setItem(k, JSON.stringify({isClosed: true}));
+                }
+            }
+            localStorage.setItem('sidebar.isClosed', 'true');
+        } catch(e) {}
+        var selectors = [
+            '[data-testid="stSidebarCollapseButton"] button',
+            '[data-testid="stBaseButton-headerNoPadding"]',
+            'button[aria-label*="ollapse"], button[aria-label*="lose"]'
+        ];
+        var sidebar = document.querySelector('section[data-testid="stSidebar"]');
+        if (sidebar && sidebar.getBoundingClientRect().width > 50) {
+            for (var i = 0; i < selectors.length; i++) {
+                var btn = document.querySelector(selectors[i]);
+                if (btn) { btn.click(); break; }
+            }
+        }
+    }
+    if (document.readyState === 'complete') { closeSidebar(); }
+    else { window.addEventListener('load', closeSidebar); }
+    setTimeout(closeSidebar, 300);
+})();
+</script>
+""", unsafe_allow_html=True)
+
         nav_options = [
             "📈 Dashboard",
             "📡 Análisis en Vivo",
