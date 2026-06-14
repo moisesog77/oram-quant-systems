@@ -182,15 +182,30 @@ else:
     if st.session_state.get("_sidebar_collapsed"):
         st.markdown("""
 <style>
-/* Mantiene el sidebar colapsado hasta que el usuario lo abra manualmente */
-[data-testid="stSidebar"][aria-expanded="true"] {
-    margin-left: calc(-1 * var(--sidebar-width, 21rem)) !important;
-    visibility: hidden !important;
+/* ── Colapsar sidebar preservando el botón hamburguesa ──────────────────
+   Ocultamos SOLO el contenido interior del sidebar, NO el botón de abrir.
+   El área principal se expande al 100% via margin-left:0.              */
+[data-testid="stSidebar"] > div:first-child {
+    transform: translateX(-110%) !important;
+    transition: none !important;
+}
+/* Expande el área de contenido principal al 100% del ancho disponible */
+[data-testid="stAppViewContainer"] > section.main {
+    padding-left: 1rem !important;
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+/* Asegura que el botón de abrir el sidebar (hamburguesa) sea visible */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 </style>
 <script>
 (function () {
-    /* Colapsar sidebar y limpiar flag via postMessage a Streamlit */
     function collapseNow(attempts) {
         var selectors = [
             '[data-testid="stSidebarCollapseButton"] button',
@@ -204,7 +219,7 @@ else:
         }
         if (attempts > 0) setTimeout(function () { collapseNow(attempts - 1); }, 80);
     }
-    collapseNow(15);
+    collapseNow(20);
 })();
 </script>
 """, unsafe_allow_html=True)
@@ -414,8 +429,11 @@ else:
 
     # ── Detectar cambio de módulo para mostrar animación de transición ──────
     _prev_nav = st.session_state.get("_prev_nav")
-    _nav_changed = (_prev_nav is not None and _prev_nav != nav)
     _just_logged_in = st.session_state.pop("_just_logged_in", False)
+    # _nav_changed es True cuando:
+    #   · el usuario cambia de módulo (prev != nav), O
+    #   · es la primera navegación real post-login (prev era None y no es login)
+    _nav_changed = (_prev_nav != nav) and not _just_logged_in
     st.session_state["_prev_nav"] = nav
 
     # Mostrar animación de carga al cambiar de módulo o al entrar desde login
@@ -433,13 +451,9 @@ else:
         _ph = st.empty()
         _ph.markdown(f"""
 <style>
-/* ── Colapsar sidebar INSTANTÁNEAMENTE durante la transición ─────────────
-   El overlay cubre todo (z-index 99999), pero también ocultamos el sidebar
-   directamente para que no haya ningún flash visible del menú abierto.    */
-[data-testid="stSidebar"] {{
-    transform: translateX(-110%) !important;
-    transition: transform 0.18s cubic-bezier(0.4,0,0.2,1) !important;
-}}
+/* ── El overlay full-screen (z-index 99999) cubre todo incluyendo el sidebar.
+   No necesitamos mover el sidebar — el overlay ya lo tapa completamente.
+   Esto evita el flash y el layout shift durante la transición.           */
 
 @keyframes oram-fadein {{
     from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
