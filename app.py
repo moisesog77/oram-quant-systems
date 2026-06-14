@@ -257,13 +257,6 @@ else:
 </div>
 """, unsafe_allow_html=True)
 
-        # Limpiar preferencia del sidebar en sessionStorage del parent
-        # usando components.v1.html que SÍ ejecuta JS garantizado
-        _st_components.html(
-            "<script>try{window.parent.sessionStorage.removeItem('oram_sb_open');}catch(e){}</script>",
-            height=0,
-        )
-
         _time.sleep(1.5)
         # Marcar que al renderizar la fase normal se debe cerrar el sidebar via JS
         st.session_state["_force_close_sidebar"] = True
@@ -303,13 +296,27 @@ else:
     try {{ userWantsOpen = ss.getItem(OPEN_KEY) === '1'; }} catch(e) {{}}
     var shouldClose = forceClose || !userWantsOpen;
 
-    // Simula click en el botón nativo de colapso del sidebar (dentro del sidebar)
-    function closeSidebar() {{
+    // Devuelve true si el sidebar está VISIBLE (tiene el botón de colapso interior)
+    function isSidebarOpen() {{
+        return !!doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
+    }}
+
+    // Simula click en el botón nativo de colapso (solo si está abierto)
+    function closeSidebar(attempts) {{
+        attempts = attempts || 0;
+        if (attempts > 15) {{ watchHamburger(); return; }}  // evitar loop infinito
         var btn = doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
         if (btn) {{
             btn.click();
+            setTimeout(watchHamburger, 300);
         }} else {{
-            setTimeout(closeSidebar, 80);
+            // Si no hay botón interior, el sidebar ya está cerrado — OK
+            var collapsed = doc.querySelector('[data-testid="stSidebarCollapsedControl"]');
+            if (collapsed) {{
+                watchHamburger();  // sidebar ya cerrado, solo observar hamburger
+            }} else {{
+                setTimeout(function() {{ closeSidebar(attempts + 1); }}, 80);
+            }}
         }}
     }}
 
@@ -341,17 +348,12 @@ else:
 
     function run() {{
         if (shouldClose) {{
-            var sb = doc.querySelector('[data-testid="stSidebar"]');
-            if (sb) {{
+            if (isSidebarOpen()) {{
                 closeSidebar();
             }} else {{
-                setTimeout(function() {{
-                    var sb2 = doc.querySelector('[data-testid="stSidebar"]');
-                    if (sb2) {{ closeSidebar(); }} else {{ watchHamburger(); }}
-                }}, 150);
-                return;
+                // Sidebar ya cerrado — solo poner listener al hamburger
+                watchHamburger();
             }}
-            setTimeout(watchHamburger, 400);
         }} else {{
             watchCollapseButton();
         }}
@@ -533,9 +535,23 @@ else:
 
         # ── Detectar cambio de módulo ────────────────────────────────────────
         if nav != st.session_state["_current_nav"]:
+            # Cerrar sidebar y limpiar preferencia ANTES de la transición
+            # Este iframe sí ejecuta porque no hacemos st.rerun() inmediatamente
+            _st_components.html(
+                "<script>"
+                "try{"
+                "  var d=window.parent.document;"
+                "  var btn=d.querySelector('[data-testid=\"stSidebarCollapseButton\"] button');"
+                "  if(btn){btn.click();}"
+                "  window.parent.sessionStorage.removeItem('oram_sb_open');"
+                "}catch(e){}"
+                "</script>",
+                height=0,
+            )
             # Guardar el módulo destino y activar la fase de transición
             st.session_state["_current_nav"] = nav
             st.session_state["_transitioning"] = True
+            _time.sleep(0.15)  # dar tiempo al iframe para ejecutar antes del rerun
             st.rerun()
 
         # ── Renderizar módulo actual ─────────────────────────────────────────
