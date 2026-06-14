@@ -203,6 +203,10 @@ section[data-testid="stSidebar"] {
     from {{ opacity:0; transform:translateY(16px) scale(0.96); }}
     to   {{ opacity:1; transform:translateY(0)    scale(1);    }}
 }}
+@keyframes oram-fadeout {{
+    0%,72% {{ opacity:1; }}
+    100%   {{ opacity:0; pointer-events:none; }}
+}}
 @keyframes oram-pulse {{
     0%,100% {{ box-shadow:0 0 0 0    rgba(34,197,94,0.45); }}
     50%      {{ box-shadow:0 0 0 20px rgba(34,197,94,0);    }}
@@ -212,6 +216,7 @@ section[data-testid="stSidebar"] {
     position:fixed;inset:0;background:{_olay};
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
     z-index:99999;display:flex;align-items:center;justify-content:center;
+    animation:oram-fadeout 1.5s ease-in-out forwards;
 }}
 #oram-tr-card {{
     background:{_cbg};border:1px solid {_cbdr};border-radius:20px;
@@ -283,6 +288,18 @@ section[data-testid="stSidebar"] {
         # ejecución de JS en Streamlit. Accede al DOM del parent via window.parent.
         _force_close = st.session_state.pop("_force_close_sidebar", False)
         _fc = "true" if _force_close else "false"
+
+        # Cuando se fuerza cierre: ocultar sidebar y hamburger vía CSS al instante.
+        # El JS los revelará una vez que haya sincronizado el estado React a "cerrado".
+        if _force_close:
+            st.markdown(
+                '<style id="oram-sb-fh">'
+                'section[data-testid="stSidebar"]{display:none!important;}'
+                '[data-testid="stSidebarCollapsedControl"]{display:none!important;}'
+                '</style>',
+                unsafe_allow_html=True,
+            )
+
         _stc.html(f"""<script>
 (function() {{
     var p; try {{ p = window.parent; }} catch(e) {{ return; }}
@@ -295,16 +312,29 @@ section[data-testid="stSidebar"] {
     try {{ userOpen = ss.getItem(KEY) === '1'; }} catch(e) {{}}
     var shouldClose = force || !userOpen;
 
+    // Elimina el CSS de fuerza-ocultar y deja visible el hamburger
+    function removeForceCss() {{
+        var el = doc.getElementById('oram-sb-fh');
+        if (el) el.remove();
+    }}
+
     function isSidebarOpen() {{
         return !!doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
     }}
 
     function closeSidebar(n) {{
-        n = n || 0; if (n > 20) {{ watchHamburger(); return; }}
+        n = n || 0;
+        if (n > 25) {{ removeForceCss(); watchHamburger(); return; }}
         var btn = doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
-        if (btn) {{ btn.click(); setTimeout(watchHamburger, 300); }}
-        else if (doc.querySelector('[data-testid="stSidebarCollapsedControl"]')) {{ watchHamburger(); }}
-        else {{ setTimeout(function(){{ closeSidebar(n+1); }}, 80); }}
+        if (btn) {{
+            btn.click();
+            setTimeout(function() {{ removeForceCss(); watchHamburger(); }}, 300);
+        }} else if (doc.querySelector('[data-testid="stSidebarCollapsedControl"]')) {{
+            removeForceCss();
+            watchHamburger();
+        }} else {{
+            setTimeout(function(){{ closeSidebar(n+1); }}, 80);
+        }}
     }}
 
     function watchHamburger() {{
@@ -330,8 +360,8 @@ section[data-testid="stSidebar"] {
     setTimeout(function() {{
         if (shouldClose) {{
             if (isSidebarOpen()) {{ closeSidebar(); }}
-            else {{ watchHamburger(); }}
-        }} else {{ watchCloseBtn(); }}
+            else {{ removeForceCss(); watchHamburger(); }}
+        }} else {{ removeForceCss(); watchCloseBtn(); }}
     }}, 60);
 }})();
 </script>""", height=0)
