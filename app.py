@@ -174,92 +174,57 @@ else:
     if _transitioning:
         _nav_target  = st.session_state["_current_nav"]
         _dark  = get_theme() == "dark"
-        _olay  = "rgba(6,9,15,0.95)"  if _dark else "rgba(238,242,247,0.96)"
+        _olay  = "rgba(6,9,15,0.97)"  if _dark else "rgba(238,242,247,0.97)"
         _cbg   = "#0c1219"            if _dark else "#ffffff"
         _cbdr  = "#1b2a40"            if _dark else "#dde5ef"
         _tmain = "#edf4ff"            if _dark else "#0b1824"
         _tmut  = "#637a94"            if _dark else "#7a8fa0"
         _module_name = _nav_target.split(" ", 1)[-1] if " " in _nav_target else _nav_target
 
-        # PASO 1: Ocultar el sidebar INMEDIATAMENTE con CSS antes del overlay.
-        # Usamos display:none con !important para que desaparezca al instante,
-        # sin animación y sin pelear con React. El sidebar vuelve a aparecer
-        # cuando Streamlit lo re-renderiza en la fase normal post-transición.
-        st.markdown("""
-<style>
-section[data-testid="stSidebar"] {
-    display: none !important;
-}
-[data-testid="stSidebarCollapsedControl"] {
-    display: none !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-        # PASO 2: Mostrar el overlay de carga encima (sidebar ya oculto).
-        # El fondo del overlay NO hace fade-out — permanece opaco hasta que
-        # st.rerun() reemplaza el DOM. Solo el card hace su exit animation.
-        # Así el cambio de módulo queda completamente oculto detrás del overlay.
+        # CSS + overlay combinados: sidebar oculto + fondo opaco cubre todo.
+        # El fondo NO anima — permanece sólido hasta que st.rerun() reemplaza el DOM.
+        # Solo el card hace su exit premium (fade + move up) para el aspecto premium.
         st.markdown(f"""
 <style>
-@keyframes oram-fadein {{
-    from {{ opacity:0; transform:translateY(16px) scale(0.96); }}
-    to   {{ opacity:1; transform:translateY(0)    scale(1);    }}
+section[data-testid="stSidebar"]{{display:none!important;}}
+[data-testid="stSidebarCollapsedControl"]{{display:none!important;}}
+@keyframes oram-fadein{{
+    from{{opacity:0;transform:translateY(16px) scale(0.96);}}
+    to  {{opacity:1;transform:translateY(0) scale(1);}}
 }}
-@keyframes oram-card-exit {{
-    0%,62% {{ opacity:1; transform:translateY(0) scale(1); }}
-    100%   {{ opacity:0; transform:translateY(-10px) scale(0.96); }}
+@keyframes oram-card-exit{{
+    0%,62%{{opacity:1;transform:translateY(0) scale(1);}}
+    100%  {{opacity:0;transform:translateY(-10px) scale(0.96);}}
 }}
-@keyframes oram-pulse {{
-    0%,100% {{ box-shadow:0 0 0 0    rgba(34,197,94,0.45); }}
-    50%      {{ box-shadow:0 0 0 20px rgba(34,197,94,0);    }}
+@keyframes oram-pulse{{
+    0%,100%{{box-shadow:0 0 0 0    rgba(34,197,94,0.45);}}
+    50%    {{box-shadow:0 0 0 20px rgba(34,197,94,0);}}
 }}
-@keyframes oram-spin {{ to {{ transform:rotate(360deg); }} }}
-#oram-tr-overlay {{
+@keyframes oram-spin{{to{{transform:rotate(360deg);}}}}
+#oram-tr-overlay{{
     position:fixed;inset:0;background:{_olay};
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
     z-index:99999;display:flex;align-items:center;justify-content:center;
 }}
-#oram-tr-card {{
+#oram-tr-card{{
     background:{_cbg};border:1px solid {_cbdr};border-radius:20px;
-    padding:2.8rem 3rem 2.4rem;text-align:center;
-    max-width:400px;width:90%;
+    padding:2.8rem 3rem 2.4rem;text-align:center;max-width:400px;width:90%;
     animation:oram-fadein 0.4s cubic-bezier(0.22,1,0.36,1) both,
               oram-card-exit 1.5s ease-in-out forwards;
     box-shadow:0 28px 64px rgba(0,0,0,0.4);
 }}
-.oram-tr-ring {{
+.oram-tr-ring{{
     width:68px;height:68px;border-radius:50%;
     background:rgba(34,197,94,0.12);border:2px solid #22c55e;
-    display:flex;align-items:center;justify-content:center;
-    margin:0 auto 1.4rem;
+    display:flex;align-items:center;justify-content:center;margin:0 auto 1.4rem;
     animation:oram-pulse 1.6s ease-in-out infinite;
 }}
-.oram-tr-ring svg {{
-    width:30px;height:30px;stroke:#22c55e;fill:none;
-    stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;
-}}
-.oram-tr-logo {{
-    font-family:'Space Grotesk',sans-serif;
-    font-size:1.1rem;font-weight:800;letter-spacing:-1px;margin-bottom:0.2rem;
-}}
-.oram-tr-title {{
-    font-family:'Inter',sans-serif;font-size:1.15rem;font-weight:700;
-    color:{_tmain};margin-bottom:0.55rem;
-}}
-.oram-tr-spin-row {{
-    display:flex;align-items:center;justify-content:center;gap:0.55rem;
-}}
-.oram-tr-spinner {{
-    width:15px;height:15px;
-    border:2px solid rgba(34,197,94,0.25);
-    border-top-color:#22c55e;border-radius:50%;
-    animation:oram-spin 0.7s linear infinite;flex-shrink:0;
-}}
-.oram-tr-label {{
-    font-family:'JetBrains Mono',monospace;font-size:0.72rem;
-    letter-spacing:1.5px;text-transform:uppercase;color:{_tmut};
-}}
+.oram-tr-ring svg{{width:30px;height:30px;stroke:#22c55e;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}}
+.oram-tr-logo{{font-family:'Space Grotesk',sans-serif;font-size:1.1rem;font-weight:800;letter-spacing:-1px;margin-bottom:0.2rem;}}
+.oram-tr-title{{font-family:'Inter',sans-serif;font-size:1.15rem;font-weight:700;color:{_tmain};margin-bottom:0.55rem;}}
+.oram-tr-spin-row{{display:flex;align-items:center;justify-content:center;gap:0.55rem;}}
+.oram-tr-spinner{{width:15px;height:15px;border:2px solid rgba(34,197,94,0.25);border-top-color:#22c55e;border-radius:50%;animation:oram-spin 0.7s linear infinite;flex-shrink:0;}}
+.oram-tr-label{{font-family:'JetBrains Mono',monospace;font-size:0.72rem;letter-spacing:1.5px;text-transform:uppercase;color:{_tmut};}}
 </style>
 <div id="oram-tr-overlay">
   <div id="oram-tr-card">
@@ -280,106 +245,87 @@ section[data-testid="stSidebar"] {
 """, unsafe_allow_html=True)
 
         _time.sleep(1.5)
-        # Marcar que al renderizar la fase normal se debe cerrar el sidebar via JS
         st.session_state["_force_close_sidebar"] = True
         st.rerun()
 
     # ── FASE NORMAL: sidebar + módulo ────────────────────────────────────────
     else:
-        # ── Cerrar sidebar post-transición ───────────────────────────────────
-        # Usa st.components.v1.html (iframe) — único método que garantiza
-        # ejecución de JS en Streamlit. Accede al DOM del parent via window.parent.
         _force_close = st.session_state.pop("_force_close_sidebar", False)
         _fc = "true" if _force_close else "false"
-        # Contador único por render — fuerza a Streamlit a recrear el iframe cada vez
-        # para que el JS se re-ejecute. Sin esto, si el contenido del iframe es igual
-        # entre dos navegaciones, Streamlit reutiliza el iframe y el script no corre.
+
+        # _nav_tick cambia en cada navegación → iframe siempre diferente → JS siempre re-ejecuta.
+        # Sin esto Streamlit reutiliza el iframe cuando el HTML es idéntico y el script no corre.
         _nav_tick = st.session_state.get("_nav_tick", 0)
         if _force_close:
             st.session_state["_nav_tick"] = _nav_tick + 1
         _tick = st.session_state.get("_nav_tick", 0)
 
-        # Cuando se fuerza cierre: inyectar un "reveal overlay" que empieza opaco
-        # y se desvanece (0.85s total, opaco 75% = ~640ms). Cubre el tiempo que
-        # necesita el JS para cerrar el sidebar (~60ms wait + ~400ms post-clic).
+        # Reveal overlay: cubre el instante de reemplazo de DOM y el tiempo que tarda
+        # React en animar el cierre del sidebar (~300 ms de slide-out).
+        # 0.8 s total; opaco los primeros 62% (~500 ms) → fade-out los últimos 38%.
         if _force_close:
-            _dark_rv  = get_theme() == "dark"
-            _olay_rv  = "rgba(6,9,15,0.98)" if _dark_rv else "rgba(238,242,247,0.99)"
+            _dark_rv = get_theme() == "dark"
+            _olay_rv = "rgba(6,9,15,0.98)" if _dark_rv else "rgba(238,242,247,0.98)"
             st.markdown(f"""
 <style>
-@keyframes oram-reveal-out {{
-    0%,75% {{ opacity:1; }}
-    100%   {{ opacity:0; pointer-events:none; }}
-}}
-#oram-reveal-overlay {{
-    position:fixed;inset:0;background:{_olay_rv};
-    z-index:99998;pointer-events:none;
-    animation:oram-reveal-out 0.85s ease-out forwards;
-}}
-</style>
-<div id="oram-reveal-overlay"></div>
-""", unsafe_allow_html=True)
+@keyframes oram-rv{{0%,62%{{opacity:1;}}100%{{opacity:0;pointer-events:none;}}}}
+#oram-rv{{position:fixed;inset:0;background:{_olay_rv};z-index:99998;pointer-events:none;animation:oram-rv 0.8s ease-out forwards;}}
+</style><div id="oram-rv"></div>""", unsafe_allow_html=True)
 
-        # tick={_tick} fuerza recreación del iframe en cada navegación
+        # ── Control del sidebar via JS ───────────────────────────────────────
+        # ESTRATEGIA: listener delegado en window.parent (registrado UNA sola vez
+        # mediante la bandera p._oramSbInit). Como vive en window.parent y NO en el
+        # iframe, sobrevive a todos los rerenders de Streamlit — nunca se pierde.
+        #
+        # KEY  = 'oram_sb_ok'  → '1' significa que el usuario abrió el sidebar
+        #                          manualmente y tiene permiso de estar abierto.
+        #
+        # En cada navegación (force=true): se borra KEY → tryClose() cierra el
+        # sidebar clickeando el botón colapso → React actualiza su estado a cerrado.
+        # El reveal overlay cubre la animación de cierre.
+        #
+        # El contenido del script incluye tick:{_tick} y fc:{_fc}, garantizando un
+        # HTML diferente en cada navegación → Streamlit crea un iframe nuevo →
+        # script se re-ejecuta y re-evalúa force correctamente.
         _stc.html(f"""<script>
-/* oram-nav-tick:{_tick} */
-(function() {{
-    var p; try {{ p = window.parent; }} catch(e) {{ return; }}
-    var doc = p.document, ss = p.sessionStorage, KEY = 'oram_sb_open';
-    var force = {_fc};
+/* oram-sb tick:{_tick} fc:{_fc} */
+(function(){{
+    var p; try{{ p=window.parent; }}catch(e){{ return; }}
+    var doc=p.document, ss=p.sessionStorage, KEY='oram_sb_ok';
+    var force={_fc};
 
-    if (force) {{ try {{ ss.removeItem(KEY); }} catch(e) {{}} }}
+    /* Navegación → limpiar permiso de sidebar abierto */
+    if(force){{ try{{ ss.removeItem(KEY); }}catch(e){{}} }}
 
-    var userOpen = false;
-    try {{ userOpen = ss.getItem(KEY) === '1'; }} catch(e) {{}}
-    var shouldClose = force || !userOpen;
-
-    function isSidebarOpen() {{
-        return !!doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
+    /* Listener global delegado — se registra UNA sola vez en window.parent.
+       Sobrevive a rerenders: está en el objeto window, no en elementos DOM.
+       Fase capture para interceptar antes que cualquier handler de Streamlit. */
+    if(!p._oramSbInit){{
+        p._oramSbInit=true;
+        doc.addEventListener('click',function(ev){{
+            var t=ev.target;
+            var isHam  = t.closest&&t.closest('[data-testid="stSidebarCollapsedControl"]');
+            var isClose= t.closest&&t.closest('[data-testid="stSidebarCollapseButton"]');
+            if(isHam)  {{ try{{ ss.setItem(KEY,'1'); }}catch(e){{}} }}
+            if(isClose){{ try{{ ss.removeItem(KEY);  }}catch(e){{}} }}
+        }},true);
     }}
 
-    function closeSidebar(n) {{
-        n = n || 0;
-        if (n > 25) {{ watchHamburger(); return; }}
-        var btn = doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
-        if (btn) {{
-            btn.click();
-            setTimeout(watchHamburger, 400);
-        }} else if (doc.querySelector('[data-testid="stSidebarCollapsedControl"]')) {{
-            watchHamburger();
-        }} else {{
-            setTimeout(function(){{ closeSidebar(n+1); }}, 80);
-        }}
+    /* Cierra el sidebar si no tiene permiso de estar abierto.
+       Reintenta cada 80 ms (máx 30 intentos = 2.4 s) para dar tiempo a que
+       React termine de renderizar los elementos del sidebar. */
+    function tryClose(n){{
+        if(ss.getItem(KEY)==='1') return;           /* permiso dado → no tocar */
+        var btn=doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
+        if(btn){{ btn.click(); return; }}           /* encontrado → cerrar */
+        var ham=doc.querySelector('[data-testid="stSidebarCollapsedControl"]');
+        if(ham) return;                             /* ya cerrado → nada que hacer */
+        if(n<30){{ setTimeout(function(){{tryClose(n+1);}},80); }}
     }}
 
-    function watchHamburger() {{
-        var h = doc.querySelector('[data-testid="stSidebarCollapsedControl"] button');
-        if (h) {{
-            h.addEventListener('click', function() {{
-                try {{ ss.setItem(KEY, '1'); }} catch(e) {{}}
-                setTimeout(watchCloseBtn, 300);
-            }}, {{once:true}});
-        }} else {{ setTimeout(watchHamburger, 100); }}
-    }}
-
-    function watchCloseBtn() {{
-        var b = doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
-        if (b) {{
-            b.addEventListener('click', function() {{
-                try {{ ss.removeItem(KEY); }} catch(e) {{}}
-                setTimeout(watchHamburger, 200);
-            }}, {{once:true}});
-        }} else {{ setTimeout(watchCloseBtn, 100); }}
-    }}
-
-    setTimeout(function() {{
-        if (shouldClose) {{
-            if (isSidebarOpen()) {{ closeSidebar(); }}
-            else {{ watchHamburger(); }}
-        }} else {{ watchCloseBtn(); }}
-    }}, 60);
+    setTimeout(function(){{tryClose(0);}},80);
 }})();
-</script>""", height=0)
+</script>""", height=1)
 
         nav_options = [
             "📈 Dashboard",
