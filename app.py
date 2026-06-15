@@ -266,40 +266,17 @@ section[data-testid="stSidebar"]{{display:none!important;}}
 </style><div id="oram-rv"></div>""", unsafe_allow_html=True)
 
         # CSS lock: sidebar oculto mediante CSS en CADA render cuando _sb_locked=True.
-        # React no puede anularlo — el CSS se re-inyecta con cada render de Python.
-        # Se muestra un hamburger falso (sin JS inline) en position:fixed top-left.
-        # El click en el hamburger falso lo detecta un listener en window.parent que
-        # programa el click del botón de desbloqueo dentro del sidebar (que aunque
-        # tiene display:none, sigue siendo clickeable mediante JS).
+        # El hamburger REAL de Streamlit (stSidebarCollapsedControl) queda visible.
+        # JS intercepta su click → clickea el botón de desbloqueo en el sidebar DOM
+        # (display:none no impide el .click() programático) → Python rerun →
+        # _sb_locked=False → CSS no se inyecta → sidebar aparece abierto.
         if _sb_locked:
-            _dark_l  = get_theme() == "dark"
-            _ham_bg  = "rgba(14,21,31,0.90)"   if _dark_l else "rgba(235,240,248,0.93)"
-            _ham_ic  = "#7fa3c4"               if _dark_l else "#4a6482"
-            _ham_bdr = "rgba(255,255,255,0.07)" if _dark_l else "rgba(0,0,0,0.09)"
-            _ham_hov = "rgba(34,197,94,0.18)"  if _dark_l else "rgba(34,197,94,0.12)"
-            st.markdown(f"""<style>
-section[data-testid="stSidebar"]{{display:none!important;}}
-[data-testid="stSidebarCollapsedControl"]{{display:none!important;}}
-#oram-ham{{position:fixed;top:.55rem;left:.55rem;width:2.5rem;height:2.5rem;
-    background:{_ham_bg};border:1px solid {_ham_bdr};border-radius:8px;
-    display:flex;align-items:center;justify-content:center;
-    cursor:pointer;z-index:99997;
-    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-    transition:background .18s,border-color .18s;}}
-#oram-ham:hover{{background:{_ham_hov};border-color:rgba(34,197,94,.35);}}
-#oram-ham svg{{width:17px;height:17px;stroke:{_ham_ic};stroke-width:2.2;stroke-linecap:round;fill:none;}}
-</style>
-<div id="oram-ham">
-  <svg viewBox="0 0 24 24">
-    <line x1="3" y1="6" x2="21" y2="6"/>
-    <line x1="3" y1="12" x2="21" y2="12"/>
-    <line x1="3" y1="18" x2="21" y2="18"/>
-  </svg>
-</div>""", unsafe_allow_html=True)
+            st.markdown("""<style>
+section[data-testid="stSidebar"]{display:none!important;}
+</style>""", unsafe_allow_html=True)
 
-            # Listener en window.parent (registrado UNA vez, sobrevive rerenders).
-            # Click en #oram-ham → busca el botón de desbloqueo en el sidebar
-            # (oculto visualmente pero presente en el DOM y clickeable via JS).
+            # Registrado UNA vez en window.parent → sobrevive todos los rerenders.
+            # Intercepta el click del hamburger real antes de que React lo procese.
             _stc.html("""<script>
 (function(){
     var p;try{p=window.parent;}catch(e){return;}
@@ -307,10 +284,17 @@ section[data-testid="stSidebar"]{{display:none!important;}}
     if(p._oramHamInit)return;
     p._oramHamInit=true;
     doc.addEventListener('click',function(ev){
-        if(!ev.target.closest||!ev.target.closest('#oram-ham'))return;
+        var t=ev.target;
+        if(!t||!t.closest)return;
+        /* Hamburger real de Streamlit pulsado */
+        if(!t.closest('[data-testid="stSidebarCollapsedControl"]'))return;
+        /* Busca el botón de desbloqueo en el DOM del sidebar (oculto por CSS
+           pero presente en el DOM y clickeable via JS) */
         var btns=Array.from(doc.querySelectorAll('button'));
-        var ub=btns.find(function(b){return b.textContent.trim()==='__oram_unlock__';});
-        if(ub)ub.click();
+        var ub=btns.find(function(b){
+            return(b.textContent||b.innerText||'').trim()==='__oram_unlock__';
+        });
+        if(ub){setTimeout(function(){ub.click();},20);}
     },true);
 })();
 </script>""", height=1)
