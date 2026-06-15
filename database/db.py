@@ -456,7 +456,7 @@ def obtener_todos_usuarios() -> list:
         ))
 
 
-def obtener_usuario_por_id(user_id: int) -> dict | None:
+def obtener_usuario_por_id(user_id: int):
     """Obtiene un usuario por ID. Más eficiente que cargar todos los usuarios."""
     with get_conn() as conn:
         return _fetchone(_exec(conn,
