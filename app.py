@@ -255,8 +255,17 @@ section[data-testid="stSidebar"]{{display:none!important;}}
         _sb_locked   = st.session_state.get("_sb_locked", False)
         _show_reveal = st.session_state.pop("_show_reveal", False)
 
-        # Reveal overlay: cubre el flash del swap de módulo, mostrado una sola vez
-        # tras navegación. 0.8 s total; opaco los primeros 62% (~500 ms).
+        # ── Hamburger nativo (cuando bloqueado) ──────────────────────────────
+        # Se renderiza PRIMERO para ser el :first-child de stVerticalBlock.
+        # CSS lo posiciona como botón fixed top-left con aspecto hamburger.
+        # Sin JS intermediario: el click es interacción directa con widget
+        # Streamlit → rerun → _sb_locked=False → sidebar visible.
+        if _sb_locked:
+            if st.button("☰", key="_oram_sb_unlock"):
+                st.session_state["_sb_locked"] = False
+                st.rerun()
+
+        # ── Reveal overlay ────────────────────────────────────────────────────
         if _show_reveal:
             _dark_rv = get_theme() == "dark"
             _olay_rv = "rgba(6,9,15,0.98)" if _dark_rv else "rgba(238,242,247,0.98)"
@@ -265,61 +274,43 @@ section[data-testid="stSidebar"]{{display:none!important;}}
 #oram-rv{{position:fixed;inset:0;background:{_olay_rv};z-index:99998;pointer-events:none;animation:oram-rv 0.8s ease-out forwards;}}
 </style><div id="oram-rv"></div>""", unsafe_allow_html=True)
 
-        # CSS lock: sidebar + hamburger real ocultos en CADA render cuando _sb_locked=True.
-        # Se inyecta un hamburger falso (#oram-ham) position:fixed que SIEMPRE es visible
-        # independientemente del estado interno de React (abierto o cerrado).
-        # Click en #oram-ham → JS en window.parent clickea el botón de desbloqueo
-        # dentro del DOM del sidebar (oculto por CSS pero presente y clickeable via JS).
-        # BUG ANTERIOR CORREGIDO: "__oram_unlock__" se renderizaba como bold markdown →
-        # textContent real era "oram_unlock". Ahora usamos "ORAM SB UNLOCK" (sin guiones).
+        # ── CSS lock ─────────────────────────────────────────────────────────
+        # sidebar + hamburger real de Streamlit ocultos en CADA render.
+        # El primer div hijo de stVerticalBlock (nuestro st.button) se
+        # convierte en el hamburger: position:fixed top-left, sin altura
+        # en el flujo normal para no desplazar el contenido del módulo.
         if _sb_locked:
             _dark_l  = get_theme() == "dark"
             _ham_bg  = "rgba(14,21,31,0.90)"    if _dark_l else "rgba(235,240,248,0.93)"
-            _ham_ic  = "#7fa3c4"                if _dark_l else "#4a6482"
+            _ham_ic  = "#8fa8c4"                if _dark_l else "#4a6482"
             _ham_bdr = "rgba(255,255,255,0.07)" if _dark_l else "rgba(0,0,0,0.09)"
             _ham_hov = "rgba(34,197,94,0.18)"   if _dark_l else "rgba(34,197,94,0.12)"
             st.markdown(f"""<style>
 section[data-testid="stSidebar"]{{display:none!important;}}
 [data-testid="stSidebarCollapsedControl"]{{display:none!important;}}
-#oram-ham{{position:fixed;top:.55rem;left:.55rem;width:2.5rem;height:2.5rem;
-    background:{_ham_bg};border:1px solid {_ham_bdr};border-radius:8px;
-    display:flex;align-items:center;justify-content:center;
-    cursor:pointer;z-index:99997;
-    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-    transition:background .18s,border-color .18s;}}
-#oram-ham:hover{{background:{_ham_hov};border-color:rgba(34,197,94,.35);}}
-#oram-ham svg{{width:17px;height:17px;stroke:{_ham_ic};stroke-width:2.2;
-    stroke-linecap:round;fill:none;}}
-</style>
-<div id="oram-ham">
-  <svg viewBox="0 0 24 24">
-    <line x1="3" y1="6" x2="21" y2="6"/>
-    <line x1="3" y1="12" x2="21" y2="12"/>
-    <line x1="3" y1="18" x2="21" y2="18"/>
-  </svg>
-</div>""", unsafe_allow_html=True)
-
-            # Listener registrado UNA vez en window.parent → sobrevive rerenders.
-            # Click en #oram-ham → busca botón por texto exacto "ORAM SB UNLOCK"
-            # (sin guiones bajos para evitar que Streamlit lo renderice como markdown).
-            _stc.html("""<script>
-(function(){
-    var p;try{p=window.parent;}catch(e){return;}
-    var doc=p.document;
-    if(p._oramHamInit)return;
-    p._oramHamInit=true;
-    doc.addEventListener('click',function(ev){
-        var t=ev.target;
-        if(!t||!t.closest)return;
-        if(!t.closest('#oram-ham'))return;
-        var btns=Array.from(doc.querySelectorAll('button'));
-        var ub=btns.find(function(b){
-            return(b.textContent||b.innerText||'').trim()==='ORAM SB UNLOCK';
-        });
-        if(ub){setTimeout(function(){ub.click();},20);}
-    },true);
-})();
-</script>""", height=1)
+/* Contenedor del botón: sin altura para no empujar el contenido */
+[data-testid="stVerticalBlock"]>div:first-child{{
+    height:0!important;min-height:0!important;
+    padding:0!important;margin:0!important;overflow:visible!important;
+}}
+/* El botón ☰ convertido en hamburger fixed */
+[data-testid="stVerticalBlock"]>div:first-child button{{
+    position:fixed!important;top:.45rem!important;left:.45rem!important;
+    width:2.4rem!important;height:2.4rem!important;
+    min-height:unset!important;padding:0!important;
+    background:{_ham_bg}!important;border:1px solid {_ham_bdr}!important;
+    border-radius:8px!important;z-index:99997!important;
+    font-size:1.2rem!important;line-height:1!important;
+    color:{_ham_ic}!important;
+    backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important;
+    transition:background .18s,border-color .18s,color .18s!important;
+    display:flex!important;align-items:center!important;justify-content:center!important;
+}}
+[data-testid="stVerticalBlock"]>div:first-child button:hover{{
+    background:{_ham_hov}!important;border-color:rgba(34,197,94,.4)!important;
+    color:#22c55e!important;
+}}
+</style>""", unsafe_allow_html=True)
 
         nav_options = [
             "📈 Dashboard",
@@ -339,16 +330,6 @@ section[data-testid="stSidebar"]{{display:none!important;}}
             nav_options.append("🔐 Admin Panel")
 
         with st.sidebar:
-            # Botón de desbloqueo: visible en el DOM del sidebar aunque el sidebar
-            # tenga display:none. JS lo encuentra por texto y lo clickea cuando el
-            # usuario toca el hamburger falso → rerun → _sb_locked=False → sidebar visible.
-            if _sb_locked:
-                # Texto sin guiones bajos para que Streamlit NO lo interprete como markdown.
-                # JS busca exactamente "ORAM SB UNLOCK" con textContent.trim().
-                if st.button("ORAM SB UNLOCK", key="_oram_sb_unlock"):
-                    st.session_state["_sb_locked"] = False
-                    st.rerun()
-
             admin_prefix = "🛡️ " if is_admin else ""
             admin_badge  = '&nbsp;<span style="font-size:0.6rem;color:#c9a227;font-weight:700">ADMIN</span>' if is_admin else ""
 
