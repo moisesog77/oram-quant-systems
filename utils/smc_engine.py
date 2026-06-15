@@ -740,7 +740,38 @@ def analisis_completo(df: pd.DataFrame, ticker: str) -> dict:
         "precio_entrada_ideal": precio_entrada_ideal,
         "retroceso_pips":       retroceso_pips,
         "señal_resumen":        _generar_resumen(estructura, confluencia, contexto),
+        "barrido_liquidez":     _detectar_barrido_liquidez(df, direccion),
     }
+
+
+def _detectar_barrido_liquidez(df: pd.DataFrame, direccion: str) -> bool:
+    """
+    Detecta si hubo un stop hunt (barrido de liquidez) en las últimas velas.
+    LONG : spike bajo el swing low previo con cierre de regreso arriba.
+    SHORT: spike sobre el swing high previo con cierre de regreso abajo.
+    """
+    if df is None or len(df) < 20:
+        return False
+    try:
+        recientes = df.iloc[-5:]
+        previas   = df.iloc[-25:-5]
+        if len(previas) < 5:
+            return False
+        if direccion == "LONG":
+            swing_low = previas["Low"].min()
+            return any(
+                r["Low"] < swing_low and r["Close"] > swing_low
+                for _, r in recientes.iterrows()
+            )
+        if direccion == "SHORT":
+            swing_high = previas["High"].max()
+            return any(
+                r["High"] > swing_high and r["Close"] < swing_high
+                for _, r in recientes.iterrows()
+            )
+        return False
+    except Exception:
+        return False
 
 
 def _generar_resumen(estructura: dict, confluencia: dict, contexto: str = "tendencia") -> str:

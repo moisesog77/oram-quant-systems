@@ -253,7 +253,8 @@ def _formato_mtf(mtf: dict, ticker: str) -> str:
     return "\n".join(l for l in lineas if l is not None)
 
 
-def _formato_reversal(smc_alto: dict, smc_bajo: dict, ticker: str, tf_alto: str, tf_bajo: str) -> str:
+def _formato_reversal(smc_alto: dict, smc_bajo: dict, ticker: str,
+                       tf_alto: str, tf_bajo: str, nivel_redondo: bool = False) -> str:
     dir_      = smc_bajo.get("estructura", {}).get("direccion", "neutral")
     tipo_bajo = smc_bajo.get("estructura", {}).get("tipo", "")
     tipo_alto = smc_alto.get("estructura", {}).get("tipo", "")
@@ -266,19 +267,28 @@ def _formato_reversal(smc_alto: dict, smc_bajo: dict, ticker: str, tf_alto: str,
     dist_tp   = abs(tp - entrada) if tp else 0
     rr        = round(dist_tp / dist_sl, 1) if dist_sl > 0 else 0
     emoji     = "🟢" if dir_ == "LONG" else "🔴"
+    extras = []
+    if smc_bajo.get("barrido_liquidez"):
+        extras.append("💧 Barrido de liquidez previo ✅")
+    if nivel_redondo:
+        extras.append("🔵 Nivel redondo institucional ✅")
     lineas = [
         f"🎯 *REVERSIÓN EN ZONA HTF — {emoji} {dir_}*",
         f"📌 *{ticker}* · {tf_alto}/{tf_bajo}",
         "━━━━━━━━━━━━━━━━",
-        f"*{tf_alto} — Estructura:* {tipo_alto} ({conf_alto:.0f}%) · precio en OB ✅",
-        f"*{tf_bajo} — Entrada:*    {tipo_bajo} ({conf_bajo:.0f}%) · CHoCH confirmado ✅",
+        f"*{tf_alto} — Estructura:* {tipo_alto} ({conf_alto:.0f}%) · OB zona ✅",
+        f"*{tf_bajo} — Entrada:*    {tipo_bajo} ({conf_bajo:.0f}%) · CHoCH ✅ · Barrido ✅",
         "",
         f"💰 *Entrada:* `{entrada:.5f}`",
         f"🛑 *SL:*     `{sl:.5f}`" if sl else "",
         f"✅ *TP:*     `{tp:.5f}`" if tp else "",
         f"📊 *RR:*     `{rr:.1f}:1`",
+    ]
+    if extras:
+        lineas += [""] + extras
+    lineas += [
         "",
-        "⚡ _Corrección terminada en zona institucional — entrada de alta probabilidad_",
+        "⚡ _Stop hunt + CHoCH + zona HTF — setup institucional completo_",
         f"🕐 {_hora_mx()} CDMX",
     ]
     return "\n".join(l for l in lineas if l)
@@ -1266,13 +1276,31 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_mtf: {e}")
 
 
+def _en_sesion_premium() -> bool:
+    """Londres open (07-10 UTC) o NY open (13-16 UTC) — mayor actividad institucional."""
+    from datetime import datetime, timezone
+    h = datetime.now(timezone.utc).hour
+    return (7 <= h < 10) or (13 <= h < 16)
+
+
+def _cerca_nivel_redondo(precio: float) -> bool:
+    """True si el precio está dentro de 15 pips de un nivel x.xx00 o x.xx50."""
+    try:
+        pips  = round(precio * 10000)
+        resto = pips % 100
+        return resto <= 15 or resto >= 85 or abs(resto - 50) <= 15
+    except Exception:
+        return False
+
+
 async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
     """
     Detecta el fin de correcciones dentro de zonas OB del HTF.
-    6 capas de validación — la alerta de mayor probabilidad del sistema.
+    7 capas de validación — la alerta de mayor probabilidad del sistema.
     """
     try:
         if not _en_horario_trading(): return
+        if not _en_sesion_premium(): return   # Solo en apertura Londres/NY
         try:
             hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=20)
             if hay_ev: return
@@ -1334,11 +1362,15 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
                         dist_tp = abs(tp - entrada)
                         if dist_sl > 0 and (dist_tp / dist_sl) < 2.0: continue
 
+                    # CAPA 7: Barrido de liquidez previo al CHoCH
+                    if not smc_bajo.get("barrido_liquidez", False): continue
+
                     if (ticker, dir_bajo) in reversal_recientes: continue
 
+                    nivel_redondo = _cerca_nivel_redondo(entrada)
                     sig_id = registrar_señal(ticker, tf_bajo, tipo_bajo, dir_bajo, conf_bajo, entrada, sl, tp)
                     msg = "🎯 *REVERSIÓN EN ZONA HTF*\n" + _formato_reversal(
-                        smc_alto, smc_bajo, ticker, tf_alto, tf_bajo
+                        smc_alto, smc_bajo, ticker, tf_alto, tf_bajo, nivel_redondo
                     )
                     await _send(ctx.bot, chat_id, msg)
                     marcar_señal_enviada(sig_id)
