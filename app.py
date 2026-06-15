@@ -162,12 +162,11 @@ else:
 
     # ── Estado de navegación ─────────────────────────────────────────────────
     # _current_nav  : módulo que se está mostrando AHORA
-    # _sb_locked    : True → sidebar oculto por CSS en CADA render; False → visible
     # _transitioning: True → render de overlay (sidebar NO se renderiza)
-    # _show_reveal  : True → mostrar overlay de reveal UNA vez tras navegación
+    # _show_reveal  : True → overlay de reveal UNA vez tras navegación
+    # _tr_tick      : contador para forzar recreación del iframe de JS cada navegación
     if "_current_nav" not in st.session_state:
         st.session_state["_current_nav"] = "📈 Dashboard"
-        st.session_state["_sb_locked"] = True
 
     _transitioning = st.session_state.pop("_transitioning", False)
 
@@ -245,27 +244,35 @@ section[data-testid="stSidebar"]{{display:none!important;}}
 </div>
 """, unsafe_allow_html=True)
 
+        # Durante los 1.5s de sleep el overlay cubre todo.
+        # JS aprovecha ese tiempo para clickear el botón de colapso del sidebar
+        # (stSidebarCollapseButton) y dejar el estado de React en "cerrado".
+        # Reintentos cada 50ms durante ~1.5s → muy alta probabilidad de éxito.
+        # _tr_tick fuerza un iframe nuevo en cada navegación → JS siempre corre.
+        _tr_tick = st.session_state.get("_tr_tick", 0) + 1
+        st.session_state["_tr_tick"] = _tr_tick
+        _stc.html(f"""<script>
+/* oram-close tick:{_tr_tick} */
+(function(){{
+    var p;try{{p=window.parent;}}catch(e){{return;}}
+    var doc=p.document;
+    function tryClose(n){{
+        var btn=doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
+        if(btn){{btn.click();return;}}
+        if(n<29){{setTimeout(function(){{tryClose(n+1);}},50);}}
+    }}
+    setTimeout(function(){{tryClose(0);}},80);
+}})();
+</script>""", height=1)
         _time.sleep(1.5)
-        st.session_state["_sb_locked"] = True
         st.session_state["_show_reveal"] = True
         st.rerun()
 
     # ── FASE NORMAL: sidebar + módulo ────────────────────────────────────────
     else:
-        _sb_locked   = st.session_state.get("_sb_locked", False)
         _show_reveal = st.session_state.pop("_show_reveal", False)
 
-        # ── Hamburger nativo (cuando bloqueado) ──────────────────────────────
-        # Se renderiza PRIMERO para ser el :first-child de stVerticalBlock.
-        # CSS lo posiciona como botón fixed top-left con aspecto hamburger.
-        # Sin JS intermediario: el click es interacción directa con widget
-        # Streamlit → rerun → _sb_locked=False → sidebar visible.
-        if _sb_locked:
-            if st.button("☰", key="_oram_sb_unlock"):
-                st.session_state["_sb_locked"] = False
-                st.rerun()
-
-        # ── Reveal overlay ────────────────────────────────────────────────────
+        # Reveal overlay: cubre el flash del swap de módulo (1 render tras nav).
         if _show_reveal:
             _dark_rv = get_theme() == "dark"
             _olay_rv = "rgba(6,9,15,0.98)" if _dark_rv else "rgba(238,242,247,0.98)"
@@ -273,44 +280,6 @@ section[data-testid="stSidebar"]{{display:none!important;}}
 @keyframes oram-rv{{0%,62%{{opacity:1;}}100%{{opacity:0;pointer-events:none;}}}}
 #oram-rv{{position:fixed;inset:0;background:{_olay_rv};z-index:99998;pointer-events:none;animation:oram-rv 0.8s ease-out forwards;}}
 </style><div id="oram-rv"></div>""", unsafe_allow_html=True)
-
-        # ── CSS lock ─────────────────────────────────────────────────────────
-        # sidebar + hamburger real de Streamlit ocultos en CADA render.
-        # El primer div hijo de stVerticalBlock (nuestro st.button) se
-        # convierte en el hamburger: position:fixed top-left, sin altura
-        # en el flujo normal para no desplazar el contenido del módulo.
-        if _sb_locked:
-            _dark_l  = get_theme() == "dark"
-            _ham_bg  = "rgba(14,21,31,0.90)"    if _dark_l else "rgba(235,240,248,0.93)"
-            _ham_ic  = "#8fa8c4"                if _dark_l else "#4a6482"
-            _ham_bdr = "rgba(255,255,255,0.07)" if _dark_l else "rgba(0,0,0,0.09)"
-            _ham_hov = "rgba(34,197,94,0.18)"   if _dark_l else "rgba(34,197,94,0.12)"
-            st.markdown(f"""<style>
-section[data-testid="stSidebar"]{{display:none!important;}}
-[data-testid="stSidebarCollapsedControl"]{{display:none!important;}}
-/* Contenedor del botón: sin altura para no empujar el contenido */
-[data-testid="stVerticalBlock"]>div:first-child{{
-    height:0!important;min-height:0!important;
-    padding:0!important;margin:0!important;overflow:visible!important;
-}}
-/* El botón ☰ convertido en hamburger fixed */
-[data-testid="stVerticalBlock"]>div:first-child button{{
-    position:fixed!important;top:.45rem!important;left:.45rem!important;
-    width:2.4rem!important;height:2.4rem!important;
-    min-height:unset!important;padding:0!important;
-    background:{_ham_bg}!important;border:1px solid {_ham_bdr}!important;
-    border-radius:8px!important;z-index:99997!important;
-    font-size:1.2rem!important;line-height:1!important;
-    color:{_ham_ic}!important;
-    backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important;
-    transition:background .18s,border-color .18s,color .18s!important;
-    display:flex!important;align-items:center!important;justify-content:center!important;
-}}
-[data-testid="stVerticalBlock"]>div:first-child button:hover{{
-    background:{_ham_hov}!important;border-color:rgba(34,197,94,.4)!important;
-    color:#22c55e!important;
-}}
-</style>""", unsafe_allow_html=True)
 
         nav_options = [
             "📈 Dashboard",
