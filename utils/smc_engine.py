@@ -541,22 +541,28 @@ def _calcular_sl_tp_dinamico(
     if ob_activo is not None:
         if direccion == "LONG":
             sl = ob_activo.precio_bot - buffer
-            # Asegurar SL mínimo
             if precio - sl < dist_sl_min:
                 sl = precio - dist_sl_min
+            # Limitar SL máximo a 3×ATR: si el OB quedó muy lejos del precio
+            # actual, un SL en él produce RR absurdos (ej: 0.1:1). En ese caso
+            # se usa un SL ajustado al rango actual del mercado.
+            if precio - sl > atr * 3.0:
+                sl = precio - atr * 3.0
             dist_sl = precio - sl
-            # TP: nivel de resistencia con RR >= 1.5 (calidad mínima)
             ress = sorted([r for r in liquidez.get("resistance_levels", []) if r > precio])
             tp_candidatos = [r for r in ress if (r - precio) >= dist_sl * 1.5]
-            tp = tp_candidatos[0] if tp_candidatos else (ress[0] if ress else precio + atr * 3.0)
+            # Fallback garantiza RR 2:1 (no usa ress[0] que puede ser demasiado cercano)
+            tp = tp_candidatos[0] if tp_candidatos else precio + dist_sl * 2.0
         else:
             sl = ob_activo.precio_top + buffer
             if sl - precio < dist_sl_min:
                 sl = precio + dist_sl_min
+            if sl - precio > atr * 3.0:
+                sl = precio + atr * 3.0
             dist_sl = sl - precio
             sops = sorted([s for s in liquidez.get("support_levels", []) if s < precio], reverse=True)
             tp_candidatos = [s for s in sops if (precio - s) >= dist_sl * 1.5]
-            tp = tp_candidatos[0] if tp_candidatos else (sops[0] if sops else precio - atr * 3.0)
+            tp = tp_candidatos[0] if tp_candidatos else precio - dist_sl * 2.0
     else:
         # Fallback ATR garantiza RR 2:1
         if direccion == "LONG":
