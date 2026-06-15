@@ -78,15 +78,25 @@ def ejecutar_backtest(ticker: str, timeframe: str = "15m",
         if dir_ == "neutral":
             continue
 
+        if not smc.get("señal_valida", False):
+            continue
+
         señales_filtradas += 1
 
         if conf < umbral_confianza:
             continue
 
-        sl = precio - atr * 1.5 if dir_ == "LONG" else precio + atr * 1.5
-        tp = precio + atr * 3.0 if dir_ == "LONG" else precio - atr * 3.0
+        # Usar SL/TP dinámico del motor SMC (basado en OBs y liquidez reales)
+        sl = smc.get("sl_sugerido", 0)
+        tp = smc.get("tp_sugerido", 0)
+        # Fallback ATR solo si el motor no pudo calcular niveles
+        if not sl or not tp or sl == tp:
+            sl = precio - atr * 1.5 if dir_ == "LONG" else precio + atr * 1.5
+            tp = precio + atr * 3.0 if dir_ == "LONG" else precio - atr * 3.0
 
-        df_futuro = df_full.iloc[i + 1: i + 25]
+        # Ventana extendida: 25 velas para TFs bajos, más para altos
+        ventana_futuro = 50 if timeframe in ("1h", "4h", "1d") else 30
+        df_futuro       = df_full.iloc[i + 1: i + ventana_futuro]
         resultado_r, gano = _calcular_resultado(dir_, precio, sl, tp, df_futuro)
 
         riesgo_usd    = capital * (riesgo_pct / 100)
@@ -96,16 +106,16 @@ def ejecutar_backtest(ticker: str, timeframe: str = "15m",
         equity.append(round(capital, 2))
 
         trades.append(TradeBacktest(
-            idx_entrada=i,
-            fecha=str(df_full.index[i])[:16],
-            direccion=dir_,
-            entrada=round(precio, 5),
-            sl=round(sl, 5),
-            tp=round(tp, 5),
-            resultado=round(resultado_r, 2),
-            gano=gano,
-            tipo=tipo,
-            confianza=conf,
+            idx_entrada = i,
+            fecha       = str(df_full.index[i])[:16],
+            direccion   = dir_,
+            entrada     = round(precio, 5),
+            sl          = round(sl, 5),
+            tp          = round(tp, 5),
+            resultado   = round(resultado_r, 2),
+            gano        = gano,
+            tipo        = tipo,
+            confianza   = conf,
         ))
 
     # Diagnóstico cuando no hay trades

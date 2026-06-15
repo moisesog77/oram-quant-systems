@@ -193,17 +193,18 @@ def _detectar_order_blocks(df: pd.DataFrame, n: int = 5) -> list:
         if data['Close'].iloc[i] < data['Open'].iloc[i]:
             impulso_alcista = data['Close'].iloc[i+1:i+4].max() - data['High'].iloc[i]
             if umbral is None or impulso_alcista > umbral:
-                # Validación de volumen: el impulso debe tener volumen elevado
                 vol_impulso = data['Volume'].iloc[i+1:i+4].mean() if 'Volume' in data.columns else None
                 vol_ref     = vol_avg.iloc[i] if vol_avg is not None else None
-                ratio       = (vol_impulso / vol_ref) if (vol_impulso and vol_ref and vol_ref > 0) else 1.0
+                # El volumen es INFORMATIVO para el score, no un filtro de acceso.
+                # En Forex, yfinance provee volumen de tick (no real) — eliminar como gating.
+                ratio = (vol_impulso / vol_ref) if (vol_impulso and vol_ref and vol_ref > 0) else 1.0
 
-                # Aceptar solo si ratio ≥ 1.2 (20% más volumen que el promedio)
-                if ratio >= 1.2 or vol_ref is None:
-                    ob_top = data['High'].iloc[i]
-                    ob_bot = data['Low'].iloc[i]
-                    es_fresco = precio_actual > ob_top
-
+                ob_top = data['High'].iloc[i]
+                ob_bot = data['Low'].iloc[i]
+                # OB fresco = precio no ha retrocedido al OB todavía (está por encima)
+                es_fresco = precio_actual > ob_top
+                # Ignorar OBs completamente por debajo del precio actual (muy distantes)
+                if ob_top < precio_actual * 0.997:
                     obs.append(NivelSMC(
                         tipo       = "OB_alcista",
                         precio_top = round(ob_top, 5),
@@ -220,13 +221,13 @@ def _detectar_order_blocks(df: pd.DataFrame, n: int = 5) -> list:
             if umbral is None or impulso_bajista > umbral:
                 vol_impulso = data['Volume'].iloc[i+1:i+4].mean() if 'Volume' in data.columns else None
                 vol_ref     = vol_avg.iloc[i] if vol_avg is not None else None
-                ratio       = (vol_impulso / vol_ref) if (vol_impulso and vol_ref and vol_ref > 0) else 1.0
+                ratio = (vol_impulso / vol_ref) if (vol_impulso and vol_ref and vol_ref > 0) else 1.0
 
-                if ratio >= 1.2 or vol_ref is None:
-                    ob_top = data['High'].iloc[i]
-                    ob_bot = data['Low'].iloc[i]
-                    es_fresco = precio_actual < ob_bot
-
+                ob_top = data['High'].iloc[i]
+                ob_bot = data['Low'].iloc[i]
+                es_fresco = precio_actual < ob_bot
+                # Ignorar OBs completamente por encima del precio actual (muy distantes)
+                if ob_bot > precio_actual * 1.003:
                     obs.append(NivelSMC(
                         tipo       = "OB_bajista",
                         precio_top = round(ob_top, 5),
@@ -371,6 +372,9 @@ def _calcular_confluencias(
         elif ob_activo.vol_ratio >= 1.2:
             score += 2; smc_score += 2
             factores.append(f"✅ OB válido (vol {ob_activo.vol_ratio:.1f}×)")
+        elif ob_activo.vol_ratio >= 1.0:
+            score += 2; smc_score += 2
+            factores.append(f"✅ OB estructural ({ob_activo.precio_bot:.5f}–{ob_activo.precio_top:.5f})")
         else:
             score += 1; smc_score += 1
             factores.append(f"⚠️ OB técnico (vol bajo {ob_activo.vol_ratio:.1f}×)")
@@ -398,7 +402,7 @@ def _calcular_confluencias(
 
     # ── [D] Liquidez cercana ──────────────────────────────────────────────────
     if atr > 0:
-        zona_liq = 3 * atr   # dentro de 3 ATRs de un nivel de liquidez
+        zona_liq = 1.5 * atr  # dentro de 1.5 ATRs — evita inflación del score
         if direccion == "LONG":
             sops = liquidez.get("support_levels", [])
             cerca = any(abs(c - s) < zona_liq for s in sops)
@@ -450,9 +454,12 @@ def _calcular_confluencias(
         if vol_avg > 0 and vol_now > vol_avg * 1.5:
             score += 1; factores.append(f"✅ Volumen elevado ({vol_now/vol_avg:.1f}×)")
 
-    # ── Señal válida: requiere mínimo 5 pts SMC de los 10 disponibles ─────────
-    # Equivale a tener al menos BOS + OB válido + algo más (FVG o liquidez)
-    señal_valida = smc_score >= 5 and ob_activo is not None
+    # ── Señal válida ────────────────────────────────────────────────────────────
+    # Ruta A: BOS + OB + algo más  (señal clásica completa)
+    # Ruta B: BOS + FVG + liquidez + EMA (sin OB pero confluencia alta — real market)
+    ruta_a = smc_score >= 5 and ob_activo is not None
+    ruta_b = smc_score >= 7  # requiere al menos 3 factores SMC fuertes sin OB
+    señal_valida = ruta_a or ruta_b
 
     max_score = 14
     confianza = round(min(score / max_score, 1.0) * 100, 1)
@@ -491,19 +498,29 @@ def _calcular_sl_tp_dinamico(
     """
     buffer = atr * 0.1   # buffer del 10% del ATR para evitar stop hunts
 
+    dist_sl_min = atr * 0.5  # SL mínimo aceptable
+
     if ob_activo is not None:
         if direccion == "LONG":
             sl = ob_activo.precio_bot - buffer
-            # TP en la resistencia de liquidez más cercana por encima
-            ress = [r for r in liquidez.get("resistance_levels", []) if r > precio]
-            tp   = min(ress) if ress else precio + atr * 3.0
+            # Asegurar SL mínimo
+            if precio - sl < dist_sl_min:
+                sl = precio - dist_sl_min
+            dist_sl = precio - sl
+            # TP: nivel de resistencia con RR >= 1.5 (calidad mínima)
+            ress = sorted([r for r in liquidez.get("resistance_levels", []) if r > precio])
+            tp_candidatos = [r for r in ress if (r - precio) >= dist_sl * 1.5]
+            tp = tp_candidatos[0] if tp_candidatos else (ress[0] if ress else precio + atr * 3.0)
         else:
             sl = ob_activo.precio_top + buffer
-            # TP en el soporte de liquidez más cercano por debajo
-            sops = [s for s in liquidez.get("support_levels", []) if s < precio]
-            tp   = max(sops) if sops else precio - atr * 3.0
+            if sl - precio < dist_sl_min:
+                sl = precio + dist_sl_min
+            dist_sl = sl - precio
+            sops = sorted([s for s in liquidez.get("support_levels", []) if s < precio], reverse=True)
+            tp_candidatos = [s for s in sops if (precio - s) >= dist_sl * 1.5]
+            tp = tp_candidatos[0] if tp_candidatos else (sops[0] if sops else precio - atr * 3.0)
     else:
-        # Fallback ATR
+        # Fallback ATR garantiza RR 2:1
         if direccion == "LONG":
             sl = precio - atr * 1.5
             tp = precio + atr * 3.0
