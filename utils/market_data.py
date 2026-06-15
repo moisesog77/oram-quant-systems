@@ -266,6 +266,8 @@ def _obtener_yfinance(ticker: str, timeframe: str) -> pd.DataFrame | None:
 
         if not raw.empty:
             try:
+                if raw.index.tz is None:
+                    raw.index = raw.index.tz_localize("UTC")
                 raw.index = raw.index.tz_convert(TZ_MX)
             except Exception:
                 pass
@@ -342,7 +344,7 @@ def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
                 n_velas    = len(df_td)
                 status = (
                     f"✅ {n_velas} velas · Último: {last_price:.5f} · "
-                    f"{last_time.strftime('%Y-%m-%d %H:%M')} · 🟢 Tiempo real"
+                    f"{last_time.strftime('%Y-%m-%d %H:%M')} CDMX · 🟢 Tiempo real"
                 )
                 _DATA_CACHE[cache_key] = (now, df_td, status)
                 return df_td, status
@@ -359,7 +361,7 @@ def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
                 n_velas    = len(df_yf)
                 status = (
                     f"✅ {n_velas} velas · Último: {last_price:.5f} · "
-                    f"{last_time.strftime('%Y-%m-%d %H:%M')} · ⚠️ yfinance (15min delay)"
+                    f"{last_time.strftime('%Y-%m-%d %H:%M')} CDMX · ⚠️ yfinance (15min delay)"
                 )
                 _DATA_CACHE[cache_key] = (now, df_yf, status)
                 return df_yf, status

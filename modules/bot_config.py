@@ -63,7 +63,7 @@ def render_bot_config():
                 resumen_d   = st.toggle("Resumen diario (8:00 AM CDMX)", value=bool(cfg.get("resumen_diario",1)))
                 riesgo_pct  = st.number_input(
                     "Riesgo por trade (%)", min_value=0.25, max_value=5.0,
-                    value=float(cfg.get("riesgo_pct", 1.0)), step=0.25,
+                    value=float(cfg.get("riesgo_pct") or 1.0), step=0.25,
                     help="% de capital por operación — aparece en todas las señales automáticas",
                     key="riesgo_bot",
                 )
@@ -106,7 +106,7 @@ def render_bot_config():
             <div class="smc-card smc-card-green">
                 <div class="card-title">Estado del bot</div>
                 <div class="card-sub">✅ Chat ID configurado: <code>{chat_actual}</code></div>
-                <div class="card-sub">Umbral: {cfg.get('umbral_confianza',70):.0f}% · Riesgo: {cfg.get('riesgo_pct',1.0):.2f}% · TF: {cfg.get('tf_monitor','15m')}</div>
+                <div class="card-sub">Umbral: {cfg.get('umbral_confianza') or 70:.0f}% · Riesgo: {cfg.get('riesgo_pct') or 1.0:.2f}% · TF: {cfg.get('tf_monitor','15m')}</div>
                 <div class="card-sub">Alertas: {'✅ Activas' if cfg.get('alertas_activas') else '❌ Desactivadas'}</div>
                 <div class="card-sub">Resumen diario: {'✅' if cfg.get('resumen_diario') else '❌'}</div>
             </div>
