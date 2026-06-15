@@ -15,8 +15,7 @@ from utils.market_data import obtener_datos, ACTIVOS_DEFAULT
 from utils.smc_engine import analisis_completo, calcular_riesgo
 from utils.economic_calendar import (hay_evento_alto_impacto_pronto,
                                       obtener_proximos_eventos,
-                                      impacto_emoji, impacto_color,
-                                      FOREX_FACTORY_URL)
+                                      impacto_emoji, impacto_color)
 from ui.styles import (signal_box, get_colors, get_plot_layout,
                        page_header, get_theme, oram_bienvenida, inject_module_css)
 
@@ -110,7 +109,7 @@ def _render_news_banner(dark: bool, c: dict):
         f'<div style="display:flex;gap:0.55rem;flex-wrap:wrap;">'
         f'{cards_html}'
         f'</div>'
-        f'<a href="{FOREX_FACTORY_URL}" target="_blank"'
+        f'<a href="https://www.forexfactory.com/calendar" target="_blank"'
         f' style="display:inline-block;margin-top:0.5rem;'
         f'font-family:JetBrains Mono,monospace;font-size:0.65rem;'
         f'text-decoration:none;opacity:0.75;color:{accent2};">'
