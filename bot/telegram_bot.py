@@ -343,10 +343,17 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         try:
             smc, _ = _analizar_activo(ticker, tf)
             if not smc or "error" in smc: continue
-            conf = smc.get("confluencia", {}).get("confianza", 0)
-            dir_ = smc.get("estructura",  {}).get("direccion", "neutral")
+            conf  = smc.get("confluencia", {}).get("confianza", 0)
+            dir_  = smc.get("estructura",  {}).get("direccion", "neutral")
+            precio_s = smc.get("precio", 0)
+            sl_s     = smc.get("sl_sugerido", 0)
+            tp_s     = smc.get("tp_sugerido", 0)
             if dir_ == "neutral" or conf < umbral: continue
             if not smc.get("señal_valida", False): continue
+            if precio_s > 0 and sl_s > 0 and tp_s > 0:
+                dist_sl = abs(precio_s - sl_s)
+                dist_tp = abs(tp_s - precio_s)
+                if dist_sl > 0 and (dist_tp / dist_sl) < 1.5: continue
             if conf >= UMBRAL_ALERTA_ALTA:
                 altas.append((ticker, smc, conf))
             else:
@@ -1125,8 +1132,13 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     tp_   = smc.get("tp_sugerido", 0)
                     if dir_ == "neutral" or conf < umbral: continue
                     # FILTRO v2: señal_valida requiere OB activo + mínimo SMC score
-                    # Esto elimina señales con score alto pero sin estructura real
                     if not smc.get("señal_valida", False): continue
+                    # FILTRO v3: RR mínimo 1.5:1 — señales con RR <1.5 no son operables
+                    if precio > 0 and sl > 0 and tp_ > 0:
+                        dist_sl = abs(precio - sl)
+                        dist_tp = abs(tp_ - precio)
+                        rr = dist_tp / dist_sl if dist_sl > 0 else 0
+                        if rr < 1.5: continue
                     # Deduplicación: no re-enviar si misma señal en últimos 18 min
                     if (ticker, dir_) in tickers_ya_enviados: continue
                     sig_id = registrar_señal(ticker, tf, tipo, dir_, conf, precio, sl, tp_)

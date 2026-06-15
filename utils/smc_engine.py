@@ -685,9 +685,12 @@ def analisis_completo(df: pd.DataFrame, ticker: str) -> dict:
 
     if ob_activo is not None and direccion != "neutral":
         if direccion == "LONG":
-            en_ob = ob_activo.precio_bot <= precio <= ob_activo.precio_top * 1.02
+            # Precio considerado "en OB" solo si está dentro o máx 5 pips sobre el top.
+            # Con 1.02 multiplicador, precio 36 pips arriba del OB se trataba como "mercado"
+            # y anclaba SL al fondo del OB lejano → RR 0.21:1. Ahora: buffer de 5 pips exactos.
+            en_ob = ob_activo.precio_bot <= precio <= ob_activo.precio_top + atr * 1.0
         else:
-            en_ob = ob_activo.precio_bot * 0.98 <= precio <= ob_activo.precio_top
+            en_ob = ob_activo.precio_bot - atr * 1.0 <= precio <= ob_activo.precio_top
         if en_ob:
             tipo_entrada = "mercado"
         else:
