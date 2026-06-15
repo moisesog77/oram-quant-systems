@@ -253,6 +253,37 @@ def _formato_mtf(mtf: dict, ticker: str) -> str:
     return "\n".join(l for l in lineas if l is not None)
 
 
+def _formato_reversal(smc_alto: dict, smc_bajo: dict, ticker: str, tf_alto: str, tf_bajo: str) -> str:
+    dir_      = smc_bajo.get("estructura", {}).get("direccion", "neutral")
+    tipo_bajo = smc_bajo.get("estructura", {}).get("tipo", "")
+    tipo_alto = smc_alto.get("estructura", {}).get("tipo", "")
+    conf_bajo = smc_bajo.get("confluencia", {}).get("confianza", 0)
+    conf_alto = smc_alto.get("confluencia", {}).get("confianza", 0)
+    entrada   = smc_bajo.get("precio", 0)
+    sl        = smc_bajo.get("sl_sugerido", 0)
+    tp        = smc_bajo.get("tp_sugerido", 0)
+    dist_sl   = abs(entrada - sl) if sl else 0
+    dist_tp   = abs(tp - entrada) if tp else 0
+    rr        = round(dist_tp / dist_sl, 1) if dist_sl > 0 else 0
+    emoji     = "🟢" if dir_ == "LONG" else "🔴"
+    lineas = [
+        f"🎯 *REVERSIÓN EN ZONA HTF — {emoji} {dir_}*",
+        f"📌 *{ticker}* · {tf_alto}/{tf_bajo}",
+        "━━━━━━━━━━━━━━━━",
+        f"*{tf_alto} — Estructura:* {tipo_alto} ({conf_alto:.0f}%) · precio en OB ✅",
+        f"*{tf_bajo} — Entrada:*    {tipo_bajo} ({conf_bajo:.0f}%) · CHoCH confirmado ✅",
+        "",
+        f"💰 *Entrada:* `{entrada:.5f}`",
+        f"🛑 *SL:*     `{sl:.5f}`" if sl else "",
+        f"✅ *TP:*     `{tp:.5f}`" if tp else "",
+        f"📊 *RR:*     `{rr:.1f}:1`",
+        "",
+        "⚡ _Corrección terminada en zona institucional — entrada de alta probabilidad_",
+        f"🕐 {_hora_mx()} CDMX",
+    ]
+    return "\n".join(l for l in lineas if l)
+
+
 # ─── COMANDOS ─────────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1235,6 +1266,90 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_mtf: {e}")
 
 
+async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
+    """
+    Detecta el fin de correcciones dentro de zonas OB del HTF.
+    6 capas de validación — la alerta de mayor probabilidad del sistema.
+    """
+    try:
+        if not _en_horario_trading(): return
+        try:
+            hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=20)
+            if hay_ev: return
+        except Exception:
+            pass
+
+        tf_map         = {"1m": "5m", "5m": "1h", "15m": "1h", "30m": "4h", "1h": "4h", "4h": "1d"}
+        configs        = obtener_todas_configs_bot()
+        activos_default = ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "USDCHF=X", "AUDUSD=X"]
+
+        for cfg in configs:
+            chat_id = cfg.get("telegram_chat_id", "")
+            if not chat_id or not cfg.get("alertas_activas"): continue
+            tf_bajo = cfg.get("tf_monitor", "15m")
+            tf_alto = tf_map.get(tf_bajo, "1h")
+            try:
+                activos = json.loads(cfg.get("activos_monitor", "[]")) or activos_default
+            except Exception:
+                activos = activos_default
+
+            reversal_recientes = {
+                (s.get("ticker", ""), s.get("direccion", ""))
+                for s in obtener_señales_recientes(horas=1) if s.get("enviada_bot")
+            }
+
+            for ticker in activos:
+                try:
+                    smc_alto, _ = _analizar_activo(ticker, tf_alto)
+                    smc_bajo, _ = _analizar_activo(ticker, tf_bajo)
+                    if not smc_alto or not smc_bajo: continue
+                    if "error" in smc_alto or "error" in smc_bajo: continue
+
+                    # CAPA 1: HTF precio EN zona OB institucional
+                    if smc_alto.get("tipo_entrada", "limite_ob") != "mercado": continue
+
+                    # CAPA 2: LTF muestra CHoCH — cambio de carácter, no solo BOS
+                    tipo_bajo = smc_bajo.get("estructura", {}).get("tipo", "")
+                    if "CHoCH" not in tipo_bajo: continue
+
+                    # CAPA 3: Direcciones alineadas HTF == LTF
+                    dir_alto = smc_alto.get("estructura", {}).get("direccion", "neutral")
+                    dir_bajo = smc_bajo.get("estructura", {}).get("direccion", "neutral")
+                    if dir_alto == "neutral" or dir_alto != dir_bajo: continue
+
+                    # CAPA 4: LTF señal_valida y precio EN zona OB del retroceso
+                    if not smc_bajo.get("señal_valida", False): continue
+                    if smc_bajo.get("tipo_entrada", "limite_ob") != "mercado": continue
+
+                    # CAPA 5: Confianza LTF >= 65%
+                    conf_bajo = smc_bajo.get("confluencia", {}).get("confianza", 0)
+                    if conf_bajo < 65: continue
+
+                    # CAPA 6: RR >= 2.0 — esta es la entrada óptima, exigimos más
+                    entrada = smc_bajo.get("precio", 0)
+                    sl      = smc_bajo.get("sl_sugerido", 0)
+                    tp      = smc_bajo.get("tp_sugerido", 0)
+                    if entrada > 0 and sl > 0 and tp > 0:
+                        dist_sl = abs(entrada - sl)
+                        dist_tp = abs(tp - entrada)
+                        if dist_sl > 0 and (dist_tp / dist_sl) < 2.0: continue
+
+                    if (ticker, dir_bajo) in reversal_recientes: continue
+
+                    sig_id = registrar_señal(ticker, tf_bajo, tipo_bajo, dir_bajo, conf_bajo, entrada, sl, tp)
+                    msg = "🎯 *REVERSIÓN EN ZONA HTF*\n" + _formato_reversal(
+                        smc_alto, smc_bajo, ticker, tf_alto, tf_bajo
+                    )
+                    await _send(ctx.bot, chat_id, msg)
+                    marcar_señal_enviada(sig_id)
+
+                except Exception as e:
+                    logger.error(f"job_reversal {ticker}: {e}")
+
+    except Exception as e:
+        logger.error(f"job_monitoreo_reversal: {e}")
+
+
 async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
     try:
         alertas = obtener_todas_alertas_activas()
@@ -1323,6 +1438,7 @@ def main():
         jq.run_daily(job_resumen_diario, time=dtime(hour=13, minute=0))  # 7AM CDMX
         jq.run_repeating(job_monitoreo_senales,    interval=300,  first=60)
         jq.run_repeating(job_monitoreo_mtf,        interval=900,  first=120)
+        jq.run_repeating(job_monitoreo_reversal,   interval=300,  first=90)
         jq.run_repeating(job_verificar_alertas_precio, interval=300, first=30)
         jq.run_repeating(job_alerta_noticias,      interval=300,  first=60)
         print("✅ Jobs activos: Reporte diario · Señales c/5m · MTF c/15m · Alertas precio c/5m · Noticias c/5m")
