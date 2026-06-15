@@ -67,6 +67,29 @@ def _get_database_url() -> str:
 DATABASE_URL = _get_database_url()
 USE_POSTGRES  = bool(DATABASE_URL)
 
+
+def _get_admin_credentials() -> tuple:
+    """
+    Obtiene credenciales del superadmin desde:
+    1. Variables de entorno del sistema (Railway, .env local)
+    2. st.secrets de Streamlit Cloud
+    3. Tupla vacía → no crear superadmin (usuario ya existe en DB)
+    NUNCA expone valores hardcodeados en el código fuente.
+    """
+    user = os.environ.get("ADMIN_USERNAME", "")
+    pwd  = os.environ.get("ADMIN_PASSWORD", "")
+    if user and pwd:
+        return user, pwd
+    try:
+        import streamlit as st
+        user = st.secrets.get("ADMIN_USERNAME", "")
+        pwd  = st.secrets.get("ADMIN_PASSWORD", "")
+        if user and pwd:
+            return user, pwd
+    except Exception:
+        pass
+    return "", ""
+
 if USE_POSTGRES:
     import psycopg2
     import psycopg2.extras
@@ -388,11 +411,13 @@ def inicializar_db():
                 except Exception:
                     pass  # columna ya existe
 
-    # Crear superadmin inicial (idempotente — actualiza si ya existe)
-    # Usa variables de entorno ADMIN_USERNAME / ADMIN_PASSWORD si están configuradas.
-    _admin_user = os.environ.get("ADMIN_USERNAME", "moises og")
-    _admin_pass = os.environ.get("ADMIN_PASSWORD", "1977Emog")
-    _crear_superadmin(_admin_user, _admin_pass, capital_inicial=10000.0)
+    # Crear superadmin inicial (idempotente — actualiza si ya existe).
+    # Credenciales desde env vars o st.secrets — NUNCA hardcodeadas en código.
+    _admin_user, _admin_pass = _get_admin_credentials()
+    if _admin_user and _admin_pass:
+        _crear_superadmin(_admin_user, _admin_pass, capital_inicial=10000.0)
+    else:
+        logger.warning("ADMIN_USERNAME/ADMIN_PASSWORD no configurados — superadmin no recreado")
 
 
 # ── Utilidades internas ───────────────────────────────────────────────────────
