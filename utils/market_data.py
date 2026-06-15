@@ -181,7 +181,8 @@ def _obtener_twelve_data(ticker: str, timeframe: str) -> pd.DataFrame | None:
         "outputsize": cfg["td_outputsize"],
         "apikey":     api_key,
         "format":     "JSON",
-        "order":      "ASC",   # más antigua primero
+        "order":      "ASC",     # más antigua primero
+        "timezone":   "UTC",     # forzar UTC para conversión CDMX consistente
     }
 
     try:
