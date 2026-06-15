@@ -498,6 +498,9 @@ def _calcular_sl_tp_dinamico(
     """
     buffer = atr * 0.1   # buffer del 10% del ATR para evitar stop hunts
 
+    if direccion == "neutral" or atr == 0:
+        return 0.0, 0.0
+
     dist_sl_min = atr * 0.5  # SL mínimo aceptable
 
     if ob_activo is not None:
