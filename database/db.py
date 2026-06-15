@@ -146,11 +146,12 @@ def _fetchone(cur):
 def _lastrowid(cur, table: str, conn) -> int:
     """
     Obtiene el ID del último insert.
-    PostgreSQL no tiene lastrowid — consulta el MAX(id) de la tabla.
-    SQLite usa cur.lastrowid directamente.
+    PostgreSQL: usa LASTVAL() — devuelve el último valor de secuencia en la sesión actual.
+    Es seguro en concurrencia porque LASTVAL() es session-local (no afectado por otros inserts).
+    SQLite: usa cur.lastrowid directamente.
     """
     if USE_POSTGRES:
-        row = _fetchone(_exec(conn, f"SELECT MAX(id) as id FROM {table}"))
+        row = _fetchone(_exec(conn, "SELECT LASTVAL() AS id"))
         return row["id"] if row else 0
     return cur.lastrowid
 
@@ -376,8 +377,10 @@ def inicializar_db():
                 _exec(conn, sql)
 
     # Crear superadmin inicial (idempotente — actualiza si ya existe)
-    # Credentials: usuario="moises og" contraseña="1977Emog"
-    _crear_superadmin("moises og", "1977Emog", capital_inicial=10000.0)
+    # Usa variables de entorno ADMIN_USERNAME / ADMIN_PASSWORD si están configuradas.
+    _admin_user = os.environ.get("ADMIN_USERNAME", "moises og")
+    _admin_pass = os.environ.get("ADMIN_PASSWORD", "1977Emog")
+    _crear_superadmin(_admin_user, _admin_pass, capital_inicial=10000.0)
 
 
 # ── Utilidades internas ───────────────────────────────────────────────────────
@@ -450,6 +453,15 @@ def obtener_todos_usuarios() -> list:
         return _fetchall(_exec(conn,
             "SELECT id,username,capital_inicial,created_at,is_admin,is_active "
             "FROM users ORDER BY created_at DESC"
+        ))
+
+
+def obtener_usuario_por_id(user_id: int) -> dict | None:
+    """Obtiene un usuario por ID. Más eficiente que cargar todos los usuarios."""
+    with get_conn() as conn:
+        return _fetchone(_exec(conn,
+            "SELECT id,username,capital_inicial,created_at,is_admin,is_active "
+            "FROM users WHERE id=?", (user_id,)
         ))
 
 

@@ -16,7 +16,7 @@ import os
 import requests
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 import warnings
 warnings.filterwarnings("ignore")

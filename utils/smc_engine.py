@@ -202,9 +202,7 @@ def _detectar_order_blocks(df: pd.DataFrame, n: int = 5) -> list:
                 if ratio >= 1.2 or vol_ref is None:
                     ob_top = data['High'].iloc[i]
                     ob_bot = data['Low'].iloc[i]
-                    # ¿El precio actual está sobre el OB? (fresco = no tocado aún)
                     es_fresco = precio_actual > ob_top
-                    dist_pct  = abs(precio_actual - ob_top) / (ob_top + 1e-9) * 100
 
                     obs.append(NivelSMC(
                         tipo       = "OB_alcista",
@@ -228,7 +226,6 @@ def _detectar_order_blocks(df: pd.DataFrame, n: int = 5) -> list:
                     ob_top = data['High'].iloc[i]
                     ob_bot = data['Low'].iloc[i]
                     es_fresco = precio_actual < ob_bot
-                    dist_pct  = abs(precio_actual - ob_bot) / (ob_bot + 1e-9) * 100
 
                     obs.append(NivelSMC(
                         tipo       = "OB_bajista",
@@ -524,23 +521,35 @@ def calcular_riesgo(
     tp: float,
     capital: float,
     riesgo_pct: float = 1.0,
+    ticker: str = "",
 ) -> dict:
-    """Calcula tamaño de posición, RR y ganancia potencial."""
+    """Calcula tamaño de posición, RR y ganancia potencial.
+    Detecta pares JPY automáticamente para usar el multiplicador de pips correcto."""
     if entrada == 0 or sl == 0:
         return {}
 
-    riesgo_usd   = capital * (riesgo_pct / 100)
-    dist_sl      = abs(entrada - sl)
-    dist_tp      = abs(tp - entrada)
+    riesgo_usd = capital * (riesgo_pct / 100)
+    dist_sl    = abs(entrada - sl)
+    dist_tp    = abs(tp - entrada)
 
     if dist_sl == 0:
         return {}
 
-    rr          = dist_tp / dist_sl
-    pip_value   = 10.0                           # USD/pip en 1 lote estándar (aprox)
-    pips_sl     = dist_sl * 10000               # para pares de 4 decimales
-    lot_size    = riesgo_usd / (pips_sl * pip_value) if pips_sl > 0 else 0
-    ganancia    = riesgo_usd * rr
+    rr = dist_tp / dist_sl
+
+    # Pares JPY usan 2 decimales (pip = 0.01) y pip_value ~9.3 USD/lot
+    _t = ticker.upper()
+    if "JPY" in _t:
+        pip_value = 9.3
+        pip_mult  = 100
+    else:
+        pip_value = 10.0
+        pip_mult  = 10000
+
+    pips_sl  = dist_sl * pip_mult
+    pips_tp  = dist_tp * pip_mult
+    lot_size = riesgo_usd / (pips_sl * pip_value) if pips_sl > 0 else 0
+    ganancia = riesgo_usd * rr
 
     return {
         "riesgo_usd":   round(riesgo_usd, 2),
@@ -548,7 +557,7 @@ def calcular_riesgo(
         "lot_size":     round(lot_size, 3),
         "ganancia_pot": round(ganancia, 2),
         "pips_sl":      round(pips_sl, 1),
-        "pips_tp":      round(dist_tp * 10000, 1),
+        "pips_tp":      round(pips_tp, 1),
     }
 
 

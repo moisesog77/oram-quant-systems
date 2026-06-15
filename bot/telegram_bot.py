@@ -1278,7 +1278,18 @@ def main():
         print("⚠️  Sin jobs. Instala: pip install APScheduler")
 
     print("\n✅ Bot v3 activo. Ctrl+C para detener.")
-    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    import time as _time_mod
+    _retry_delay = 5
+    while True:
+        try:
+            app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+            break  # salida limpia (Ctrl+C / señal de SO)
+        except KeyboardInterrupt:
+            break
+        except Exception as _e:
+            logger.error(f"Polling interrumpido: {_e}. Reconectando en {_retry_delay}s...")
+            _time_mod.sleep(_retry_delay)
+            _retry_delay = min(_retry_delay * 2, 60)  # backoff exponencial hasta 60s
 
 
 if __name__ == "__main__":

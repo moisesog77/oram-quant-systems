@@ -92,7 +92,7 @@ def _minutos_restantes(session_start: float) -> int:
 
 # ── Imports ───────────────────────────────────────────────────────────────────
 from ui.styles     import inject_styles, toggle_theme, get_theme, get_colors, APP_TAGLINE
-from database.db   import inicializar_db, obtener_todos_usuarios
+from database.db   import inicializar_db, obtener_todos_usuarios, obtener_usuario_por_id
 
 inject_styles()
 
@@ -111,7 +111,11 @@ from modules.watchlist     import render_watchlist
 from modules.signals_panel import render_signals_panel
 from modules.admin         import render_admin
 
-inicializar_db()
+@st.cache_resource
+def _init_db_once():
+    inicializar_db()
+
+_init_db_once()
 
 # ── Restaurar sesión desde cookie ────────────────────────────────────────────
 if "user" not in st.session_state:
@@ -128,8 +132,7 @@ if st.session_state.user is None and COOKIES_OK:
             user_id       = cookie_data.get("user_id")
             if user_id and not _session_expiro(session_start):
                 try:
-                    usuarios = obtener_todos_usuarios()
-                    user_db  = next((u for u in usuarios if u["id"] == int(user_id)), None)
+                    user_db = obtener_usuario_por_id(int(user_id))
                     if user_db:
                         st.session_state.user          = user_db
                         st.session_state["session_start"] = session_start
