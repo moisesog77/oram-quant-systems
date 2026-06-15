@@ -32,7 +32,7 @@ except ImportError:
 # el archivo .streamlit/secrets.toml (clave: TWELVE_DATA_KEY).
 # Si no está configurado, el sistema cae automáticamente a yfinance.
 
-def _get_td_key() -> str | None:
+def _get_td_key():
     """Obtiene el API key de Twelve Data desde secrets o env."""
     try:
         import streamlit as st
@@ -180,7 +180,7 @@ def _obtener_twelve_data(ticker: str, timeframe: str) -> pd.DataFrame | None:
         data = resp.json()
 
         # Twelve Data retorna {"code": 4xx, "message": "..."} en errores
-        if "code" in data or "status" in data and data.get("status") == "error":
+        if "code" in data or ("status" in data and data.get("status") == "error"):
             return None
 
         values = data.get("values", [])

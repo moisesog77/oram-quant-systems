@@ -108,11 +108,15 @@ def _hora_mx() -> str:
     return datetime.now(TZ_MX).strftime("%H:%M")
 
 def _en_horario_trading() -> bool:
-    h  = datetime.now(TZ_MX).hour
-    wd = datetime.now(TZ_MX).weekday()
-    if wd == 5: return False
-    if wd == 6 and h < 17: return False
-    if wd == 4 and h >= 17: return False
+    # Forex cierra viernes 22:00 UTC y abre domingo 22:00 UTC
+    # Se compara en UTC para evitar bugs de DST entre CDMX y New York
+    from datetime import timezone as _tz
+    now_utc = datetime.now(_tz.utc)
+    wd  = now_utc.weekday()  # 0=lun 4=vie 5=sáb 6=dom
+    hut = now_utc.hour
+    if wd == 5: return False                      # sábado completo cerrado
+    if wd == 6 and hut < 22: return False         # domingo hasta las 22:00 UTC
+    if wd == 4 and hut >= 22: return False        # viernes desde 22:00 UTC
     return True
 
 def _get_user_by_chat(chat_id: str):
@@ -1084,12 +1088,10 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
             riesgo_pct = float(cfg.get("riesgo_pct", 1.0))
 
             altas, medias = [], []
-            # Cache de señales recientes para deduplicación (evita re-enviar la
-            # misma señal ticker+dirección en el siguiente ciclo de 15 min)
-            # Obtener señales enviadas en los últimos 18 min para deduplicar
-            senales_recientes = [s for s in obtener_señales_recientes(horas=1) if s.get("enviada")]
+            # Deduplicación: no re-enviar la misma señal (ticker+dirección) en la última 1h
+            senales_recientes = [s for s in obtener_señales_recientes(horas=1) if s.get("enviada_bot")]
             tickers_ya_enviados = {
-                (s.get("ticker", ""), s.get("direccion", "")) 
+                (s.get("ticker", ""), s.get("direccion", ""))
                 for s in senales_recientes
             }
 
@@ -1167,6 +1169,11 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                 activos = json.loads(cfg.get("activos_monitor", "[]")) or activos_default
             except Exception:
                 activos = activos_default
+            # Deduplicación MTF: misma lógica que señales estándar
+            mtf_recientes = {
+                (s.get("ticker", ""), s.get("direccion", ""))
+                for s in obtener_señales_recientes(horas=1) if s.get("enviada_bot")
+            }
             for ticker in activos:
                 try:
                     mtf = analisis_mtf(ticker, tf_alto, tf_bajo)
@@ -1176,6 +1183,8 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     smc_alto = mtf.get("smc_alto", {})
                     smc_bajo = mtf.get("smc_bajo", {})
                     if not smc_alto.get("señal_valida") or not smc_bajo.get("señal_valida"): continue
+                    dir_mtf = mtf.get("direccion", "neutral")
+                    if (ticker, dir_mtf) in mtf_recientes: continue
                     await _send(ctx.bot, chat_id, "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker))
                 except Exception as e:
                     logger.error(f"job_mtf {ticker}: {e}")

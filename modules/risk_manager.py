@@ -158,7 +158,7 @@ def render_risk_manager():
             n_sim     = st.select_slider("Simulaciones Monte Carlo", [100,500,1000,2000], value=500, key="r_sim")
 
         if st.button("🎲 Simular", width='stretch', key="sim_btn"):
-            np.random.seed(42)
+            np.random.seed(None)  # seed aleatorio real en cada simulación
             ruinas = 0
             trayectorias = []
 

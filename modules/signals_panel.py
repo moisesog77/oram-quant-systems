@@ -218,6 +218,9 @@ def render_signals_panel():
                     continue
                 conf   = smc.get("confluencia", {}).get("confianza", 0)
                 dir_   = smc.get("estructura", {}).get("direccion", "neutral")
+                # Mismo filtro que el bot automático: requiere OB activo + SMC score mínimo
+                if not smc.get("señal_valida", False):
+                    continue
                 tipo   = smc.get("estructura", {}).get("tipo", "?")
                 rsi    = smc.get("rsi", 0)
                 atr    = smc.get("atr", 0)
