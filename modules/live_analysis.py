@@ -487,14 +487,28 @@ def render_live_analysis():
             unsafe_allow_html=True)
 
         # ── Card 2: Señal de trading ───────────────────────────────────────────
+        tipo_entrada    = smc.get("tipo_entrada", "mercado")
+        entrada_ideal   = smc.get("precio_entrada_ideal")
+        retroceso_pips  = smc.get("retroceso_pips", 0)
+
         if "Alcista" in tipo or "LONG" in tipo:
             senal_border = "oram-card-green"
             senal_txt    = "✅ SEÑAL: COMPRA (LONG)"
-            senal_sub    = "Busca entrada en OB o FVG alcista."
+            if tipo_entrada == "limite_ob" and entrada_ideal:
+                senal_sub = f"🎯 Orden límite en OB: <b>{entrada_ideal:.5f}</b> (~{retroceso_pips:.0f} pips de retroceso)"
+            elif tipo_entrada == "limite_fvg" and entrada_ideal:
+                senal_sub = f"🎯 Orden límite en FVG: <b>{entrada_ideal:.5f}</b> (~{retroceso_pips:.0f} pips de retroceso)"
+            else:
+                senal_sub = "✅ Precio en zona — entrada a mercado válida."
         elif "Bajista" in tipo or "SHORT" in tipo:
             senal_border = "oram-card-red"
             senal_txt    = "❌ SEÑAL: VENTA (SHORT)"
-            senal_sub    = "Busca entrada en OB o FVG bajista."
+            if tipo_entrada == "limite_ob" and entrada_ideal:
+                senal_sub = f"🎯 Orden límite en OB: <b>{entrada_ideal:.5f}</b> (~{retroceso_pips:.0f} pips de retroceso)"
+            elif tipo_entrada == "limite_fvg" and entrada_ideal:
+                senal_sub = f"🎯 Orden límite en FVG: <b>{entrada_ideal:.5f}</b> (~{retroceso_pips:.0f} pips de retroceso)"
+            else:
+                senal_sub = "✅ Precio en zona — entrada a mercado válida."
         else:
             senal_border = "oram-card-gold"
             senal_txt    = "⚠️ ESPERA / RANGO"

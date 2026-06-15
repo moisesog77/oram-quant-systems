@@ -88,7 +88,11 @@ def _analizar_activo(ticker: str, tf: str = "15m"):
         df, status = obtener_datos(ticker, tf)
         if df is None:
             return None, status
-        return analisis_completo(df, ticker), status
+        smc = analisis_completo(df, ticker)
+        # Inyectar aviso de fuente de datos si se está usando yfinance (15min delay)
+        if "yfinance" in status:
+            smc["_data_warning"] = "⚠️ Datos con 15min delay (yfinance) — Twelve Data no disponible"
+        return smc, status
     except Exception as e:
         return None, str(e)
 
@@ -156,13 +160,25 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
     lote     = riesgo_info.get("lot_size", 0)
     ganancia = riesgo_info.get("ganancia_pot", 0)
 
+    tipo_entrada    = smc.get("tipo_entrada", "mercado")
+    entrada_ideal   = smc.get("precio_entrada_ideal")
+    retroceso_pips  = smc.get("retroceso_pips", 0)
+
+    if tipo_entrada == "limite_ob" and entrada_ideal:
+        entrada_txt = f"📍 *Entrada:* Límite en OB `{entrada_ideal:.5f}` (~{retroceso_pips:.0f} pips ↓)"
+    elif tipo_entrada == "limite_fvg" and entrada_ideal:
+        entrada_txt = f"📍 *Entrada:* Límite en FVG `{entrada_ideal:.5f}` (~{retroceso_pips:.0f} pips ↓)"
+    else:
+        entrada_txt = f"📍 *Entrada:* Mercado (precio ya en zona)"
+
     lineas = [
         f"{'🚨' if pct >= 75 else '📡'} *SEÑAL SMC — {prio}*",
         f"{emoji} *{ticker}* · {tf}",
         "━━━━━━━━━━━━━━━━",
         f"📌 *Señal:* {tipo}",
-        f"💰 *Precio:* `{precio:.5f}`",
+        f"💰 *Precio actual:* `{precio:.5f}`",
         f"📊 *Dirección:* {emoji} {dir_}",
+        entrada_txt,
         f"🎯 *Confianza:* {_conf_bar(pct)}",
         "",
     ]
@@ -190,6 +206,9 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
         for f in factores:
             lineas.append(f"  ✔ {f}")
     lineas += ["", f"🕐 *{_hora_mx()} CDMX*", "⚠️ _Señal orientativa. Usa SL siempre._"]
+    data_warning = smc.get("_data_warning")
+    if data_warning:
+        lineas.append(f"\n_{data_warning}_")
     return "\n".join(l for l in lineas if l is not None)
 
 def _formato_mtf(mtf: dict, ticker: str) -> str:

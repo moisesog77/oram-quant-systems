@@ -41,10 +41,13 @@ def _calcular_resultado(direccion, entrada, sl, tp, df_futuro):
 def ejecutar_backtest(ticker: str, timeframe: str = "15m",
                       riesgo_pct: float = 1.0,
                       umbral_confianza: float = 50.0,
-                      capital_inicial: float = 10000.0) -> dict:
+                      capital_inicial: float = 10000.0,
+                      spread_pips: float = 1.5,
+                      slippage_pips: float = 0.5) -> dict:
     """
-    Ejecuta backtest SMC sobre datos históricos de yfinance.
+    Ejecuta backtest SMC sobre datos históricos.
     Ventana deslizante de 80 velas para análisis SMC.
+    Simula spread + slippage reales para resultados realistas.
     """
     df_full, status = obtener_datos(ticker, timeframe)
     if df_full is None:
@@ -94,10 +97,15 @@ def ejecutar_backtest(ticker: str, timeframe: str = "15m",
             sl = precio - atr * 1.5 if dir_ == "LONG" else precio + atr * 1.5
             tp = precio + atr * 3.0 if dir_ == "LONG" else precio - atr * 3.0
 
+        # Simular spread + slippage: el precio real de entrada es peor que el Close
+        pip_mult   = 100 if "JPY" in ticker.upper() else 10000
+        costo_real = (spread_pips + slippage_pips) / pip_mult
+        precio_entrada = precio + costo_real if dir_ == "LONG" else precio - costo_real
+
         # Ventana extendida: 25 velas para TFs bajos, más para altos
         ventana_futuro = 50 if timeframe in ("1h", "4h", "1d") else 30
         df_futuro       = df_full.iloc[i + 1: i + ventana_futuro]
-        resultado_r, gano = _calcular_resultado(dir_, precio, sl, tp, df_futuro)
+        resultado_r, gano = _calcular_resultado(dir_, precio_entrada, sl, tp, df_futuro)
 
         riesgo_usd    = capital * (riesgo_pct / 100)
         resultado_usd = riesgo_usd * resultado_r
@@ -109,7 +117,7 @@ def ejecutar_backtest(ticker: str, timeframe: str = "15m",
             idx_entrada = i,
             fecha       = str(df_full.index[i])[:16],
             direccion   = dir_,
-            entrada     = round(precio, 5),
+            entrada     = round(precio_entrada, 5),
             sl          = round(sl, 5),
             tp          = round(tp, 5),
             resultado   = round(resultado_r, 2),
@@ -186,5 +194,7 @@ def ejecutar_backtest(ticker: str, timeframe: str = "15m",
             "umbral_confianza": umbral_confianza,
             "riesgo_pct":       riesgo_pct,
             "capital_inicial":  capital_inicial,
+            "spread_pips":      spread_pips,
+            "slippage_pips":    slippage_pips,
         },
     }

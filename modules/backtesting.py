@@ -120,6 +120,21 @@ def render_backtesting():
                                help="Bájalo a 40-50% para ver más señales.")
             riesgo_pct = st.slider("Riesgo por trade (%)", 0.5, 3.0, 1.0, step=0.25, key="bt_rsk")
 
+        with st.expander("⚙️ Parámetros de realismo (spread/slippage)"):
+            c1s, c2s = st.columns(2)
+            with c1s:
+                spread_pips = st.number_input(
+                    "Spread (pips)", min_value=0.0, max_value=10.0,
+                    value=1.5, step=0.5, key="bt_spread",
+                    help="Spread típico: EURUSD/GBPUSD ~1-2 pips, XAUUSD ~20-30 pips")
+            with c2s:
+                slippage_pips = st.number_input(
+                    "Slippage (pips)", min_value=0.0, max_value=5.0,
+                    value=0.5, step=0.25, key="bt_slip",
+                    help="Slippage estimado en ejecución de órdenes")
+            st.caption(f"💡 Costo total por trade: **{spread_pips + slippage_pips:.1f} pips** — "
+                       "simula condiciones reales de broker")
+
         st.caption(
             "💡 **Consejo:** Usa 1h o 4h para backtests más robustos. "
             "El timeframe 15m tiene menos historia disponible en yfinance."
@@ -130,7 +145,8 @@ def render_backtesting():
             overlay_ph = _bt_overlay(ticker, tf, umbral, capital, dark)
 
             # 2. Ejecutar el backtest (con overlay visible)
-            res = ejecutar_backtest(ticker, tf, riesgo_pct, umbral, capital)
+            res = ejecutar_backtest(ticker, tf, riesgo_pct, umbral, capital,
+                                    spread_pips=spread_pips, slippage_pips=slippage_pips)
 
             # 3. Limpiar overlay al terminar
             overlay_ph.empty()
@@ -141,6 +157,9 @@ def render_backtesting():
             else:
 
                 # ── KPIs ──────────────────────────────────────────────────
+                params = res.get("parametros", {})
+                sp = params.get("spread_pips", 0) + params.get("slippage_pips", 0)
+                st.caption(f"📊 Resultado con spread+slippage de **{sp:.1f} pips** por trade")
                 k1, k2, k3, k4, k5, k6 = st.columns(6)
                 k1.metric("Trades",        res["total_trades"])
                 k2.metric("Win Rate",      f"{res['win_rate']:.1f}%",

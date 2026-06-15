@@ -675,23 +675,68 @@ def analisis_completo(df: pd.DataFrame, ticker: str) -> dict:
         precio, direccion, ob_activo, liquidez, atr
     )
 
+    # ── Tipo de entrada: mercado vs orden límite en OB/FVG ────────────────────
+    # Si el precio ya está EN el OB → entrada a mercado (zona de reacción activa).
+    # Si el OB está lejos (precio no retrocedió aún) → esperar retroceso con límite.
+    pip_mult = 100 if "JPY" in ticker.upper() else 10000
+    tipo_entrada        = "mercado"
+    precio_entrada_ideal = None
+    retroceso_pips       = 0.0
+
+    if ob_activo is not None and direccion != "neutral":
+        if direccion == "LONG":
+            en_ob = ob_activo.precio_bot <= precio <= ob_activo.precio_top * 1.02
+        else:
+            en_ob = ob_activo.precio_bot * 0.98 <= precio <= ob_activo.precio_top
+        if en_ob:
+            tipo_entrada = "mercado"
+        else:
+            tipo_entrada = "limite_ob"
+            if direccion == "LONG":
+                precio_entrada_ideal = round(ob_activo.precio_top, 5)
+                retroceso_pips = round((precio - ob_activo.precio_top) * pip_mult, 1)
+            else:
+                precio_entrada_ideal = round(ob_activo.precio_bot, 5)
+                retroceso_pips = round((ob_activo.precio_bot - precio) * pip_mult, 1)
+    elif ob_activo is None and direccion != "neutral":
+        # Sin OB → buscar FVG fresco como nivel alternativo de entrada diferida
+        fvg_tipo = "FVG_alcista" if direccion == "LONG" else "FVG_bajista"
+        fvgs_dir = [f for f in fvgs if f.tipo == fvg_tipo]
+        if fvgs_dir:
+            fvg = fvgs_dir[0]
+            if direccion == "LONG" and fvg.precio_top < precio:
+                en_fvg = fvg.precio_bot <= precio <= fvg.precio_top * 1.01
+                if not en_fvg:
+                    tipo_entrada         = "limite_fvg"
+                    precio_entrada_ideal = round(fvg.precio_top, 5)
+                    retroceso_pips       = round((precio - fvg.precio_top) * pip_mult, 1)
+            elif direccion == "SHORT" and fvg.precio_bot > precio:
+                en_fvg = fvg.precio_bot * 0.99 <= precio <= fvg.precio_top
+                if not en_fvg:
+                    tipo_entrada         = "limite_fvg"
+                    precio_entrada_ideal = round(fvg.precio_bot, 5)
+                    retroceso_pips       = round((fvg.precio_bot - precio) * pip_mult, 1)
+
     return {
-        "ticker":        ticker,
-        "precio":        round(precio, 5),
-        "atr":           round(atr, 5),
-        "contexto":      contexto,
-        "estructura":    estructura,
-        "order_blocks":  obs,
-        "fvgs":          fvgs,
-        "liquidez":      liquidez,
-        "confluencia":   confluencia,
-        "señal_valida":  confluencia.get("señal_valida", False),
-        "rsi":           round(df['RSI'].iloc[-1], 1)   if 'RSI'   in df.columns else None,
-        "macd":          round(df['MACD'].iloc[-1], 6)  if 'MACD'  in df.columns else None,
-        "ema50":         round(df['EMA50'].iloc[-1], 5) if 'EMA50' in df.columns else None,
-        "sl_sugerido":   sl_sug,
-        "tp_sugerido":   tp_sug,
-        "señal_resumen": _generar_resumen(estructura, confluencia, contexto),
+        "ticker":               ticker,
+        "precio":               round(precio, 5),
+        "atr":                  round(atr, 5),
+        "contexto":             contexto,
+        "estructura":           estructura,
+        "order_blocks":         obs,
+        "fvgs":                 fvgs,
+        "liquidez":             liquidez,
+        "confluencia":          confluencia,
+        "señal_valida":         confluencia.get("señal_valida", False),
+        "rsi":                  round(df['RSI'].iloc[-1], 1)   if 'RSI'   in df.columns else None,
+        "macd":                 round(df['MACD'].iloc[-1], 6)  if 'MACD'  in df.columns else None,
+        "ema50":                round(df['EMA50'].iloc[-1], 5) if 'EMA50' in df.columns else None,
+        "sl_sugerido":          sl_sug,
+        "tp_sugerido":          tp_sug,
+        "tipo_entrada":         tipo_entrada,
+        "precio_entrada_ideal": precio_entrada_ideal,
+        "retroceso_pips":       retroceso_pips,
+        "señal_resumen":        _generar_resumen(estructura, confluencia, contexto),
     }
 
 

@@ -31,12 +31,72 @@ def _es_ultimo_jueves_del_mes(fecha: date) -> bool:
     return (fecha + timedelta(days=7)).month != fecha.month
 
 
+def _es_semana_del_primer_viernes(fecha: date) -> bool:
+    """True si el viernes de la misma semana es el primer viernes del mes.
+    Usado para ADP, que siempre sale en la semana del NFP (2 días antes)."""
+    lunes = fecha - timedelta(days=fecha.weekday())
+    viernes = lunes + timedelta(days=4)
+    return _es_primer_viernes_del_mes(viernes)
+
+
+# ── Eventos que solo ocurren en semanas específicas del mes ───────────────────
+_SOLO_SEMANA_NFP = {
+    "Empleo Privado ADP",   # Miércoles de la semana del NFP (2 días antes)
+}
+_SOLO_SEMANA_2_3 = {
+    "IPC de EE.UU. (Inflación)",   # 2do o 3er miércoles del mes (días 8-21)
+}
+
+# ── Fechas exactas por año para bancos centrales ──────────────────────────────
+# Actualizadas para 2026-2027. Fuente: calendarios oficiales de cada banco.
+# FOMC: miércoles al final de cada reunión (8 veces/año, 18:00 UTC)
+_FECHAS_FOMC = {
+    date(2026,  1, 28), date(2026,  3, 18), date(2026,  4, 29),
+    date(2026,  6, 17), date(2026,  7, 29), date(2026,  9, 16),
+    date(2026, 10, 28), date(2026, 12,  9),
+    date(2027,  1, 27), date(2027,  3, 17), date(2027,  4, 28),
+    date(2027,  6, 16), date(2027,  7, 28), date(2027,  9, 15),
+    date(2027, 10, 27), date(2027, 12,  8),
+}
+# BCE: jueves de decisión (~cada 6-7 semanas, 12:15 UTC)
+_FECHAS_BCE = {
+    date(2026,  1, 30), date(2026,  3,  6), date(2026,  4, 17),
+    date(2026,  6,  5), date(2026,  7, 24), date(2026,  9, 11),
+    date(2026, 10, 23), date(2026, 12, 11),
+    date(2027,  1, 29), date(2027,  3,  5), date(2027,  4, 16),
+    date(2027,  6,  4), date(2027,  7, 23), date(2027,  9, 10),
+    date(2027, 10, 22), date(2027, 12, 10),
+}
+# BoE: jueves de decisión (8 veces/año, 12:00 UTC)
+_FECHAS_BOE = {
+    date(2026,  2,  5), date(2026,  3, 19), date(2026,  5,  7),
+    date(2026,  6, 18), date(2026,  8,  6), date(2026,  9, 17),
+    date(2026, 11,  5), date(2026, 12, 10),
+    date(2027,  2,  4), date(2027,  3, 18), date(2027,  5,  6),
+    date(2027,  6, 17), date(2027,  8,  5), date(2027,  9, 16),
+    date(2027, 11,  4), date(2027, 12,  9),
+}
+
+_SOLO_FECHA_ESPECIFICA: dict = {
+    "Decisión Fed / Actas FOMC":              _FECHAS_FOMC,
+    "Decisión de Tipos BCE":                  _FECHAS_BCE,
+    "Conferencia de Prensa BCE":              _FECHAS_BCE,
+    "Decisión de Tipos Banco de Inglaterra":  _FECHAS_BOE,
+}
+
+
 def _evento_aplica_esta_semana(titulo: str, fecha_ev: date) -> bool:
-    """Filtra eventos que solo ocurren en semanas específicas del mes."""
+    """Filtra eventos que solo ocurren en fechas/semanas específicas del mes."""
     if titulo in _SOLO_PRIMER_VIERNES:
         return _es_primer_viernes_del_mes(fecha_ev)
     if titulo in _SOLO_ULTIMO_JUEVES:
         return _es_ultimo_jueves_del_mes(fecha_ev)
+    if titulo in _SOLO_SEMANA_NFP:
+        return _es_semana_del_primer_viernes(fecha_ev)
+    if titulo in _SOLO_SEMANA_2_3:
+        return 8 <= fecha_ev.day <= 21
+    if titulo in _SOLO_FECHA_ESPECIFICA:
+        return fecha_ev in _SOLO_FECHA_ESPECIFICA[titulo]
     return True
 
 TZ_UTC = ZoneInfo("UTC")

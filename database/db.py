@@ -26,6 +26,7 @@ Tablas (7):
 import os
 import json
 import hashlib
+import secrets
 import logging
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta, date
@@ -386,8 +387,28 @@ def inicializar_db():
 # ── Utilidades internas ───────────────────────────────────────────────────────
 
 def _hash(pw: str) -> str:
-    """SHA-256 de la contraseña. Nunca se almacena texto plano."""
-    return hashlib.sha256(pw.encode()).hexdigest()
+    """PBKDF2-SHA256 con salt aleatorio (260 000 iteraciones).
+    Formato almacenado: 'pbkdf2:sha256:{salt_hex}:{hash_hex}'
+    Resistente a rainbow tables y ataques de fuerza bruta offline."""
+    salt = secrets.token_hex(16)
+    dk   = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt.encode(), 260_000)
+    return f"pbkdf2:sha256:{salt}:{dk.hex()}"
+
+
+def _verify(pw: str, stored: str) -> bool:
+    """Verifica contraseña contra hash almacenado.
+    Maneja migración automática desde SHA-256 simple (legacy sin salt)."""
+    if stored.startswith("pbkdf2:sha256:"):
+        parts = stored.split(":")
+        if len(parts) != 4:
+            return False
+        _, _, salt, expected = parts
+        actual = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"),
+                                     salt.encode(), 260_000).hex()
+        return secrets.compare_digest(actual, expected)
+    # Legacy SHA-256 sin salt — comparación segura contra timing attacks
+    legacy = hashlib.sha256(pw.encode("utf-8")).hexdigest()
+    return secrets.compare_digest(legacy, stored)
 
 
 def _crear_superadmin(username: str, password: str, capital_inicial: float = 10000.0):
@@ -433,12 +454,24 @@ def crear_usuario(username: str, password: str, capital_inicial: float = 1000.0)
 
 
 def autenticar_usuario(username: str, password: str):
-    """Verifica credenciales. Retorna dict del usuario o None."""
+    """Verifica credenciales. Retorna dict del usuario o None.
+    Auto-migra hashes SHA-256 legacy a PBKDF2 en el primer login exitoso."""
     with get_conn() as conn:
-        return _fetchone(_exec(conn,
-            "SELECT * FROM users WHERE username=? AND password_hash=? AND is_active=1",
-            (username.strip().lower(), _hash(password))
+        row = _fetchone(_exec(conn,
+            "SELECT * FROM users WHERE username=? AND is_active=1",
+            (username.strip().lower(),)
         ))
+    if not row:
+        return None
+    stored = row.get("password_hash", "")
+    if not _verify(password, stored):
+        return None
+    # Auto-upgrade: si la contraseña estaba en SHA-256 sin salt, actualizar a PBKDF2
+    if not stored.startswith("pbkdf2:"):
+        with get_conn() as conn:
+            _exec(conn, "UPDATE users SET password_hash=? WHERE id=?",
+                  (_hash(password), row["id"]))
+    return row
 
 
 def actualizar_capital(user_id: int, capital: float):
