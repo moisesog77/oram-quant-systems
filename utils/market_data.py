@@ -369,4 +369,4 @@ def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
 
     # ── Intento 3: datos demo ─────────────────────────────────────────────────
     df_demo = _generar_datos_demo(ticker, timeframe)
-    return df_demo, "⚠️ Modo demo — sin conexión a APIs de mercado"
+    return df_demo, "🔴 DEMO — Sin conexión a APIs. Datos sintéticos, NO usar para operar."

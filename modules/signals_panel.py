@@ -218,8 +218,11 @@ def render_signals_panel():
                     continue
                 conf   = smc.get("confluencia", {}).get("confianza", 0)
                 dir_   = smc.get("estructura", {}).get("direccion", "neutral")
-                # Mismo filtro que el bot automático: requiere OB activo + SMC score mínimo
+                # Filtros idénticos al bot automático
                 if not smc.get("señal_valida", False):
+                    continue
+                # Precio debe estar EN zona OB/FVG (no solo con estructura confirmada)
+                if smc.get("tipo_entrada", "limite_ob") != "mercado":
                     continue
                 tipo   = smc.get("estructura", {}).get("tipo", "?")
                 rsi    = smc.get("rsi", 0)
@@ -228,6 +231,9 @@ def render_signals_panel():
                 sl     = smc.get("sl_sugerido", 0)
                 tp_    = smc.get("tp_sugerido", 0)
                 rr     = abs(tp_ - precio) / abs(precio - sl) if sl and abs(precio - sl) > 0 else 0
+                # RR mínimo 1.5:1
+                if rr < 1.5:
+                    continue
                 resultados.append({
                     "ticker": ticker, "precio": precio, "dir": dir_,
                     "tipo": tipo, "conf": conf, "rsi": rsi, "atr": atr,

@@ -89,6 +89,10 @@ def ejecutar_backtest(ticker: str, timeframe: str = "15m",
         if conf < umbral_confianza:
             continue
 
+        # Filtro igual que alertas automáticas: precio EN zona OB/FVG
+        if smc.get("tipo_entrada", "limite_ob") != "mercado":
+            continue
+
         # Usar SL/TP dinámico del motor SMC (basado en OBs y liquidez reales)
         sl = smc.get("sl_sugerido", 0)
         tp = smc.get("tp_sugerido", 0)
@@ -96,6 +100,12 @@ def ejecutar_backtest(ticker: str, timeframe: str = "15m",
         if not sl or not tp or sl == tp:
             sl = precio - atr * 1.5 if dir_ == "LONG" else precio + atr * 1.5
             tp = precio + atr * 3.0 if dir_ == "LONG" else precio - atr * 3.0
+
+        # Filtro RR mínimo 1.5:1 — igual que alertas automáticas
+        dist_sl_bt = abs(precio - sl)
+        dist_tp_bt = abs(tp - precio)
+        if dist_sl_bt > 0 and (dist_tp_bt / dist_sl_bt) < 1.5:
+            continue
 
         # Simular spread + slippage: el precio real de entrada es peor que el Close
         pip_mult   = 100 if "JPY" in ticker.upper() else 10000
