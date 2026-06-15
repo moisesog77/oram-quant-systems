@@ -328,6 +328,7 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             conf = smc.get("confluencia", {}).get("confianza", 0)
             dir_ = smc.get("estructura",  {}).get("direccion", "neutral")
             if dir_ == "neutral" or conf < umbral: continue
+            if not smc.get("señal_valida", False): continue
             if conf >= UMBRAL_ALERTA_ALTA:
                 altas.append((ticker, smc, conf))
             else:

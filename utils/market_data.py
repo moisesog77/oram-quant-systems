@@ -13,6 +13,7 @@ Ticker mapping Twelve Data:
   La función _td_symbol() convierte automáticamente.
 """
 import os
+import time
 import requests
 import pandas as pd
 import numpy as np
@@ -20,6 +21,15 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import warnings
 warnings.filterwarnings("ignore")
+
+# ── Caché en memoria con TTL por timeframe ────────────────────────────────────
+# Evita rate limits de Twelve Data (8 req/min en plan gratuito) y acelera
+# el panel multi-activo que llama obtener_datos() para cada ticker+timeframe.
+_DATA_CACHE: dict = {}
+_CACHE_TTL = {
+    "1m": 30, "5m": 60, "15m": 120, "30m": 300,
+    "1h": 600, "4h": 1800, "1d": 3600, "1wk": 7200,
+}
 
 try:
     import yfinance as yf
@@ -298,16 +308,27 @@ def _generar_datos_demo(ticker: str, timeframe: str) -> pd.DataFrame:
 # ── Función pública principal ─────────────────────────────────────────────────
 def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
     """
-    Descarga y valida datos OHLCV con fallback en cascada:
+    Descarga y valida datos OHLCV con fallback en cascada y caché TTL:
 
     Prioridad:
-      1. Twelve Data API  — tiempo real, latencia ~1 min (requiere TWELVE_DATA_KEY)
-      2. yfinance         — respaldo, latencia ~15 min
-      3. datos demo       — sintéticos, sin conexión
+      1. Caché en memoria   — devuelve datos frescos si están dentro del TTL
+      2. Twelve Data API    — tiempo real, latencia ~1 min (requiere TWELVE_DATA_KEY)
+      3. yfinance           — respaldo, latencia ~15 min
+      4. datos demo         — sintéticos, sin conexión
 
     Retorna:
       (DataFrame con indicadores, str con status/mensaje)
     """
+    cache_key = (ticker, timeframe)
+    ttl       = _CACHE_TTL.get(timeframe, 120)
+    now       = time.time()
+
+    # ── Intento 0: caché ─────────────────────────────────────────────────────
+    if cache_key in _DATA_CACHE:
+        ts, df_cached, status_cached = _DATA_CACHE[cache_key]
+        if now - ts < ttl:
+            return df_cached, status_cached
+
     # ── Intento 1: Twelve Data ────────────────────────────────────────────────
     td_key = _get_td_key()
     if td_key:
@@ -319,11 +340,12 @@ def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
                 last_price = df_td["Close"].iloc[-1]
                 last_time  = df_td.index[-1]
                 n_velas    = len(df_td)
-                return (
-                    df_td,
+                status = (
                     f"✅ {n_velas} velas · Último: {last_price:.5f} · "
                     f"{last_time.strftime('%Y-%m-%d %H:%M')} · 🟢 Tiempo real"
                 )
+                _DATA_CACHE[cache_key] = (now, df_td, status)
+                return df_td, status
 
     # ── Intento 2: yfinance ───────────────────────────────────────────────────
     if YF_AVAILABLE:
@@ -335,11 +357,12 @@ def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
                 last_price = df_yf["Close"].iloc[-1]
                 last_time  = df_yf.index[-1]
                 n_velas    = len(df_yf)
-                return (
-                    df_yf,
+                status = (
                     f"✅ {n_velas} velas · Último: {last_price:.5f} · "
                     f"{last_time.strftime('%Y-%m-%d %H:%M')} · ⚠️ yfinance (15min delay)"
                 )
+                _DATA_CACHE[cache_key] = (now, df_yf, status)
+                return df_yf, status
 
     # ── Intento 3: datos demo ─────────────────────────────────────────────────
     df_demo = _generar_datos_demo(ticker, timeframe)

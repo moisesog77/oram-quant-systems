@@ -8,6 +8,37 @@ from zoneinfo import ZoneInfo
 from dataclasses import dataclass
 from typing import Optional
 
+# Eventos que solo ocurren en una semana específica del mes
+_SOLO_PRIMER_VIERNES = {
+    "Nóminas No Agrícolas (NFP)",
+    "Tasa de Desempleo EE.UU.",
+    "Salarios por Hora Promedio",
+}
+_SOLO_ULTIMO_JUEVES = {
+    "Índice de Precios PCE Subyacente",
+}
+
+
+def _es_primer_viernes_del_mes(fecha: date) -> bool:
+    """True si la fecha es el primer viernes del mes (días 1-7 inclusive)."""
+    return fecha.weekday() == 4 and fecha.day <= 7
+
+
+def _es_ultimo_jueves_del_mes(fecha: date) -> bool:
+    """True si la fecha es el último jueves del mes."""
+    if fecha.weekday() != 3:
+        return False
+    return (fecha + timedelta(days=7)).month != fecha.month
+
+
+def _evento_aplica_esta_semana(titulo: str, fecha_ev: date) -> bool:
+    """Filtra eventos que solo ocurren en semanas específicas del mes."""
+    if titulo in _SOLO_PRIMER_VIERNES:
+        return _es_primer_viernes_del_mes(fecha_ev)
+    if titulo in _SOLO_ULTIMO_JUEVES:
+        return _es_ultimo_jueves_del_mes(fecha_ev)
+    return True
+
 TZ_UTC = ZoneInfo("UTC")
 TZ_MX  = ZoneInfo("America/Mexico_City")
 
@@ -122,6 +153,8 @@ def obtener_eventos_semana() -> list[dict]:
     out   = []
     for ev in EVENTOS_RECURRENTES:
         fecha_ev = lunes + timedelta(days=ev.dia_semana)
+        if not _evento_aplica_esta_semana(ev.titulo, fecha_ev):
+            continue
         hora_mx  = _utc_a_mx(ev.hora_utc, fecha_ev)
         ya_paso  = fecha_ev < hoy or (fecha_ev == hoy and _hora_ya_paso(ev.hora_utc))
         dia_en   = fecha_ev.strftime("%A")
@@ -187,6 +220,8 @@ def obtener_proximos_eventos(n: int = 3) -> list[dict]:
     out = []
     for ev in EVENTOS_RECURRENTES:
         fecha_ev = lunes + timedelta(days=ev.dia_semana)
+        if not _evento_aplica_esta_semana(ev.titulo, fecha_ev):
+            continue
         hora_mx  = _utc_a_mx(ev.hora_utc, fecha_ev)
         dia_en   = fecha_ev.strftime("%A")
         out.append({
@@ -213,6 +248,8 @@ def hay_evento_alto_impacto_pronto(minutos: int = 60) -> tuple[bool, Optional[di
             continue
         fecha_ev = lunes + timedelta(days=ev.dia_semana)
         if fecha_ev != hoy:
+            continue
+        if not _evento_aplica_esta_semana(ev.titulo, fecha_ev):
             continue
         try:
             h, m  = map(int, ev.hora_utc.split(":"))

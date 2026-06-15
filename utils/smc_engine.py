@@ -41,9 +41,9 @@ class NivelSMC:
 # ── 1. Detección de swings ────────────────────────────────────────────────────
 def _detectar_swings(df: pd.DataFrame, lookback: int = 10) -> pd.DataFrame:
     """
-    Detecta swing highs y swing lows con lookback=10.
-    lookback=10 reduce falsos BOS causados por ruido de corto plazo.
-    Requiere que el swing sea el máximo/mínimo de 21 velas (10 izq + 1 + 10 der).
+    Detecta swing highs y swing lows con doble pasada:
+    - Pasada 1: lookback=10 para swings establecidos (alta calidad)
+    - Pasada 2: lookback=5 en las últimas 20 velas (captura BOS recientes)
     """
     highs = df['High'].values
     lows  = df['Low'].values
@@ -51,12 +51,29 @@ def _detectar_swings(df: pd.DataFrame, lookback: int = 10) -> pd.DataFrame:
     sh    = np.zeros(n, dtype=bool)
     sl    = np.zeros(n, dtype=bool)
 
+    # Pasada 1: swings establecidos con lookback completo
     for i in range(lookback, n - lookback):
         window_h = highs[i - lookback: i + lookback + 1]
         window_l = lows[i  - lookback: i + lookback + 1]
         if highs[i] == window_h.max():
             sh[i] = True
         if lows[i] == window_l.min():
+            sl[i] = True
+
+    # Pasada 2: swings recientes con lookback reducido (últimas 20 velas)
+    recent_lb = 5
+    recent_start = max(lookback + 1, n - 20)
+    for i in range(recent_start, n - recent_lb):
+        if sh[i] or sl[i]:
+            continue
+        lb = min(recent_lb, min(i, n - i - 1))
+        if lb < 2:
+            continue
+        window_h = highs[i - lb: i + lb + 1]
+        window_l = lows[i  - lb: i + lb + 1]
+        if len(window_h) > 0 and highs[i] == window_h.max():
+            sh[i] = True
+        if len(window_l) > 0 and lows[i] == window_l.min():
             sl[i] = True
 
     df = df.copy()
@@ -205,6 +222,10 @@ def _detectar_order_blocks(df: pd.DataFrame, n: int = 5) -> list:
                 es_fresco = precio_actual > ob_top
                 # Ignorar OBs completamente por debajo del precio actual (muy distantes)
                 if ob_top < precio_actual * 0.997:
+                    # Verificar que el OB no fue mitigado (precio cerró por debajo del fondo)
+                    future_slice = data.iloc[i + 4:] if i + 4 < len(data) else pd.DataFrame()
+                    if not future_slice.empty and future_slice['Close'].min() < ob_bot:
+                        continue  # OB completamente consumido — omitir
                     obs.append(NivelSMC(
                         tipo       = "OB_alcista",
                         precio_top = round(ob_top, 5),
@@ -228,6 +249,10 @@ def _detectar_order_blocks(df: pd.DataFrame, n: int = 5) -> list:
                 es_fresco = precio_actual < ob_bot
                 # Ignorar OBs completamente por encima del precio actual (muy distantes)
                 if ob_bot > precio_actual * 1.003:
+                    # Verificar que el OB no fue mitigado (precio cerró por encima del techo)
+                    future_slice = data.iloc[i + 4:] if i + 4 < len(data) else pd.DataFrame()
+                    if not future_slice.empty and future_slice['Close'].max() > ob_top:
+                        continue  # OB completamente consumido — omitir
                     obs.append(NivelSMC(
                         tipo       = "OB_bajista",
                         precio_top = round(ob_top, 5),
@@ -262,17 +287,27 @@ def _detectar_fvg(df: pd.DataFrame) -> list:
         gap_baj = data['Low'].iloc[i - 2] - data['High'].iloc[i]
 
         if gap_alc > min_size:
+            gap_bot = data['High'].iloc[i - 2]
+            future_closes = data['Close'].iloc[i + 1:]
+            # FVG llenado = precio cerró por debajo del fondo del gap
+            if not future_closes.empty and future_closes.min() < gap_bot:
+                continue
             fvgs.append(NivelSMC(
                 tipo       = "FVG_alcista",
                 precio_top = round(data['Low'].iloc[i], 5),
-                precio_bot = round(data['High'].iloc[i - 2], 5),
+                precio_bot = round(gap_bot, 5),
                 fuerza     = round(min(1.0, gap_alc / (atr + 1e-9)), 2),
                 idx        = i,
             ))
         elif gap_baj > min_size:
+            gap_top = data['Low'].iloc[i - 2]
+            future_closes = data['Close'].iloc[i + 1:]
+            # FVG llenado = precio cerró por encima del techo del gap
+            if not future_closes.empty and future_closes.max() > gap_top:
+                continue
             fvgs.append(NivelSMC(
                 tipo       = "FVG_bajista",
-                precio_top = round(data['Low'].iloc[i - 2], 5),
+                precio_top = round(gap_top, 5),
                 precio_bot = round(data['High'].iloc[i], 5),
                 fuerza     = round(min(1.0, gap_baj / (atr + 1e-9)), 2),
                 idx        = i,
