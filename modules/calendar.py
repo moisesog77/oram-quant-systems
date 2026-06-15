@@ -9,8 +9,28 @@ from utils.economic_calendar import (
     obtener_eventos_semana, obtener_proximos_eventos,
     hay_evento_alto_impacto_pronto,
     impacto_color, impacto_emoji,
-    FOREX_FACTORY_URL, EVENTOS_ESPECIALES,
 )
+
+_FOREX_FACTORY_URL = "https://www.forexfactory.com/calendar"
+
+EVENTOS_ESPECIALES: list = [
+    {"titulo": "Decisión de Tipos de la Fed",       "moneda": "USD", "impacto": "High",
+     "descripcion": "🔴 MÁXIMO IMPACTO — Reunión del FOMC con decisión de tipos (8 veces/año). Evita operar 30 min antes y 30 min después."},
+    {"titulo": "IPC de EE.UU. (Inflación)",         "moneda": "USD", "impacto": "High",
+     "descripcion": "Índice de Precios al Consumidor. Mide la inflación mensual (~2do o 3er miércoles del mes)."},
+    {"titulo": "IPP de EE.UU.",                     "moneda": "USD", "impacto": "Medium",
+     "descripcion": "Índice de Precios al Productor. Mide la inflación en etapas previas al consumidor."},
+    {"titulo": "PIB de EE.UU.",                     "moneda": "USD", "impacto": "High",
+     "descripcion": "Producto Interno Bruto de EE.UU. — avance, estimado y final, publicados en trimestres escalonados."},
+    {"titulo": "PCE Subyacente",                    "moneda": "USD", "impacto": "High",
+     "descripcion": "🔴 El indicador de inflación preferido de la Fed — se publica ~último viernes de cada mes."},
+    {"titulo": "Decisión de Tipos Banco de Japón",  "moneda": "JPY", "impacto": "High",
+     "descripcion": "Política monetaria del BoJ. Causa alta volatilidad en USDJPY. Puede ocurrir cualquier día."},
+    {"titulo": "Decisión de Tipos RBA",             "moneda": "AUD", "impacto": "High",
+     "descripcion": "Banco de la Reserva de Australia. Impacta AUDUSD. Se publica generalmente los martes."},
+    {"titulo": "Decisión de Tipos Banco de Canadá", "moneda": "CAD", "impacto": "High",
+     "descripcion": "Política monetaria del BoC. Impacta USDCAD (~8 veces por año)."},
+]
 from ui.styles import get_colors, page_header, get_theme, inject_module_css
 
 
@@ -207,7 +227,7 @@ def render_calendar():
         <div class="card-title">📡 Verificación en tiempo real</div>
         <div style="font-size:0.88rem;line-height:1.8;color:{c['text']}">
         Para horarios exactos, resultados anteriores y pronósticos actualizados consulta Forex Factory:<br>
-        <a href="{FOREX_FACTORY_URL}" target="_blank"
+        <a href="{_FOREX_FACTORY_URL}" target="_blank"
            style="color:{c['accent']};font-family:'JetBrains Mono',monospace;font-weight:700;text-decoration:none">
             🔗 forexfactory.com/calendar →
         </a>
