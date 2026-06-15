@@ -221,6 +221,7 @@ CREATE TABLE IF NOT EXISTS bot_config (
     activos_monitor TEXT DEFAULT '["EURUSD=X","GBPUSD=X","USDJPY=X"]',
     tf_monitor TEXT DEFAULT '15m',
     umbral_confianza REAL DEFAULT 70.0,
+    riesgo_pct REAL DEFAULT 1.0,
     ultima_alerta TEXT DEFAULT NULL
 );
 CREATE TABLE IF NOT EXISTS backtest_results (
@@ -316,6 +317,7 @@ _PG_TABLES = [
         activos_monitor TEXT DEFAULT '["EURUSD=X","GBPUSD=X","USDJPY=X"]',
         tf_monitor TEXT DEFAULT '15m',
         umbral_confianza REAL DEFAULT 70.0,
+        riesgo_pct REAL DEFAULT 1.0,
         ultima_alerta TEXT DEFAULT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS backtest_results (
@@ -364,8 +366,9 @@ def inicializar_db():
             conn.executescript(_SQLITE_SCHEMA)
             # Migración segura: añadir columnas nuevas en DBs antiguas
             for table, col, definition in [
-                ("users", "is_admin",  "INTEGER DEFAULT 0"),
-                ("users", "is_active", "INTEGER DEFAULT 1"),
+                ("users",      "is_admin",   "INTEGER DEFAULT 0"),
+                ("users",      "is_active",  "INTEGER DEFAULT 1"),
+                ("bot_config", "riesgo_pct", "REAL DEFAULT 1.0"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
@@ -376,6 +379,14 @@ def inicializar_db():
         with get_conn() as conn:
             for sql in _PG_TABLES:
                 _exec(conn, sql)
+            # Migración segura para columnas nuevas en PostgreSQL
+            for table, col, definition in [
+                ("bot_config", "riesgo_pct", "REAL DEFAULT 1.0"),
+            ]:
+                try:
+                    _exec(conn, f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {definition}")
+                except Exception:
+                    pass  # columna ya existe
 
     # Crear superadmin inicial (idempotente — actualiza si ya existe)
     # Usa variables de entorno ADMIN_USERNAME / ADMIN_PASSWORD si están configuradas.

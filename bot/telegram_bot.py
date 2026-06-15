@@ -36,8 +36,8 @@ from database.db import (
     obtener_todas_configs_bot, obtener_todas_alertas_activas,
     disparar_alerta, registrar_señal, marcar_señal_enviada,
     obtener_señales_recientes, inicializar_db,
-    obtener_todos_usuarios, obtener_trades,
-    obtener_watchlist,
+    obtener_todos_usuarios, obtener_usuario_por_id,
+    obtener_trades, obtener_watchlist,
 )
 
 import pandas as pd
@@ -129,8 +129,7 @@ def _get_user_by_chat(chat_id: str):
         configs = obtener_todas_configs_bot()
         cfg = next((c for c in configs if c.get("telegram_chat_id") == chat_id), None)
         if not cfg: return None, None
-        users = obtener_todos_usuarios()
-        user  = next((u for u in users if u["id"] == cfg.get("user_id")), None)
+        user = obtener_usuario_por_id(cfg["user_id"])
         return user, cfg
     except Exception:
         return None, None
@@ -1102,8 +1101,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                 activos = activos_default
 
             user_id = cfg.get("user_id")
-            users   = obtener_todos_usuarios()
-            user    = next((u for u in users if u["id"] == user_id), None)
+            user    = obtener_usuario_por_id(user_id)
             capital    = float(user.get("capital_inicial", 10000)) if user else 10000.0
             riesgo_pct = float(cfg.get("riesgo_pct", 1.0))
 
@@ -1298,11 +1296,11 @@ def main():
     jq = app.job_queue
     if jq is not None:
         jq.run_daily(job_resumen_diario, time=dtime(hour=13, minute=0))  # 7AM CDMX
-        jq.run_repeating(job_monitoreo_senales,    interval=900,  first=60)
-        jq.run_repeating(job_monitoreo_mtf,        interval=1800, first=120)
+        jq.run_repeating(job_monitoreo_senales,    interval=300,  first=60)
+        jq.run_repeating(job_monitoreo_mtf,        interval=900,  first=120)
         jq.run_repeating(job_verificar_alertas_precio, interval=300, first=30)
         jq.run_repeating(job_alerta_noticias,      interval=300,  first=60)
-        print("✅ Jobs activos: Reporte diario · Señales c/15m · MTF c/30m · Alertas precio c/5m · Noticias c/5m")
+        print("✅ Jobs activos: Reporte diario · Señales c/5m · MTF c/15m · Alertas precio c/5m · Noticias c/5m")
     else:
         print("⚠️  Sin jobs. Instala: pip install APScheduler")
 

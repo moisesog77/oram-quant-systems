@@ -166,28 +166,6 @@ EVENTOS_RECURRENTES: list[EventoEconomico] = [
         "Producto Interno Bruto de EE.UU. Publicado trimestralmente (avance, estimado y final)."),
 ]
 
-EVENTOS_ESPECIALES: list[dict] = [
-    {"titulo": "Decisión de Tipos de la Fed",      "moneda":"USD","impacto":"High",
-     "descripcion":"🔴 MÁXIMO IMPACTO — Reunión del FOMC con decisión de tipos (8 veces/año). Evita operar 30 min antes y 30 min después."},
-    {"titulo": "IPC de EE.UU. (Inflación)",        "moneda":"USD","impacto":"High",
-     "descripcion":"Índice de Precios al Consumidor. Mide la inflación mensual (~2do o 3er miércoles del mes)."},
-    {"titulo": "IPP de EE.UU.",                    "moneda":"USD","impacto":"Medium",
-     "descripcion":"Índice de Precios al Productor. Mide la inflación en etapas previas al consumidor."},
-    {"titulo": "PIB de EE.UU.",                    "moneda":"USD","impacto":"High",
-     "descripcion":"Producto Interno Bruto de EE.UU. — avance, estimado y final, publicados en trimestres escalonados."},
-    {"titulo": "PCE Subyacente",                   "moneda":"USD","impacto":"High",
-     "descripcion":"🔴 El indicador de inflación preferido de la Fed — se publica ~último viernes de cada mes."},
-    {"titulo": "Decisión de Tipos Banco de Japón", "moneda":"JPY","impacto":"High",
-     "descripcion":"Política monetaria del BoJ. Causa alta volatilidad en USDJPY. Puede ocurrir cualquier día."},
-    {"titulo": "Decisión de Tipos RBA",            "moneda":"AUD","impacto":"High",
-     "descripcion":"Banco de la Reserva de Australia. Impacta AUDUSD. Se publica generalmente los martes."},
-    {"titulo": "Decisión de Tipos Banco de Canadá","moneda":"CAD","impacto":"High",
-     "descripcion":"Política monetaria del BoC. Impacta USDCAD (~8 veces por año)."},
-]
-
-FOREX_FACTORY_URL = "https://www.forexfactory.com/calendar"
-
-
 def _utc_a_mx(hora_utc_str: str, fecha: date) -> str:
     try:
         h, m = map(int, hora_utc_str.split(":"))

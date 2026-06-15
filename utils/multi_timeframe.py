@@ -100,6 +100,14 @@ def analisis_mtf(ticker: str, tf_alto: str, tf_bajo: str) -> dict:
         )
         resultado["confianza_mtf"] = conf_alto * 0.4
 
+    elif dir_alto == "neutral" and dir_bajo != "neutral":
+        resultado["señal_mtf"] = f"⏳ Esperar estructura en {tf_alto}"
+        resultado["descripcion"] = (
+            f"{tf_bajo} tiene estructura {dir_bajo} ({conf_bajo:.0f}%), "
+            f"pero {tf_alto} aún no confirma. Espera BOS/CHoCH en {tf_alto}."
+        )
+        resultado["confianza_mtf"] = round(conf_bajo * 0.3, 1)
+
     elif dir_alto != dir_bajo and dir_alto != "neutral" and dir_bajo != "neutral":
         resultado["señal_mtf"] = "⚠️ Divergencia MTF"
         resultado["descripcion"] = (
