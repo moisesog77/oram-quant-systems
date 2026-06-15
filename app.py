@@ -291,30 +291,38 @@ section[data-testid="stSidebar"] {
         # ejecución de JS en Streamlit. Accede al DOM del parent via window.parent.
         _force_close = st.session_state.pop("_force_close_sidebar", False)
         _fc = "true" if _force_close else "false"
+        # Contador único por render — fuerza a Streamlit a recrear el iframe cada vez
+        # para que el JS se re-ejecute. Sin esto, si el contenido del iframe es igual
+        # entre dos navegaciones, Streamlit reutiliza el iframe y el script no corre.
+        _nav_tick = st.session_state.get("_nav_tick", 0)
+        if _force_close:
+            st.session_state["_nav_tick"] = _nav_tick + 1
+        _tick = st.session_state.get("_nav_tick", 0)
 
         # Cuando se fuerza cierre: inyectar un "reveal overlay" que empieza opaco
-        # y se desvanece suavemente. Cubre el instante en que Streamlit reemplazó
-        # el DOM (cambio de módulo + estado del sidebar) — el usuario solo ve el
-        # nuevo módulo apareciendo limpiamente, sin cortes ni flashes.
+        # y se desvanece (0.85s total, opaco 75% = ~640ms). Cubre el tiempo que
+        # necesita el JS para cerrar el sidebar (~60ms wait + ~400ms post-clic).
         if _force_close:
             _dark_rv  = get_theme() == "dark"
             _olay_rv  = "rgba(6,9,15,0.98)" if _dark_rv else "rgba(238,242,247,0.99)"
             st.markdown(f"""
 <style>
 @keyframes oram-reveal-out {{
-    0%,8% {{ opacity:1; }}
-    100%  {{ opacity:0; pointer-events:none; }}
+    0%,75% {{ opacity:1; }}
+    100%   {{ opacity:0; pointer-events:none; }}
 }}
 #oram-reveal-overlay {{
     position:fixed;inset:0;background:{_olay_rv};
     z-index:99998;pointer-events:none;
-    animation:oram-reveal-out 0.6s ease-out forwards;
+    animation:oram-reveal-out 0.85s ease-out forwards;
 }}
 </style>
 <div id="oram-reveal-overlay"></div>
 """, unsafe_allow_html=True)
 
+        # tick={_tick} fuerza recreación del iframe en cada navegación
         _stc.html(f"""<script>
+/* oram-nav-tick:{_tick} */
 (function() {{
     var p; try {{ p = window.parent; }} catch(e) {{ return; }}
     var doc = p.document, ss = p.sessionStorage, KEY = 'oram_sb_open';
