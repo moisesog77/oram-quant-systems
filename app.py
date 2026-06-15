@@ -161,12 +161,13 @@ else:
     start    = st.session_state.get("session_start", datetime.now(timezone.utc).timestamp())
 
     # ── Estado de navegación ─────────────────────────────────────────────────
-    # _current_nav : módulo que se está mostrando AHORA
-    # _transitioning: True durante el render del overlay (sidebar NO se renderiza)
+    # _current_nav  : módulo que se está mostrando AHORA
+    # _sb_locked    : True → sidebar oculto por CSS en CADA render; False → visible
+    # _transitioning: True → render de overlay (sidebar NO se renderiza)
+    # _show_reveal  : True → mostrar overlay de reveal UNA vez tras navegación
     if "_current_nav" not in st.session_state:
         st.session_state["_current_nav"] = "📈 Dashboard"
-        # Primera carga tras login: forzar cierre del sidebar
-        st.session_state["_force_close_sidebar"] = True
+        st.session_state["_sb_locked"] = True
 
     _transitioning = st.session_state.pop("_transitioning", False)
 
@@ -245,86 +246,73 @@ section[data-testid="stSidebar"]{{display:none!important;}}
 """, unsafe_allow_html=True)
 
         _time.sleep(1.5)
-        st.session_state["_force_close_sidebar"] = True
+        st.session_state["_sb_locked"] = True
+        st.session_state["_show_reveal"] = True
         st.rerun()
 
     # ── FASE NORMAL: sidebar + módulo ────────────────────────────────────────
     else:
-        _force_close = st.session_state.pop("_force_close_sidebar", False)
-        _fc = "true" if _force_close else "false"
+        _sb_locked   = st.session_state.get("_sb_locked", False)
+        _show_reveal = st.session_state.pop("_show_reveal", False)
 
-        # _nav_tick cambia en cada navegación → iframe siempre diferente → JS siempre re-ejecuta.
-        # Sin esto Streamlit reutiliza el iframe cuando el HTML es idéntico y el script no corre.
-        _nav_tick = st.session_state.get("_nav_tick", 0)
-        if _force_close:
-            st.session_state["_nav_tick"] = _nav_tick + 1
-        _tick = st.session_state.get("_nav_tick", 0)
-
-        # Reveal overlay: cubre el instante de reemplazo de DOM y el tiempo que tarda
-        # React en animar el cierre del sidebar (~300 ms de slide-out).
-        # 0.8 s total; opaco los primeros 62% (~500 ms) → fade-out los últimos 38%.
-        if _force_close:
+        # Reveal overlay: cubre el flash del swap de módulo, mostrado una sola vez
+        # tras navegación. 0.8 s total; opaco los primeros 62% (~500 ms).
+        if _show_reveal:
             _dark_rv = get_theme() == "dark"
             _olay_rv = "rgba(6,9,15,0.98)" if _dark_rv else "rgba(238,242,247,0.98)"
-            st.markdown(f"""
-<style>
+            st.markdown(f"""<style>
 @keyframes oram-rv{{0%,62%{{opacity:1;}}100%{{opacity:0;pointer-events:none;}}}}
 #oram-rv{{position:fixed;inset:0;background:{_olay_rv};z-index:99998;pointer-events:none;animation:oram-rv 0.8s ease-out forwards;}}
 </style><div id="oram-rv"></div>""", unsafe_allow_html=True)
 
-        # ── Control del sidebar via JS ───────────────────────────────────────
-        # ESTRATEGIA: listener delegado en window.parent (registrado UNA sola vez
-        # mediante la bandera p._oramSbInit). Como vive en window.parent y NO en el
-        # iframe, sobrevive a todos los rerenders de Streamlit — nunca se pierde.
-        #
-        # KEY  = 'oram_sb_ok'  → '1' significa que el usuario abrió el sidebar
-        #                          manualmente y tiene permiso de estar abierto.
-        #
-        # En cada navegación (force=true): se borra KEY → tryClose() cierra el
-        # sidebar clickeando el botón colapso → React actualiza su estado a cerrado.
-        # El reveal overlay cubre la animación de cierre.
-        #
-        # El contenido del script incluye tick:{_tick} y fc:{_fc}, garantizando un
-        # HTML diferente en cada navegación → Streamlit crea un iframe nuevo →
-        # script se re-ejecuta y re-evalúa force correctamente.
-        _stc.html(f"""<script>
-/* oram-sb tick:{_tick} fc:{_fc} */
-(function(){{
-    var p; try{{ p=window.parent; }}catch(e){{ return; }}
-    var doc=p.document, ss=p.sessionStorage, KEY='oram_sb_ok';
-    var force={_fc};
+        # CSS lock: sidebar oculto mediante CSS en CADA render cuando _sb_locked=True.
+        # React no puede anularlo — el CSS se re-inyecta con cada render de Python.
+        # Se muestra un hamburger falso (sin JS inline) en position:fixed top-left.
+        # El click en el hamburger falso lo detecta un listener en window.parent que
+        # programa el click del botón de desbloqueo dentro del sidebar (que aunque
+        # tiene display:none, sigue siendo clickeable mediante JS).
+        if _sb_locked:
+            _dark_l  = get_theme() == "dark"
+            _ham_bg  = "rgba(14,21,31,0.90)"   if _dark_l else "rgba(235,240,248,0.93)"
+            _ham_ic  = "#7fa3c4"               if _dark_l else "#4a6482"
+            _ham_bdr = "rgba(255,255,255,0.07)" if _dark_l else "rgba(0,0,0,0.09)"
+            _ham_hov = "rgba(34,197,94,0.18)"  if _dark_l else "rgba(34,197,94,0.12)"
+            st.markdown(f"""<style>
+section[data-testid="stSidebar"]{{display:none!important;}}
+[data-testid="stSidebarCollapsedControl"]{{display:none!important;}}
+#oram-ham{{position:fixed;top:.55rem;left:.55rem;width:2.5rem;height:2.5rem;
+    background:{_ham_bg};border:1px solid {_ham_bdr};border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;z-index:99997;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    transition:background .18s,border-color .18s;}}
+#oram-ham:hover{{background:{_ham_hov};border-color:rgba(34,197,94,.35);}}
+#oram-ham svg{{width:17px;height:17px;stroke:{_ham_ic};stroke-width:2.2;stroke-linecap:round;fill:none;}}
+</style>
+<div id="oram-ham">
+  <svg viewBox="0 0 24 24">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="21" y2="12"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</div>""", unsafe_allow_html=True)
 
-    /* Navegación → limpiar permiso de sidebar abierto */
-    if(force){{ try{{ ss.removeItem(KEY); }}catch(e){{}} }}
-
-    /* Listener global delegado — se registra UNA sola vez en window.parent.
-       Sobrevive a rerenders: está en el objeto window, no en elementos DOM.
-       Fase capture para interceptar antes que cualquier handler de Streamlit. */
-    if(!p._oramSbInit){{
-        p._oramSbInit=true;
-        doc.addEventListener('click',function(ev){{
-            var t=ev.target;
-            var isHam  = t.closest&&t.closest('[data-testid="stSidebarCollapsedControl"]');
-            var isClose= t.closest&&t.closest('[data-testid="stSidebarCollapseButton"]');
-            if(isHam)  {{ try{{ ss.setItem(KEY,'1'); }}catch(e){{}} }}
-            if(isClose){{ try{{ ss.removeItem(KEY);  }}catch(e){{}} }}
-        }},true);
-    }}
-
-    /* Cierra el sidebar si no tiene permiso de estar abierto.
-       Reintenta cada 80 ms (máx 30 intentos = 2.4 s) para dar tiempo a que
-       React termine de renderizar los elementos del sidebar. */
-    function tryClose(n){{
-        if(ss.getItem(KEY)==='1') return;           /* permiso dado → no tocar */
-        var btn=doc.querySelector('[data-testid="stSidebarCollapseButton"] button');
-        if(btn){{ btn.click(); return; }}           /* encontrado → cerrar */
-        var ham=doc.querySelector('[data-testid="stSidebarCollapsedControl"]');
-        if(ham) return;                             /* ya cerrado → nada que hacer */
-        if(n<30){{ setTimeout(function(){{tryClose(n+1);}},80); }}
-    }}
-
-    setTimeout(function(){{tryClose(0);}},80);
-}})();
+            # Listener en window.parent (registrado UNA vez, sobrevive rerenders).
+            # Click en #oram-ham → busca el botón de desbloqueo en el sidebar
+            # (oculto visualmente pero presente en el DOM y clickeable via JS).
+            _stc.html("""<script>
+(function(){
+    var p;try{p=window.parent;}catch(e){return;}
+    var doc=p.document;
+    if(p._oramHamInit)return;
+    p._oramHamInit=true;
+    doc.addEventListener('click',function(ev){
+        if(!ev.target.closest||!ev.target.closest('#oram-ham'))return;
+        var btns=Array.from(doc.querySelectorAll('button'));
+        var ub=btns.find(function(b){return b.textContent.trim()==='__oram_unlock__';});
+        if(ub)ub.click();
+    },true);
+})();
 </script>""", height=1)
 
         nav_options = [
@@ -345,6 +333,14 @@ section[data-testid="stSidebar"]{{display:none!important;}}
             nav_options.append("🔐 Admin Panel")
 
         with st.sidebar:
+            # Botón de desbloqueo: visible en el DOM del sidebar aunque el sidebar
+            # tenga display:none. JS lo encuentra por texto y lo clickea cuando el
+            # usuario toca el hamburger falso → rerun → _sb_locked=False → sidebar visible.
+            if _sb_locked:
+                if st.button("__oram_unlock__", key="_oram_sb_unlock"):
+                    st.session_state["_sb_locked"] = False
+                    st.rerun()
+
             admin_prefix = "🛡️ " if is_admin else ""
             admin_badge  = '&nbsp;<span style="font-size:0.6rem;color:#c9a227;font-weight:700">ADMIN</span>' if is_admin else ""
 
@@ -499,11 +495,6 @@ section[data-testid="stSidebar"]{{display:none!important;}}
         if nav != st.session_state["_current_nav"]:
             st.session_state["_current_nav"] = nav
             st.session_state["_transitioning"] = True
-            # Limpiar preferencia del sidebar para que cierre tras el overlay
-            try:
-                pass  # limpieza se hace vía JS abajo
-            except Exception:
-                pass
             st.rerun()
 
         # ── Renderizar módulo actual ─────────────────────────────────────────
