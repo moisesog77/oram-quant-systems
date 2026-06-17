@@ -1141,7 +1141,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
             chat_id = cfg.get("telegram_chat_id", "")
             if not chat_id or not cfg.get("alertas_activas"):
                 continue
-            umbral = max(float(cfg.get("umbral_confianza", 70)), 60.0)
+            umbral = max(float(cfg.get("umbral_confianza", 70)), 65.0)
             tf     = cfg.get("tf_monitor", "15m")
             try:
                 activos = json.loads(cfg.get("activos_monitor", "[]")) or activos_default

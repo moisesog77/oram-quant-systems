@@ -68,12 +68,14 @@ def render_bot_config():
                     key="riesgo_bot",
                 )
             with col2:
-                umbral      = st.slider("Umbral confianza para alertas (%)", 50, 90,
-                                         int(cfg.get("umbral_confianza",70)), key="umbral_bot")
-                tf_mon      = st.selectbox("Timeframe a monitorear",
-                                            ["1m","5m","15m","30m","1h","4h"],
-                                            index=["1m","5m","15m","30m","1h","4h"].index(
-                                                cfg.get("tf_monitor","15m")))
+                umbral      = st.slider("Umbral confianza para alertas (%)", 65, 90,
+                                         max(int(cfg.get("umbral_confianza", 70)), 65), key="umbral_bot")
+                _tf_opts    = ["15m","30m","1h","4h"]
+                _tf_actual  = cfg.get("tf_monitor", "15m")
+                _tf_actual  = _tf_actual if _tf_actual in _tf_opts else "15m"
+                tf_mon      = st.selectbox("Timeframe a monitorear", _tf_opts,
+                                            index=_tf_opts.index(_tf_actual),
+                                            key="tf_mon_bot")
 
             st.markdown("**Activos a monitorear:**")
             todos_activos = [a for lista in ACTIVOS_DEFAULT.values() for a in lista]
