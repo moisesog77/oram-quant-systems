@@ -1470,10 +1470,10 @@ def main():
         jq.run_daily(job_resumen_diario, time=dtime(hour=13, minute=0))  # 7AM CDMX
         jq.run_repeating(job_monitoreo_senales,    interval=300,  first=60)
         jq.run_repeating(job_monitoreo_mtf,        interval=900,  first=120)
-        jq.run_repeating(job_monitoreo_reversal,   interval=300,  first=90)
+        jq.run_repeating(job_monitoreo_reversal,   interval=60,   first=90)  # 60s en premium — retorna rápido fuera de sesión
         jq.run_repeating(job_verificar_alertas_precio, interval=300, first=30)
         jq.run_repeating(job_alerta_noticias,      interval=300,  first=60)
-        print("✅ Jobs activos: Reporte diario · Señales c/5m · MTF c/15m · Alertas precio c/5m · Noticias c/5m")
+        print("✅ Jobs activos: Reporte diario · Señales c/5m · MTF c/15m · Reversal c/1m · Alertas precio c/5m · Noticias c/5m")
     else:
         print("⚠️  Sin jobs. Instala: pip install APScheduler")
 

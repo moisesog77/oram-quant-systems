@@ -104,7 +104,7 @@ def _contexto_mercado(df: pd.DataFrame) -> str:
     if atr_avg == 0:
         return 'tendencia'
 
-    return 'tendencia' if rango >= atr_avg * 2.0 else 'rango'
+    return 'tendencia' if rango >= atr_avg * 1.5 else 'rango'
 
 
 # ── 3. BOS / CHoCH mejorado ───────────────────────────────────────────────────
