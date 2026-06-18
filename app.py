@@ -273,15 +273,19 @@ section[data-testid="stSidebar"]{{display:none!important;}}
 
     # ── FASE NORMAL: sidebar + módulo ────────────────────────────────────────
     else:
-        _show_reveal = st.session_state.pop("_show_reveal", False)
+        _show_reveal  = st.session_state.pop("_show_reveal",  False)
+        _oram_reveal  = st.session_state.pop("_oram_reveal",  False)
 
-        # Reveal overlay: cubre el flash del swap de módulo (1 render tras nav).
-        if _show_reveal:
+        # Reveal overlay: cubre el flash visible al swapear módulo o tras
+        # oram_bienvenida — se inyecta ANTES de cualquier contenido para que
+        # esté en el DOM desde el primer pixel renderizado.
+        if _show_reveal or _oram_reveal:
             _dark_rv = get_theme() == "dark"
             _olay_rv = "rgba(6,9,15,0.98)" if _dark_rv else "rgba(238,242,247,0.98)"
+            _dur_rv  = "0.8s" if _show_reveal else "0.6s"
             st.markdown(f"""<style>
 @keyframes oram-rv{{0%,62%{{opacity:1;}}100%{{opacity:0;pointer-events:none;}}}}
-#oram-rv{{position:fixed;inset:0;background:{_olay_rv};z-index:99998;pointer-events:none;animation:oram-rv 0.8s ease-out forwards;}}
+#oram-rv{{position:fixed;inset:0;background:{_olay_rv};z-index:99998;pointer-events:none;animation:oram-rv {_dur_rv} ease-out forwards;}}
 </style><div id="oram-rv"></div>""", unsafe_allow_html=True)
 
         nav_options = [
