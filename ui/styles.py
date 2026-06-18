@@ -2092,6 +2092,16 @@ def inject_module_css(
     if dark is None:
         dark = get_theme() == "dark"
 
+    # Reveal overlay: cubre la recarga del módulo tras oram_bienvenida.
+    # El mismo patrón que _show_reveal en app.py para navegación de sidebar.
+    if st.session_state.pop("_oram_reveal", False):
+        _rv_bg = "rgba(6,9,15,0.98)" if dark else "rgba(238,242,247,0.98)"
+        st.markdown(f"""<style>
+@keyframes oram-br{{0%,60%{{opacity:1;}}100%{{opacity:0;pointer-events:none;}}}}
+#oram-br{{position:fixed;inset:0;background:{_rv_bg};z-index:99998;
+          pointer-events:none;animation:oram-br 0.7s ease-out forwards;}}
+</style><div id="oram-br"></div>""", unsafe_allow_html=True)
+
     input_bg   = "#080d14"  if dark else "#f0f4f8"
     input_text = "#c8d8ea"  if dark else "#1a2b3c"
     input_bdr  = "#2a4560"  if dark else "#94a3b8"
@@ -2760,5 +2770,6 @@ def oram_bienvenida(
 </div>
 """, unsafe_allow_html=True)
 
+    st.session_state["_oram_reveal"] = True
     time.sleep(delay + 0.25)
     st.rerun()
