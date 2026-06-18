@@ -1945,6 +1945,38 @@ html body [data-baseweb="layer"] [role="option"] {{
     background-color: {_bg} !important;
     color: {_text} !important;
 }}
+
+/* ══ SELECTORES ARIA — Streamlit 1.35+ (data-baseweb="layer" ya no existe) ══
+   ul[role="listbox"] y li[role="option"] son atributos ARIA obligatorios que
+   BaseWeb siempre emite. El !important en stylesheet gana sobre inline style
+   sin !important (inline style es "Normal author", !important stylesheet es
+   "Important author" — prioridad mayor según cascada CSS W3C). */
+html body ul[role="listbox"],
+html body ul[role="listbox"] li,
+html body li[role="option"] {{
+    background:          {_bg} !important;
+    background-color:    {_bg} !important;
+    color:               {_text} !important;
+    -webkit-text-fill-color: {_text} !important;
+}}
+html body li[role="option"]:hover {{
+    background:          {_hover} !important;
+    background-color:    {_hover} !important;
+    color:               {_text} !important;
+}}
+html body li[role="option"][aria-selected="true"],
+html body [aria-selected="true"][role="option"] {{
+    background:          {'#0f2a1a' if dark else '#dcfce7'} !important;
+    color:               {c['green']} !important;
+}}
+/* Contenedor del popup — cualquier div que envuelva el listbox */
+html body [data-baseweb="popover"],
+html body [data-baseweb="menu"],
+html body [data-baseweb="option"] {{
+    background:          {_bg} !important;
+    background-color:    {_bg} !important;
+    color:               {_text} !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
