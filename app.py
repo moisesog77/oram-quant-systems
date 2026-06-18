@@ -330,6 +330,7 @@ section[data-testid="stSidebar"]{{display:none!important;}}
             )
 
             st.divider()
+            st.markdown('<div style="margin-top:0.6rem"></div>', unsafe_allow_html=True)
 
             col_t, col_s = st.columns(2)
             with col_t:
