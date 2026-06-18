@@ -143,9 +143,14 @@ def render_bot_config():
             <div class="card-sub"><code>/alertas [N]</code> — Señales de las últimas Nh</div>
             <div class="card-sub"><code>/resumen</code> — Reporte diario completo</div>
             <div class="card-sub"><code>/ayuda</code> — Lista completa de comandos</div>
+            <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin:0.5rem 0 0.2rem">✅ TRADES CONFIRMADOS</div>
+            <div class="card-sub"><code>/tomar [EURUSD]</code> — Confirmar que tomaste la última señal</div>
+            <div class="card-sub"><code>/activos</code> — Trades abiertos con P&L en tiempo real</div>
+            <div class="card-sub"><code>/cerrar [EURUSD]</code> — Cierre manual de un trade</div>
             <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin:0.5rem 0 0.2rem">🤖 AUTOMÁTICO (sin comandos)</div>
             <div class="card-sub">🚨 Alertas compra/venta cuando confianza ≥umbral</div>
             <div class="card-sub">🔭 MTF alineado → notificación automática</div>
+            <div class="card-sub">🎯 TP/SL alcanzado → notificación automática</div>
             <div class="card-sub">🔔 Alertas de precio en tus niveles</div>
             <div class="card-sub">📰 Aviso 30 min antes de noticias de alto impacto</div>
             <div class="card-sub">🌅 Reporte diario automático a las 7AM CDMX</div>
