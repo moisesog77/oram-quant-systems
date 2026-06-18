@@ -1948,6 +1948,59 @@ html body [data-baseweb="layer"] [role="option"] {{
 </style>
 """, unsafe_allow_html=True)
 
+    # ── JS: sobreescribir CSS custom properties de Streamlit en el contexto principal ──
+    # config.toml usa base="light" → Streamlit inyecta --secondary-background-color:#ffffff
+    # El portal BaseWeb hereda esa variable → dropdown siempre blanco en dark mode.
+    # Solución: <img onerror> ejecuta JS en el main thread (no iframe) y puede
+    # setear propiedades CSS directamente en document.documentElement como inline style,
+    # que gana sobre cualquier regla de stylesheet (inline > stylesheet).
+    _css_bg     = c["bg"]
+    _css_card   = c["bg_card"]
+    _css_text   = c["text"]
+    _css_border = c["border"]
+    _css_btn_bg = "#ffffff"  # botón sidebar toggle: siempre blanco en ambos temas
+    _css_btn_ic = "#0b1824"  # ícono del botón: oscuro sobre fondo blanco
+    st.markdown(f"""<img src="x" onerror="(function(){{
+var r=document.documentElement;
+r.style.setProperty('--background-color','{_css_bg}');
+r.style.setProperty('--secondary-background-color','{_css_card}');
+r.style.setProperty('--text-color','{_css_text}');
+function patchSidebar(){{
+    var cc=document.querySelector('[data-testid=\\"stSidebarCollapsedControl\\"]');
+    if(cc){{
+        [cc].concat(Array.from(cc.querySelectorAll('*'))).forEach(function(el){{
+            var t=el.tagName.toLowerCase();
+            if(['svg','path','polyline','line','g','circle','rect','defs'].indexOf(t)<0){{
+                el.style.setProperty('background','{_css_btn_bg}','important');
+                el.style.setProperty('background-color','{_css_btn_bg}','important');
+            }}
+        }});
+        cc.style.setProperty('border-radius','0 8px 8px 0','important');
+        cc.style.setProperty('overflow','hidden','important');
+        cc.querySelectorAll('svg,path,polyline,line').forEach(function(el){{
+            el.style.setProperty('fill','{_css_btn_ic}','important');
+            el.style.setProperty('stroke','{_css_btn_ic}','important');
+        }});
+    }}
+    var sb=document.querySelector('[data-testid=\\"stSidebarCollapseButton\\"]');
+    if(sb){{
+        var btn=sb.querySelector('button')||sb;
+        btn.style.setProperty('background','{_css_btn_bg}','important');
+        btn.style.setProperty('background-color','{_css_btn_bg}','important');
+        btn.style.setProperty('border-radius','8px','important');
+        sb.querySelectorAll('svg,path,polyline,line').forEach(function(el){{
+            el.style.setProperty('fill','{_css_btn_ic}','important');
+            el.style.setProperty('stroke','{_css_btn_ic}','important');
+        }});
+    }}
+}}
+patchSidebar();
+new MutationObserver(function(){{
+    r.style.setProperty('--secondary-background-color','{_css_card}');
+    patchSidebar();
+}}).observe(document.body,{{childList:true,subtree:true}});
+}})()" style="display:none">""", unsafe_allow_html=True)
+
     # ── CSS global de alertas premium ORAM ───────────────────────────────────
     # Reemplaza el estilo nativo de Streamlit para st.success/error/warning/info
     # con el design system ORAM: bordes de color, fondo semi-transparente,

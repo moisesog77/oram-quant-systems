@@ -96,52 +96,6 @@ from database.db   import inicializar_db, obtener_todos_usuarios, obtener_usuari
 
 inject_styles()
 
-# JS: fuerza color blanco en botones sidebar toggle (CSS no puede vencer emotion classes)
-_stc.html("""<script>
-(function(){
-    function patch(){
-        try{
-            var pd=window.parent.document;
-            // Botón >> (sidebar colapsada)
-            var cc=pd.querySelector('[data-testid="stSidebarCollapsedControl"]');
-            if(cc){
-                [cc].concat(Array.from(cc.querySelectorAll('*'))).forEach(function(el){
-                    var t=el.tagName.toLowerCase();
-                    if(['svg','path','polyline','line','g','circle','rect','defs'].indexOf(t)<0){
-                        el.style.setProperty('background','#ffffff','important');
-                        el.style.setProperty('background-color','#ffffff','important');
-                    }
-                });
-                cc.style.setProperty('border-radius','0 8px 8px 0','important');
-                cc.style.setProperty('overflow','hidden','important');
-                cc.querySelectorAll('svg,svg *').forEach(function(el){
-                    el.style.setProperty('fill','#0b1824','important');
-                    el.style.setProperty('stroke','#0b1824','important');
-                });
-            }
-            // Botón << (sidebar expandida)
-            var sb=pd.querySelector('[data-testid="stSidebarCollapseButton"]');
-            if(sb){
-                var btn=sb.querySelector('button')||sb;
-                btn.style.setProperty('background','#ffffff','important');
-                btn.style.setProperty('background-color','#ffffff','important');
-                btn.style.setProperty('border-radius','8px','important');
-                sb.querySelectorAll('svg,svg *').forEach(function(el){
-                    el.style.setProperty('fill','#0b1824','important');
-                    el.style.setProperty('stroke','#0b1824','important');
-                });
-            }
-        }catch(e){}
-    }
-    patch();
-    try{
-        new MutationObserver(patch).observe(
-            window.parent.document.body,{childList:true,subtree:true,attributes:true}
-        );
-    }catch(e){setInterval(patch,400);}
-})();
-</script>""", height=0, scrolling=False)
-
 from modules.auth          import render_auth
 from modules.dashboard     import render_dashboard
 from modules.live_analysis import render_live_analysis
