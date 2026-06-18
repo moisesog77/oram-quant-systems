@@ -212,5 +212,5 @@ def render_journal():
                         titulo        = "🗑️ Trade eliminado",
                         subtitulo     = f"El trade <b>#{del_id}</b> ha sido eliminado de tu historial.",
                         spinner_label = "Actualizando diario…",
-                        delay         = 1.8,
+                        delay         = 2.0,
                     )

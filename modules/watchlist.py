@@ -66,7 +66,7 @@ def render_watchlist():
                     titulo        = "✅ Activo agregado",
                     subtitulo     = f"<b>{ticker}</b>{' — ' + alias if alias else ''} ha sido añadido a tu watchlist.",
                     spinner_label = "Actualizando watchlist…",
-                    delay         = 1.8,
+                    delay         = 2.0,
                 )
             else:
                 oram_notify("warning", f"⚠️ **{ticker}** ya está en tu watchlist", toast=True)

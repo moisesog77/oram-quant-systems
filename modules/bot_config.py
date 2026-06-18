@@ -223,7 +223,7 @@ def render_bot_config():
                         titulo        = "🔔 Alerta creada",
                         subtitulo     = f"<b>{ticker_a}</b> notificará cuando el precio {dir_label} <b>{precio_a:.5f}</b>.",
                         spinner_label = "Registrando alerta…",
-                        delay         = 1.8,
+                        delay         = 2.0,
                     )
 
         st.divider()
@@ -271,7 +271,7 @@ def render_bot_config():
                             titulo        = "🗑️ Alerta eliminada",
                             subtitulo     = f"La alerta de <b>{al['ticker']}</b> ha sido eliminada del historial.",
                             spinner_label = "Actualizando alertas…",
-                            delay         = 1.5,
+                            delay         = 2.0,
                         )
 
     # ── HISTORIAL DE SEÑALES ──────────────────────────────────────────────
