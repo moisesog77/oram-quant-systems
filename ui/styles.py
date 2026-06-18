@@ -2659,9 +2659,10 @@ def oram_bienvenida(
     text_main   = "#edf4ff" if dark else "#0b1824"
     text_muted  = "#637a94" if dark else "#7a8fa0"
 
-    # Solo la tarjeta hace fadeout; el overlay se mantiene sólido hasta el rerun.
+    # Tarjeta hace fadeout; overlay sólido cubre el estado de carga de Streamlit.
+    # _exit_start se adelanta 0.25s para absorber latencia de red browser→Python.
     _exit_dur   = 0.55
-    _exit_start = max(round(delay - _exit_dur, 2), 0.45)
+    _exit_start = max(round(delay - _exit_dur - 0.25, 2), 0.35)
 
     st.markdown(f"""
 <style>
@@ -2670,8 +2671,8 @@ def oram_bienvenida(
     to   {{ opacity: 1; transform: translateY(0)   scale(1);    }}
 }}
 @keyframes oram-fadeout {{
-    from {{ opacity: 1; transform: translateY(0)    scale(1);    }}
-    to   {{ opacity: 0; transform: translateY(-14px) scale(0.97); }}
+    from {{ opacity: 1; transform: translateY(0)     scale(1);   }}
+    to   {{ opacity: 0; transform: translateY(-36px) scale(0.88); }}
 }}
 @keyframes oram-pulse {{
     0%,100% {{ box-shadow: 0 0 0 0    rgba(34,197,94,0.40); }}
@@ -2694,7 +2695,7 @@ def oram_bienvenida(
     text-align: center; max-width: 400px; width: 90%;
     animation:
         oram-fadein  0.45s cubic-bezier(0.22,1,0.36,1) both,
-        oram-fadeout {_exit_dur}s cubic-bezier(0.22,1,0.36,1) {_exit_start}s forwards;
+        oram-fadeout {_exit_dur}s cubic-bezier(0.55,0,1,0.45) {_exit_start}s forwards;
     box-shadow: 0 24px 60px rgba(0,0,0,0.35);
 }}
 .oram-check-ring {{
@@ -2759,5 +2760,5 @@ def oram_bienvenida(
 </div>
 """, unsafe_allow_html=True)
 
-    time.sleep(delay)
+    time.sleep(delay + 0.25)
     st.rerun()
