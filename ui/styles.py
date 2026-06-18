@@ -183,6 +183,14 @@ body {{
     --oram-icon-col:   {c['text_muted']};
     --oram-shadow:     {c['shadow']};
     --oram-border:     {c['border']};
+    /* Sobreescribir variables nativas de Streamlit — así los portals de BaseWeb
+       heredan los colores correctos del tema. st.markdown inyecta en <body>
+       DESPUÉS del <style> de Streamlit en <head> → misma especificidad (:root),
+       regla más tardía gana. */
+    --secondary-background-color: {c['bg_card']};
+    --background-color:           {c['bg']};
+    --text-color:                  {c['text']};
+    --primary-background-color:   {c['bg']};
 }}
 
 /* ── RESET ─────────────────────────────────────────── */
@@ -1946,33 +1954,37 @@ html body [data-baseweb="layer"] [role="option"] {{
     color: {_text} !important;
 }}
 
-/* ══ SELECTORES ARIA — Streamlit 1.35+ (data-baseweb="layer" ya no existe) ══
-   ul[role="listbox"] y li[role="option"] son atributos ARIA obligatorios que
-   BaseWeb siempre emite. El !important en stylesheet gana sobre inline style
-   sin !important (inline style es "Normal author", !important stylesheet es
-   "Important author" — prioridad mayor según cascada CSS W3C). */
-html body ul[role="listbox"],
-html body ul[role="listbox"] li,
-html body li[role="option"] {{
+/* ══ SELECTORES ARIA — Streamlit 1.35+ usa <div> no <ul>/<li> ════════════
+   SIN prefijo de elemento (div/ul/li) para matchear cualquier tag.
+   Especificidad html body [attr] = (0,1,2) > emoción class (0,1,0).
+   Con !important en ambos, la mayor especificidad gana sin importar orden. */
+html body [role="listbox"],
+html body [role="listbox"] > * {{
     background:          {_bg} !important;
     background-color:    {_bg} !important;
     color:               {_text} !important;
     -webkit-text-fill-color: {_text} !important;
 }}
-html body li[role="option"]:hover {{
+html body [role="option"] {{
+    background:          {_bg} !important;
+    background-color:    {_bg} !important;
+    color:               {_text} !important;
+    -webkit-text-fill-color: {_text} !important;
+}}
+html body [role="option"]:hover {{
     background:          {_hover} !important;
     background-color:    {_hover} !important;
-    color:               {_text} !important;
 }}
-html body li[role="option"][aria-selected="true"],
-html body [aria-selected="true"][role="option"] {{
+html body [role="option"][aria-selected="true"] {{
     background:          {'#0f2a1a' if dark else '#dcfce7'} !important;
     color:               {c['green']} !important;
 }}
-/* Contenedor del popup — cualquier div que envuelva el listbox */
+/* Contenedor popup — con y sin data-baseweb */
 html body [data-baseweb="popover"],
 html body [data-baseweb="menu"],
-html body [data-baseweb="option"] {{
+html body [data-baseweb="option"],
+html body [data-baseweb="popover"] > *,
+html body [data-baseweb="menu"] > * {{
     background:          {_bg} !important;
     background-color:    {_bg} !important;
     color:               {_text} !important;
