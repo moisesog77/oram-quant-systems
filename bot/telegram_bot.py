@@ -1194,9 +1194,6 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         dist_tp = abs(tp_ - precio)
                         rr = dist_tp / dist_sl if dist_sl > 0 else 0
                         if rr < 1.5: continue
-                    # FILTRO v4: precio debe estar EN zona institucional (OB o FVG activo)
-                    # "mercado" = precio dentro del rango OB/FVG; "limite_*" = zona aún no alcanzada
-                    if smc.get("tipo_entrada", "limite_ob") != "mercado": continue
                     # Deduplicación: no re-enviar si misma señal en últimos 18 min
                     if (ticker, dir_) in tickers_ya_enviados: continue
                     sig_id = registrar_señal(ticker, tf, tipo, dir_, conf, precio, sl, tp_)
@@ -1271,9 +1268,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     smc_alto = mtf.get("smc_alto", {})
                     smc_bajo = mtf.get("smc_bajo", {})
                     if not smc_alto.get("señal_valida") or not smc_bajo.get("señal_valida"): continue
-                    # FILTRO v4 MTF: precio en TF de entrada debe estar EN zona institucional
-                    if smc_bajo.get("tipo_entrada", "limite_ob") != "mercado": continue
-                    # FILTRO v5 MTF: RR mínimo 1.5:1 en los niveles calculados
+                    # FILTRO v4 MTF: RR mínimo 1.5:1 en los niveles calculados
                     entrada_m = mtf.get("entrada_sugerida") or 0
                     sl_m      = mtf.get("sl_sugerido")      or 0
                     tp_m      = mtf.get("tp_sugerido")      or 0
