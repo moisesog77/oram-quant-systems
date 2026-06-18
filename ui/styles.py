@@ -216,50 +216,51 @@ html,body{{
 }}
 [data-testid="stBottom"],[data-testid="stBottom"]>div{{background:{c['bg']}!important}}
 
-/* ── SIDEBAR TOGGLE BUTTON — blanco en ambos estados (colapsado y expandido) ── */
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="stSidebarCollapsedControl"] > *,
-[data-testid="stSidebarCollapsedControl"] button,
-[data-testid="stSidebarCollapsedControl"] div {{
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    border: 1px solid rgba(255,255,255,0.18) !important;
+/* ── SIDEBAR TOGGLE BUTTON — blanco siempre, especificidad máxima ── */
+html body div[data-testid="stSidebarCollapsedControl"],
+html body div[data-testid="stSidebarCollapsedControl"] > div,
+html body div[data-testid="stSidebarCollapsedControl"] button,
+html body div[data-testid="stSidebarCollapsedControl"] span,
+html body div[data-testid="stSidebarCollapsedControl"] div {{
+    background:          #ffffff !important;
+    background-color:   #ffffff !important;
     color: #0b1824 !important;
 }}
-[data-testid="stSidebarCollapsedControl"] {{
+html body div[data-testid="stSidebarCollapsedControl"] {{
     border-radius: 0 8px 8px 0 !important;
-    box-shadow: 2px 0 16px rgba(0,0,0,0.25) !important;
+    border: 1px solid rgba(255,255,255,0.15) !important;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.28) !important;
     overflow: hidden !important;
 }}
-[data-testid="stSidebarCollapsedControl"] button {{
+html body div[data-testid="stSidebarCollapsedControl"] button {{
     border-radius: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
+    width: 100% !important; height: 100% !important;
     border: none !important;
 }}
-[data-testid="stSidebarCollapsedControl"] button:hover {{
+html body div[data-testid="stSidebarCollapsedControl"] button:hover,
+html body div[data-testid="stSidebarCollapsedControl"] button:hover div {{
+    background: #e8edf2 !important;
     background-color: #e8edf2 !important;
 }}
 /* Botón << dentro del sidebar — mismo blanco */
-[data-testid="stSidebarCollapseButton"] button,
-[data-testid="stBaseButton-headerNoPadding"] {{
-    background-color: #ffffff !important;
+html body section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPadding"],
+html body section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] button {{
     background: #ffffff !important;
+    background-color: #ffffff !important;
     border-radius: 8px !important;
 }}
-/* Íconos << y >> — siempre oscuros sobre fondo blanco */
-[data-testid="stSidebarCollapsedControl"] svg,
-[data-testid="stSidebarCollapsedControl"] svg *,
-[data-testid="stSidebarCollapsedControl"] svg path,
-[data-testid="stSidebarCollapsedControl"] svg polyline,
-[data-testid="stSidebarCollapsedControl"] svg line,
-[data-testid="stBaseButton-headerNoPadding"] svg,
-[data-testid="stBaseButton-headerNoPadding"] svg *,
-[data-testid="stSidebarCollapseButton"] svg,
-[data-testid="stSidebarCollapseButton"] svg * {{
-    fill: #0b1824 !important;
+/* Íconos siempre oscuros sobre blanco */
+html body div[data-testid="stSidebarCollapsedControl"] svg,
+html body div[data-testid="stSidebarCollapsedControl"] svg *,
+html body div[data-testid="stSidebarCollapsedControl"] path,
+html body div[data-testid="stSidebarCollapsedControl"] polyline,
+html body section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] svg,
+html body section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] svg *,
+html body button[data-testid="stBaseButton-headerNoPadding"] svg,
+html body button[data-testid="stBaseButton-headerNoPadding"] svg * {{
+    fill:   #0b1824 !important;
     stroke: #0b1824 !important;
-    color: #0b1824 !important;
+    color:  #0b1824 !important;
 }}
 
 /* ── HIDE DEPLOY ────────────────────────────────────── */
