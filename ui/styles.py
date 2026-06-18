@@ -2657,11 +2657,24 @@ def oram_bienvenida(
     text_main   = "#edf4ff"             if dark else "#0b1824"
     text_muted  = "#637a94"             if dark else "#7a8fa0"
 
+    # Timing: el fadeout empieza 0.55s antes del rerun para que
+    # el overlay ya esté invisible cuando Streamlit cambia el HTML.
+    _exit_dur   = 0.55
+    _exit_start = max(round(delay - _exit_dur, 2), 0.45)
+
     st.markdown(f"""
 <style>
 @keyframes oram-fadein {{
     from {{ opacity: 0; transform: translateY(14px) scale(0.97); }}
     to   {{ opacity: 1; transform: translateY(0)   scale(1);    }}
+}}
+@keyframes oram-fadeout {{
+    from {{ opacity: 1; transform: translateY(0)    scale(1);    }}
+    to   {{ opacity: 0; transform: translateY(-14px) scale(0.97); }}
+}}
+@keyframes oram-overlay-out {{
+    from {{ opacity: 1; }}
+    to   {{ opacity: 0; pointer-events: none; }}
 }}
 @keyframes oram-pulse {{
     0%,100% {{ box-shadow: 0 0 0 0    rgba(34,197,94,0.40); }}
@@ -2676,6 +2689,7 @@ def oram_bienvenida(
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     z-index: 99999;
     display: flex; align-items: center; justify-content: center;
+    animation: oram-overlay-out {_exit_dur}s ease {_exit_start}s forwards;
 }}
 #oram-welcome-card {{
     background: {card_bg};
@@ -2683,7 +2697,9 @@ def oram_bienvenida(
     border-radius: 20px;
     padding: 2.8rem 3rem 2.4rem;
     text-align: center; max-width: 400px; width: 90%;
-    animation: oram-fadein 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    animation:
+        oram-fadein  0.45s cubic-bezier(0.22,1,0.36,1) both,
+        oram-fadeout {_exit_dur}s cubic-bezier(0.22,1,0.36,1) {_exit_start}s forwards;
     box-shadow: 0 24px 60px rgba(0,0,0,0.35);
 }}
 .oram-check-ring {{
