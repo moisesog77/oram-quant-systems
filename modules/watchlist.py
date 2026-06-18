@@ -211,5 +211,5 @@ def render_watchlist():
                         titulo        = "🗑️ Activo eliminado",
                         subtitulo     = f"<b>{al or tk}</b> ha sido eliminado de tu watchlist.",
                         spinner_label = "Actualizando watchlist…",
-                        delay         = 1.5,
+                        delay         = 2.0,
                     )
