@@ -278,9 +278,9 @@ section[data-testid="stSidebar"] div{{color:{c['text']}!important}}
 
 /* ── LOGO CSS ───────────────────────────────────────── */
 .oram-logo-wrap{{
-    padding:1.4rem 0 1.1rem 0;
+    padding:1.4rem 0 0.7rem 0;
     border-bottom:1px solid {c['border']};
-    margin-bottom:0.9rem;
+    margin-bottom:0.2rem;
 }}
 .oram-logo{{
     font-family:'Space Grotesk',sans-serif;
@@ -1490,6 +1490,11 @@ textarea {{
    · Texto en verde / color primario
    · Indicador "›" implícito en el texto (emoji del módulo)
    ═══════════════════════════════════════════════════════════ */
+
+/* Reducir espacio entre logo y primer ítem del nav */
+section[data-testid="stSidebar"] [data-testid="stRadio"] {{
+    margin-top: -0.4rem !important;
+}}
 
 /* Ocultar círculos de radio — solo mostrar texto e ícono */
 section[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radio"],
