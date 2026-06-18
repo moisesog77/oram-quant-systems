@@ -216,20 +216,19 @@ html,body{{
 }}
 [data-testid="stBottom"],[data-testid="stBottom"]>div{{background:{c['bg']}!important}}
 
-/* ── SIDEBAR TOGGLE BUTTON — visible en ambos temas ──────── */
-/* Aplica a TODOS los botones de toggle del sidebar sin excepción */
+/* ── SIDEBAR TOGGLE BUTTON — blanco en ambos estados (colapsado y expandido) ── */
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="stSidebarCollapsedControl"] > *,
 [data-testid="stSidebarCollapsedControl"] button,
 [data-testid="stSidebarCollapsedControl"] div {{
-    background-color: {'#080d14' if dark else c['bg_card']} !important;
-    background: {'#080d14' if dark else c['bg_card']} !important;
-    border: 1px solid {c['border']} !important;
-    color: {c['text_strong']} !important;
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    border: 1px solid rgba(255,255,255,0.18) !important;
+    color: #0b1824 !important;
 }}
 [data-testid="stSidebarCollapsedControl"] {{
     border-radius: 0 8px 8px 0 !important;
-    box-shadow: 2px 0 12px rgba(0,0,0,0.12) !important;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.25) !important;
     overflow: hidden !important;
 }}
 [data-testid="stSidebarCollapsedControl"] button {{
@@ -239,9 +238,16 @@ html,body{{
     border: none !important;
 }}
 [data-testid="stSidebarCollapsedControl"] button:hover {{
-    background-color: {c['nav_hover']} !important;
+    background-color: #e8edf2 !important;
 }}
-/* ── Icono << — negro sólido en todo momento (expandido y colapsado) ── */
+/* Botón << dentro del sidebar — mismo blanco */
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stBaseButton-headerNoPadding"] {{
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    border-radius: 8px !important;
+}}
+/* Íconos << y >> — siempre oscuros sobre fondo blanco */
 [data-testid="stSidebarCollapsedControl"] svg,
 [data-testid="stSidebarCollapsedControl"] svg *,
 [data-testid="stSidebarCollapsedControl"] svg path,
@@ -251,9 +257,9 @@ html,body{{
 [data-testid="stBaseButton-headerNoPadding"] svg *,
 [data-testid="stSidebarCollapseButton"] svg,
 [data-testid="stSidebarCollapseButton"] svg * {{
-    fill: {c['text_strong']} !important;
-    stroke: {c['text_strong']} !important;
-    color: {c['text_strong']} !important;
+    fill: #0b1824 !important;
+    stroke: #0b1824 !important;
+    color: #0b1824 !important;
 }}
 
 /* ── HIDE DEPLOY ────────────────────────────────────── */
