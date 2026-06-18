@@ -254,7 +254,7 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
     data_warning = smc.get("_data_warning")
     if data_warning:
         lineas.append(f"\n_{data_warning}_")
-    return "\n".join(l for l in lineas if l is not None)
+    return "\n".join(l for l in lineas if l)
 
 def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None) -> str:
     smc_alto  = mtf.get("smc_alto") or {}
@@ -299,7 +299,7 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None) -> str:
     if contexto and contexto.get("texto"):
         ctx_txt = f"{contexto.get('icono','')} _{contexto.get('texto','')}_"
     lineas += ["", f"📝 _{desc}_", ctx_txt, "", f"🕐 {_hora_mx()} CDMX"]
-    return "\n".join(l for l in lineas if l is not None)
+    return "\n".join(l for l in lineas if l)
 
 
 def _formato_reversal(smc_alto: dict, smc_bajo: dict, ticker: str,
@@ -1399,6 +1399,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
 
             if medias:
                 lineas = [f"⚡ *SEÑALES MEDIAS — {tf} · {_hora_mx()} CDMX*", ""]
+                _primera_media = True
                 for ticker, smc, conf, sig_id in sorted(medias, key=lambda x: -x[2]):
                     if obtener_trade_activo(chat_id, ticker): continue
                     dir_  = smc.get("estructura", {}).get("direccion", "neutral")
@@ -1413,11 +1414,14 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     marcar_señal_enviada(sig_id)
                     _senal = {"ticker": ticker, "tf": tf, "direccion": dir_, "entrada": precio, "sl": sl, "tp": tp_, "confianza": conf}
                     _ultimas_senales[(chat_id, ticker)] = _senal
-                    _ultimas_senales[chat_id] = _senal
-                try:
-                    await _send(ctx.bot, chat_id, "\n".join(lineas))
-                except Exception as e:
-                    logger.error(f"send medias: {e}")
+                    if _primera_media:
+                        _ultimas_senales[chat_id] = _senal  # solo la de mayor confianza
+                        _primera_media = False
+                if len(lineas) > 2:  # solo enviar si hay señales reales (no solo el header)
+                    try:
+                        await _send(ctx.bot, chat_id, "\n".join(lineas))
+                    except Exception as e:
+                        logger.error(f"send medias: {e}")
 
     except Exception as e:
         logger.error(f"job_monitoreo_senales: {e}")
@@ -1590,7 +1594,6 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
 async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
     try:
         alertas = obtener_todas_alertas_activas()
-        if not alertas: return
         precios_cache = {}
         for alerta in alertas:
             ticker = alerta["ticker"]
@@ -1646,6 +1649,7 @@ async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
             sl_hit  = (dir_ == "SHORT" and precio_actual >= sl) or (dir_ == "LONG"  and precio_actual <= sl)
             if not tp_hit and not sl_hit: continue
             pips = _calcular_pips(ticker, tp if tp_hit else sl, entrada)
+            resultado_trade = "tp" if tp_hit else "sl"
             if tp_hit:
                 msg = (
                     f"🎯 *OBJETIVO ALCANZADO — TP HIT*\n"
@@ -1657,7 +1661,6 @@ async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
                     f"🕐 {_hora_mx()} CDMX\n\n"
                     f"✅ Señales de *{ticker}* reactivadas."
                 )
-                cerrar_trade_confirmado(trade["id"], "tp")
             else:
                 msg = (
                     f"🛑 *STOP LOSS ALCANZADO*\n"
@@ -1669,9 +1672,9 @@ async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
                     f"🕐 {_hora_mx()} CDMX\n\n"
                     f"✅ Señales de *{ticker}* reactivadas."
                 )
-                cerrar_trade_confirmado(trade["id"], "sl")
             try:
                 await _send(ctx.bot, trade["chat_id"], msg)
+                cerrar_trade_confirmado(trade["id"], resultado_trade)
             except Exception as e:
                 logger.error(f"job_confirmed_trade notify {ticker}: {e}")
     except Exception as e:
