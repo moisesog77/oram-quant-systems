@@ -2651,14 +2651,15 @@ def oram_bienvenida(
     t    = get_theme()
     dark = t == "dark"
 
-    overlay_bg  = "rgba(6,9,15,0.92)"   if dark else "rgba(238,242,247,0.94)"
-    card_bg     = "#0c1219"             if dark else "#ffffff"
-    card_border = "#1b2a40"             if dark else "#dde5ef"
-    text_main   = "#edf4ff"             if dark else "#0b1824"
-    text_muted  = "#637a94"             if dark else "#7a8fa0"
+    # Overlay sólido: cubre el estado de carga de Streamlit durante la transición.
+    # Si fuera semi-transparente/opacity:0 al salir, la pantalla negra de carga quedaría expuesta.
+    overlay_bg  = "#0b1824" if dark else "#eef2f7"
+    card_bg     = "#0c1219" if dark else "#ffffff"
+    card_border = "#1b2a40" if dark else "#dde5ef"
+    text_main   = "#edf4ff" if dark else "#0b1824"
+    text_muted  = "#637a94" if dark else "#7a8fa0"
 
-    # Timing: el fadeout empieza 0.55s antes del rerun para que
-    # el overlay ya esté invisible cuando Streamlit cambia el HTML.
+    # Solo la tarjeta hace fadeout; el overlay se mantiene sólido hasta el rerun.
     _exit_dur   = 0.55
     _exit_start = max(round(delay - _exit_dur, 2), 0.45)
 
@@ -2672,10 +2673,6 @@ def oram_bienvenida(
     from {{ opacity: 1; transform: translateY(0)    scale(1);    }}
     to   {{ opacity: 0; transform: translateY(-14px) scale(0.97); }}
 }}
-@keyframes oram-overlay-out {{
-    from {{ opacity: 1; }}
-    to   {{ opacity: 0; pointer-events: none; }}
-}}
 @keyframes oram-pulse {{
     0%,100% {{ box-shadow: 0 0 0 0    rgba(34,197,94,0.40); }}
     50%      {{ box-shadow: 0 0 0 18px rgba(34,197,94,0);   }}
@@ -2686,10 +2683,8 @@ def oram_bienvenida(
 #oram-welcome-overlay {{
     position: fixed; inset: 0;
     background: {overlay_bg};
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     z-index: 99999;
     display: flex; align-items: center; justify-content: center;
-    animation: oram-overlay-out {_exit_dur}s ease {_exit_start}s forwards;
 }}
 #oram-welcome-card {{
     background: {card_bg};
