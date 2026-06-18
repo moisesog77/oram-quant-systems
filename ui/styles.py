@@ -278,9 +278,9 @@ section[data-testid="stSidebar"] div{{color:{c['text']}!important}}
 
 /* ── LOGO CSS ───────────────────────────────────────── */
 .oram-logo-wrap{{
-    padding:1.4rem 0 0.7rem 0;
+    padding:1.4rem 0 0.55rem 0;
     border-bottom:1px solid {c['border']};
-    margin-bottom:0.2rem;
+    margin-bottom:0;
 }}
 .oram-logo{{
     font-family:'Space Grotesk',sans-serif;
@@ -1491,9 +1491,12 @@ textarea {{
    · Indicador "›" implícito en el texto (emoji del módulo)
    ═══════════════════════════════════════════════════════════ */
 
-/* Reducir espacio entre logo y primer ítem del nav */
+/* Reducir espacio entre logo-divider y primer ítem del nav */
 section[data-testid="stSidebar"] [data-testid="stRadio"] {{
-    margin-top: -0.4rem !important;
+    margin-top: -0.9rem !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {{
+    gap: 0 !important;
 }}
 
 /* Ocultar círculos de radio — solo mostrar texto e ícono */
