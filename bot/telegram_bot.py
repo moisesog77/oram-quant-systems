@@ -86,13 +86,38 @@ async def _send(bot, chat_id: str, text: str):
 
 # ─── Helpers de análisis ──────────────────────────────────────────────────────
 
+def _calcular_contexto(df) -> dict:
+    """Evalúa si el mercado está en tendencia, lateral o comprimido usando ATR y EMAs."""
+    try:
+        atr_serie = df["ATR"].dropna()
+        if len(atr_serie) < 10:
+            return {}
+        atr_actual = atr_serie.iloc[-1]
+        atr_prom   = atr_serie.iloc[-20:].mean() if len(atr_serie) >= 20 else atr_serie.mean()
+        atr_ratio  = atr_actual / atr_prom if atr_prom > 0 else 1.0
+        e9  = df["EMA9"].iloc[-1]
+        e20 = df["EMA20"].iloc[-1]
+        e50 = df["EMA50"].iloc[-1]
+        emas_alineadas = (e9 > e20 > e50) or (e9 < e20 < e50)
+        if atr_ratio >= 1.15 and emas_alineadas:
+            return {"tipo": "tendencia",  "icono": "✅", "texto": "Contexto: Tendencia activa — entrada favorable"}
+        elif atr_ratio < 0.70:
+            return {"tipo": "compresion", "icono": "⚠️", "texto": "Contexto: ATR muy comprimido — validar ruptura visualmente antes de entrar"}
+        elif not emas_alineadas or atr_ratio < 0.90:
+            return {"tipo": "lateral",    "icono": "⚠️", "texto": "Contexto: Mercado lateral — confirmar setup visualmente antes de entrar"}
+        else:
+            return {"tipo": "normal",     "icono": "📊", "texto": "Contexto: Volatilidad normal"}
+    except Exception:
+        return {}
+
+
 def _analizar_activo(ticker: str, tf: str = "15m"):
     try:
         df, status = obtener_datos(ticker, tf)
         if df is None:
             return None, status
         smc = analisis_completo(df, ticker)
-        # Inyectar aviso de fuente de datos si se está usando yfinance (15min delay)
+        smc["_contexto_mercado"] = _calcular_contexto(df)
         if "yfinance" in status:
             smc["_data_warning"] = "⚠️ Datos con 15min delay (yfinance) — Twelve Data no disponible"
         return smc, status
@@ -173,6 +198,9 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
     else:
         entrada_txt = f"📍 *Entrada:* Mercado (precio ya en zona)"
 
+    ctx     = smc.get("_contexto_mercado", {})
+    ctx_txt = f"{ctx.get('icono','')} _{ctx.get('texto','')}_" if ctx.get("texto") else ""
+
     lineas = [
         f"{'🚨' if pct >= 75 else '📡'} *SEÑAL SMC — {prio}*",
         f"{emoji} *{ticker}* · {tf}",
@@ -182,6 +210,7 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
         f"📊 *Dirección:* {emoji} {dir_}",
         entrada_txt,
         f"🎯 *Confianza:* {_conf_bar(pct)}",
+        ctx_txt,
         "",
     ]
     if sl and tp:
@@ -213,7 +242,7 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
         lineas.append(f"\n_{data_warning}_")
     return "\n".join(l for l in lineas if l is not None)
 
-def _formato_mtf(mtf: dict, ticker: str) -> str:
+def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None) -> str:
     smc_alto  = mtf.get("smc_alto") or {}
     smc_bajo  = mtf.get("smc_bajo") or {}
     tf_alto   = mtf.get("tf_alto", "?")
@@ -252,7 +281,10 @@ def _formato_mtf(mtf: dict, ticker: str) -> str:
             f"🛑 *SL:* `{sl:.5f}`" if sl else "",
             f"✅ *TP:* `{tp:.5f}`" if tp else "",
         ]
-    lineas += ["", f"📝 _{desc}_", "", f"🕐 {_hora_mx()} CDMX"]
+    ctx_txt = ""
+    if contexto and contexto.get("texto"):
+        ctx_txt = f"{contexto.get('icono','')} _{contexto.get('texto','')}_"
+    lineas += ["", f"📝 _{desc}_", ctx_txt, "", f"🕐 {_hora_mx()} CDMX"]
     return "\n".join(l for l in lineas if l is not None)
 
 
@@ -1278,7 +1310,9 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                         if _dsl > 0 and (_dtp / _dsl) < 1.5: continue
                     dir_mtf = mtf.get("direccion", "neutral")
                     if (ticker, dir_mtf) in mtf_recientes: continue
-                    await _send(ctx.bot, chat_id, "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker))
+                    df_bajo_ctx, _ = obtener_datos(ticker, tf_bajo)
+                    ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
+                    await _send(ctx.bot, chat_id, "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo))
                 except Exception as e:
                     logger.error(f"job_mtf {ticker}: {e}")
     except Exception as e:
