@@ -271,7 +271,7 @@ def render_bot_config():
                             titulo        = "🗑️ Alerta eliminada",
                             subtitulo     = f"La alerta de <b>{al['ticker']}</b> ha sido eliminada del historial.",
                             spinner_label = "Actualizando alertas…",
-                            delay         = 2.0,
+                            delay         = 1.5,
                         )
 
     # ── HISTORIAL DE SEÑALES ──────────────────────────────────────────────

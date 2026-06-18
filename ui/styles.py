@@ -183,14 +183,6 @@ body {{
     --oram-icon-col:   {c['text_muted']};
     --oram-shadow:     {c['shadow']};
     --oram-border:     {c['border']};
-    /* Sobreescribir variables nativas de Streamlit — así los portals de BaseWeb
-       heredan los colores correctos del tema. st.markdown inyecta en <body>
-       DESPUÉS del <style> de Streamlit en <head> → misma especificidad (:root),
-       regla más tardía gana. */
-    --secondary-background-color: {c['bg_card']};
-    --background-color:           {c['bg']};
-    --text-color:                  {c['text']};
-    --primary-background-color:   {c['bg']};
 }}
 
 /* ── RESET ─────────────────────────────────────────── */
@@ -224,51 +216,44 @@ html,body{{
 }}
 [data-testid="stBottom"],[data-testid="stBottom"]>div{{background:{c['bg']}!important}}
 
-/* ── SIDEBAR TOGGLE BUTTON — blanco siempre, especificidad máxima ── */
-html body div[data-testid="stSidebarCollapsedControl"],
-html body div[data-testid="stSidebarCollapsedControl"] > div,
-html body div[data-testid="stSidebarCollapsedControl"] button,
-html body div[data-testid="stSidebarCollapsedControl"] span,
-html body div[data-testid="stSidebarCollapsedControl"] div {{
-    background:          #ffffff !important;
-    background-color:   #ffffff !important;
-    color: #0b1824 !important;
+/* ── SIDEBAR TOGGLE BUTTON — visible en ambos temas ──────── */
+/* Aplica a TODOS los botones de toggle del sidebar sin excepción */
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapsedControl"] > *,
+[data-testid="stSidebarCollapsedControl"] button,
+[data-testid="stSidebarCollapsedControl"] div {{
+    background-color: {'#080d14' if dark else c['bg_card']} !important;
+    background: {'#080d14' if dark else c['bg_card']} !important;
+    border: 1px solid {c['border']} !important;
+    color: {c['text_strong']} !important;
 }}
-html body div[data-testid="stSidebarCollapsedControl"] {{
+[data-testid="stSidebarCollapsedControl"] {{
     border-radius: 0 8px 8px 0 !important;
-    border: 1px solid rgba(255,255,255,0.15) !important;
-    box-shadow: 2px 0 16px rgba(0,0,0,0.28) !important;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.12) !important;
     overflow: hidden !important;
 }}
-html body div[data-testid="stSidebarCollapsedControl"] button {{
+[data-testid="stSidebarCollapsedControl"] button {{
     border-radius: 0 !important;
-    width: 100% !important; height: 100% !important;
+    width: 100% !important;
+    height: 100% !important;
     border: none !important;
 }}
-html body div[data-testid="stSidebarCollapsedControl"] button:hover,
-html body div[data-testid="stSidebarCollapsedControl"] button:hover div {{
-    background: #e8edf2 !important;
-    background-color: #e8edf2 !important;
+[data-testid="stSidebarCollapsedControl"] button:hover {{
+    background-color: {c['nav_hover']} !important;
 }}
-/* Botón << dentro del sidebar — mismo blanco */
-html body section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPadding"],
-html body section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] button {{
-    background: #ffffff !important;
-    background-color: #ffffff !important;
-    border-radius: 8px !important;
-}}
-/* Íconos siempre oscuros sobre blanco */
-html body div[data-testid="stSidebarCollapsedControl"] svg,
-html body div[data-testid="stSidebarCollapsedControl"] svg *,
-html body div[data-testid="stSidebarCollapsedControl"] path,
-html body div[data-testid="stSidebarCollapsedControl"] polyline,
-html body section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] svg,
-html body section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] svg *,
-html body button[data-testid="stBaseButton-headerNoPadding"] svg,
-html body button[data-testid="stBaseButton-headerNoPadding"] svg * {{
-    fill:   #0b1824 !important;
-    stroke: #0b1824 !important;
-    color:  #0b1824 !important;
+/* ── Icono << — negro sólido en todo momento (expandido y colapsado) ── */
+[data-testid="stSidebarCollapsedControl"] svg,
+[data-testid="stSidebarCollapsedControl"] svg *,
+[data-testid="stSidebarCollapsedControl"] svg path,
+[data-testid="stSidebarCollapsedControl"] svg polyline,
+[data-testid="stSidebarCollapsedControl"] svg line,
+[data-testid="stBaseButton-headerNoPadding"] svg,
+[data-testid="stBaseButton-headerNoPadding"] svg *,
+[data-testid="stSidebarCollapseButton"] svg,
+[data-testid="stSidebarCollapseButton"] svg * {{
+    fill: {c['text_strong']} !important;
+    stroke: {c['text_strong']} !important;
+    color: {c['text_strong']} !important;
 }}
 
 /* ── HIDE DEPLOY ────────────────────────────────────── */
@@ -1953,97 +1938,8 @@ html body [data-baseweb="layer"] [role="option"] {{
     background-color: {_bg} !important;
     color: {_text} !important;
 }}
-
-/* ══ SELECTORES ARIA — Streamlit 1.35+ usa <div> no <ul>/<li> ════════════
-   SIN prefijo de elemento (div/ul/li) para matchear cualquier tag.
-   Especificidad html body [attr] = (0,1,2) > emoción class (0,1,0).
-   Con !important en ambos, la mayor especificidad gana sin importar orden. */
-html body [role="listbox"],
-html body [role="listbox"] > * {{
-    background:          {_bg} !important;
-    background-color:    {_bg} !important;
-    color:               {_text} !important;
-    -webkit-text-fill-color: {_text} !important;
-}}
-html body [role="option"] {{
-    background:          {_bg} !important;
-    background-color:    {_bg} !important;
-    color:               {_text} !important;
-    -webkit-text-fill-color: {_text} !important;
-}}
-html body [role="option"]:hover {{
-    background:          {_hover} !important;
-    background-color:    {_hover} !important;
-}}
-html body [role="option"][aria-selected="true"] {{
-    background:          {'#0f2a1a' if dark else '#dcfce7'} !important;
-    color:               {c['green']} !important;
-}}
-/* Contenedor popup — con y sin data-baseweb */
-html body [data-baseweb="popover"],
-html body [data-baseweb="menu"],
-html body [data-baseweb="option"],
-html body [data-baseweb="popover"] > *,
-html body [data-baseweb="menu"] > * {{
-    background:          {_bg} !important;
-    background-color:    {_bg} !important;
-    color:               {_text} !important;
-}}
 </style>
 """, unsafe_allow_html=True)
-
-    # ── JS: sobreescribir CSS custom properties de Streamlit en el contexto principal ──
-    # config.toml usa base="light" → Streamlit inyecta --secondary-background-color:#ffffff
-    # El portal BaseWeb hereda esa variable → dropdown siempre blanco en dark mode.
-    # Solución: <img onerror> ejecuta JS en el main thread (no iframe) y puede
-    # setear propiedades CSS directamente en document.documentElement como inline style,
-    # que gana sobre cualquier regla de stylesheet (inline > stylesheet).
-    _css_bg     = c["bg"]
-    _css_card   = c["bg_card"]
-    _css_text   = c["text"]
-    _css_border = c["border"]
-    _css_btn_bg = "#ffffff"  # botón sidebar toggle: siempre blanco en ambos temas
-    _css_btn_ic = "#0b1824"  # ícono del botón: oscuro sobre fondo blanco
-    st.markdown(f"""<img src="x" onerror="(function(){{
-var r=document.documentElement;
-r.style.setProperty('--background-color','{_css_bg}');
-r.style.setProperty('--secondary-background-color','{_css_card}');
-r.style.setProperty('--text-color','{_css_text}');
-function patchSidebar(){{
-    var cc=document.querySelector('[data-testid=\\"stSidebarCollapsedControl\\"]');
-    if(cc){{
-        [cc].concat(Array.from(cc.querySelectorAll('*'))).forEach(function(el){{
-            var t=el.tagName.toLowerCase();
-            if(['svg','path','polyline','line','g','circle','rect','defs'].indexOf(t)<0){{
-                el.style.setProperty('background','{_css_btn_bg}','important');
-                el.style.setProperty('background-color','{_css_btn_bg}','important');
-            }}
-        }});
-        cc.style.setProperty('border-radius','0 8px 8px 0','important');
-        cc.style.setProperty('overflow','hidden','important');
-        cc.querySelectorAll('svg,path,polyline,line').forEach(function(el){{
-            el.style.setProperty('fill','{_css_btn_ic}','important');
-            el.style.setProperty('stroke','{_css_btn_ic}','important');
-        }});
-    }}
-    var sb=document.querySelector('[data-testid=\\"stSidebarCollapseButton\\"]');
-    if(sb){{
-        var btn=sb.querySelector('button')||sb;
-        btn.style.setProperty('background','{_css_btn_bg}','important');
-        btn.style.setProperty('background-color','{_css_btn_bg}','important');
-        btn.style.setProperty('border-radius','8px','important');
-        sb.querySelectorAll('svg,path,polyline,line').forEach(function(el){{
-            el.style.setProperty('fill','{_css_btn_ic}','important');
-            el.style.setProperty('stroke','{_css_btn_ic}','important');
-        }});
-    }}
-}}
-patchSidebar();
-new MutationObserver(function(){{
-    r.style.setProperty('--secondary-background-color','{_css_card}');
-    patchSidebar();
-}}).observe(document.body,{{childList:true,subtree:true}});
-}})()" style="display:none">""", unsafe_allow_html=True)
 
     # ── CSS global de alertas premium ORAM ───────────────────────────────────
     # Reemplaza el estilo nativo de Streamlit para st.success/error/warning/info

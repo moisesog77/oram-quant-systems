@@ -196,7 +196,7 @@ section[data-testid="stSidebar"]{{display:none!important;}}
     to  {{opacity:1;transform:translateY(0) scale(1);}}
 }}
 @keyframes oram-card-exit{{
-    0%,72%{{opacity:1;transform:translateY(0) scale(1);}}
+    0%,62%{{opacity:1;transform:translateY(0) scale(1);}}
     100%  {{opacity:0;transform:translateY(-10px) scale(0.96);}}
 }}
 @keyframes oram-pulse{{
@@ -213,7 +213,7 @@ section[data-testid="stSidebar"]{{display:none!important;}}
     background:{_cbg};border:1px solid {_cbdr};border-radius:20px;
     padding:2.8rem 3rem 2.4rem;text-align:center;max-width:400px;width:90%;
     animation:oram-fadein 0.4s cubic-bezier(0.22,1,0.36,1) both,
-              oram-card-exit 2.0s ease-in-out forwards;
+              oram-card-exit 1.5s ease-in-out forwards;
     box-shadow:0 28px 64px rgba(0,0,0,0.4);
 }}
 .oram-tr-ring{{
@@ -267,7 +267,7 @@ section[data-testid="stSidebar"]{{display:none!important;}}
     setTimeout(function(){{tryClose(0);}},80);
 }})();
 </script>""", height=1)
-        _time.sleep(2.0)
+        _time.sleep(1.5)
         st.session_state["_show_reveal"] = True
         st.rerun()
 
