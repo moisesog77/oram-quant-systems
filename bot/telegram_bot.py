@@ -53,6 +53,9 @@ UMBRAL_ALERTA_ALTA  = 75
 UMBRAL_ALERTA_MEDIA = 60
 UMBRAL_MTF_ALINEADO = 65
 
+# Deduplicación de alertas de noticias — evita enviar el mismo evento múltiples veces
+_eventos_ya_alertados: set = set()
+
 
 # ─── Helpers de comunicación ──────────────────────────────────────────────────
 
@@ -1098,6 +1101,7 @@ async def job_resumen_diario(ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def job_alerta_noticias(ctx: ContextTypes.DEFAULT_TYPE):
+    global _eventos_ya_alertados
     try:
         hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=35)
         if not hay_ev or not ev_info:
@@ -1105,6 +1109,16 @@ async def job_alerta_noticias(ctx: ContextTypes.DEFAULT_TYPE):
         mins = ev_info.get("minutos_restantes", 99)
         if not (25 <= mins <= 35):
             return
+
+        # Deduplicación: una sola alerta por evento (título + hora)
+        clave = f"{ev_info.get('titulo','')}|{ev_info.get('hora_mx','')}"
+        if clave in _eventos_ya_alertados:
+            return
+        _eventos_ya_alertados.add(clave)
+        # Limitar tamaño del set (máx 50 eventos guardados)
+        if len(_eventos_ya_alertados) > 50:
+            _eventos_ya_alertados.clear()
+
         configs = obtener_todas_configs_bot()
         msg = (
             f"⚠️ *AVISO — EVENTO ALTO IMPACTO EN {mins} MIN*\n"
