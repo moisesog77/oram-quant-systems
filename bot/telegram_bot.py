@@ -38,6 +38,9 @@ from database.db import (
     obtener_señales_recientes, inicializar_db,
     obtener_todos_usuarios, obtener_usuario_por_id,
     obtener_trades, obtener_watchlist,
+    registrar_trade_confirmado, obtener_trade_activo,
+    obtener_trades_activos_chat, obtener_todos_trades_activos,
+    cerrar_trade_confirmado,
 )
 
 import pandas as pd
@@ -55,6 +58,17 @@ UMBRAL_MTF_ALINEADO = 65
 
 # Deduplicación de alertas de noticias — evita enviar el mismo evento múltiples veces
 _eventos_ya_alertados: set = set()
+
+# Última señal enviada por chat — permite que /tomar la confirme sin especificar ticker
+# Clave: chat_id → última señal general | (chat_id, ticker) → última señal de ese ticker
+_ultimas_senales: dict = {}
+
+
+def _calcular_pips(ticker: str, p1: float, p2: float) -> float:
+    diff = abs(p1 - p2)
+    if "JPY" in ticker: return round(diff * 100, 1)
+    if "=X" in ticker or "/" in ticker: return round(diff * 10000, 1)
+    return round(diff, 5)
 
 
 # ─── Helpers de comunicación ──────────────────────────────────────────────────
@@ -1042,15 +1056,149 @@ async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/alertas [N] — Señales de las últimas Nh (def: 24)\n"
         "/resumen — Reporte diario completo\n\n"
 
+        "✅ *TRADES CONFIRMADOS:*\n"
+        "/tomar [EURUSD] — Confirma que tomaste la última señal\n"
+        "/activos — Ver trades abiertos con P&L en tiempo real\n"
+        "/cerrar [EURUSD] — Cierra trade manualmente\n\n"
+
         "🤖 *AUTOMÁTICO (sin comandos):*\n"
         "• 🚨 Alertas compra/venta cuando confianza ≥umbral\n"
         "• 🔭 MTF alineado → notificación automática\n"
+        "• 🎯 TP/SL alcanzado → notificación automática\n"
         "• 🔔 Alertas de precio en tus niveles\n"
         "• ⚠️ Aviso 30 min antes de noticias alto impacto\n"
         "• 🌅 Reporte diario a las 7AM CDMX\n\n"
 
         "⚠️ _Las señales son orientativas. Siempre usa SL._"
     )
+
+
+async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Confirma que el usuario tomó la última señal enviada (o la de un ticker específico)."""
+    chat_id = str(update.effective_chat.id)
+    args = ctx.args or []
+
+    if args:
+        ticker_input = args[0].upper().replace("/", "")
+        # Normalizar: EURUSD → EURUSD=X, BTCUSD → BTC-USD, etc.
+        _map = {"EURUSD":"EURUSD=X","GBPUSD":"GBPUSD=X","USDJPY":"USDJPY=X",
+                "USDCHF":"USDCHF=X","AUDUSD":"AUDUSD=X","USDCAD":"USDCAD=X",
+                "NZDUSD":"NZDUSD=X","BTCUSD":"BTC-USD","ETHUSD":"ETH-USD",
+                "XAUUSD":"GC=F","GOLD":"GC=F"}
+        ticker = _map.get(ticker_input, ticker_input + "=X" if "=" not in ticker_input and "-" not in ticker_input else ticker_input)
+        senal = _ultimas_senales.get((chat_id, ticker))
+    else:
+        senal = _ultimas_senales.get(chat_id)
+
+    if not senal:
+        await _reply(update,
+            "⚠️ No hay señal reciente registrada.\n"
+            "Espera la próxima alerta del bot y luego usa /tomar."
+        )
+        return
+
+    ticker = senal["ticker"]
+    if obtener_trade_activo(chat_id, ticker):
+        await _reply(update,
+            f"⚠️ Ya tienes un trade activo en *{ticker}*.\n"
+            f"Usa /cerrar {ticker.replace('=X','')} para cerrarlo primero."
+        )
+        return
+
+    trade_id = registrar_trade_confirmado(
+        chat_id, ticker, senal.get("tf","15m"), senal["direccion"],
+        senal["entrada"], senal["sl"], senal["tp"], senal.get("confianza", 0)
+    )
+    emoji = _emoji_dir(senal["direccion"])
+    await _reply(update,
+        f"✅ *TRADE CONFIRMADO* (ID #{trade_id})\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"{emoji} *{ticker}* · {senal.get('tf','?')}\n"
+        f"💰 Entrada: `{senal['entrada']:.5f}`\n"
+        f"🛑 SL: `{senal['sl']:.5f}`\n"
+        f"✅ TP: `{senal['tp']:.5f}`\n\n"
+        f"🔭 Monitoreando TP/SL automáticamente.\n"
+        f"Señales de *{ticker}* pausadas hasta que cierre.\n"
+        f"Usa /cerrar {ticker.replace('=X','')} para salida manual."
+    )
+
+
+async def cmd_cerrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Cierra manualmente un trade confirmado activo."""
+    chat_id = str(update.effective_chat.id)
+    args = ctx.args or []
+
+    if args:
+        ticker_input = args[0].upper()
+        _map = {"EURUSD":"EURUSD=X","GBPUSD":"GBPUSD=X","USDJPY":"USDJPY=X",
+                "USDCHF":"USDCHF=X","AUDUSD":"AUDUSD=X","USDCAD":"USDCAD=X",
+                "BTCUSD":"BTC-USD","ETHUSD":"ETH-USD","XAUUSD":"GC=F","GOLD":"GC=F"}
+        ticker = _map.get(ticker_input, ticker_input + "=X" if "=" not in ticker_input and "-" not in ticker_input else ticker_input)
+        trade = obtener_trade_activo(chat_id, ticker)
+    else:
+        trades = obtener_trades_activos_chat(chat_id)
+        if len(trades) > 1:
+            lista = "\n".join(f"  • {t['ticker'].replace('=X','')} ({t['direccion']})" for t in trades)
+            await _reply(update, f"Tienes varios trades activos:\n{lista}\n\nEspecifica: /cerrar EURUSD")
+            return
+        trade = trades[0] if trades else None
+
+    if not trade:
+        await _reply(update, "⚠️ No hay trade activo para cerrar.")
+        return
+
+    try:
+        df_c, _ = obtener_datos(trade["ticker"], "5m")
+        precio_actual = float(df_c["Close"].iloc[-1]) if df_c is not None else None
+    except Exception:
+        precio_actual = None
+
+    cerrar_trade_confirmado(trade["id"], "manual")
+    pips_txt = ""
+    if precio_actual:
+        pips = _calcular_pips(trade["ticker"], precio_actual, trade["entrada"])
+        signo = "+" if ((trade["direccion"]=="SHORT" and precio_actual < trade["entrada"]) or
+                        (trade["direccion"]=="LONG"  and precio_actual > trade["entrada"])) else "-"
+        pips_txt = f"\n📏 P&L aprox: {signo}{pips} pips"
+
+    await _reply(update,
+        f"🔒 *TRADE CERRADO MANUALMENTE*\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"*{trade['ticker']}* · {trade['direccion']}\n"
+        f"Entrada: `{trade['entrada']:.5f}`\n"
+        + (f"Precio cierre: `{precio_actual:.5f}`" if precio_actual else "") + pips_txt + "\n\n"
+        f"✅ Señales de *{trade['ticker']}* reactivadas."
+    )
+
+
+async def cmd_activos(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Muestra los trades confirmados activos del usuario."""
+    chat_id = str(update.effective_chat.id)
+    trades = obtener_trades_activos_chat(chat_id)
+    if not trades:
+        await _reply(update, "📭 No tienes trades activos.\nUsa /tomar después de recibir una señal.")
+        return
+    lineas = [f"📊 *TRADES ACTIVOS ({len(trades)})*", "━━━━━━━━━━━━━━━━"]
+    for t in trades:
+        try:
+            df_a, _ = obtener_datos(t["ticker"], "5m")
+            precio_actual = float(df_a["Close"].iloc[-1]) if df_a is not None else None
+        except Exception:
+            precio_actual = None
+        emoji = _emoji_dir(t["direccion"])
+        pnl_txt = ""
+        if precio_actual:
+            pips = _calcular_pips(t["ticker"], precio_actual, t["entrada"])
+            signo = "+" if ((t["direccion"]=="SHORT" and precio_actual < t["entrada"]) or
+                            (t["direccion"]=="LONG"  and precio_actual > t["entrada"])) else "-"
+            pnl_txt = f" · P&L: {signo}{pips}p"
+        lineas += [
+            f"\n{emoji} *{t['ticker']}* ({t['timeframe']}){pnl_txt}",
+            f"  Entrada: `{t['entrada']:.5f}`  SL: `{t['sl']:.5f}`  TP: `{t['tp']:.5f}`",
+            f"  Precio: `{precio_actual:.5f}`" if precio_actual else "",
+        ]
+    lineas += ["", "Usa /cerrar TICKER para salida manual."]
+    await _reply(update, "\n".join(l for l in lineas if l is not None))
 
 
 async def cmd_desconocido(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1238,15 +1386,21 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
 
             for ticker, smc, conf, sig_id in sorted(altas, key=lambda x: -x[2]):
                 try:
+                    # Saltar si ya hay trade confirmado activo para este ticker
+                    if obtener_trade_activo(chat_id, ticker): continue
                     msg = "🚨 *SEÑAL ALTA PRIORIDAD*\n" + _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct)
                     await _send(ctx.bot, chat_id, msg)
                     marcar_señal_enviada(sig_id)
+                    _senal = {"ticker": ticker, "tf": tf, "direccion": smc.get("estructura",{}).get("direccion",""), "entrada": smc.get("precio",0), "sl": smc.get("sl_sugerido",0), "tp": smc.get("tp_sugerido",0), "confianza": conf}
+                    _ultimas_senales[(chat_id, ticker)] = _senal
+                    _ultimas_senales[chat_id] = _senal
                 except Exception as e:
                     logger.error(f"send alta {ticker}: {e}")
 
             if medias:
                 lineas = [f"⚡ *SEÑALES MEDIAS — {tf} · {_hora_mx()} CDMX*", ""]
                 for ticker, smc, conf, sig_id in sorted(medias, key=lambda x: -x[2]):
+                    if obtener_trade_activo(chat_id, ticker): continue
                     dir_  = smc.get("estructura", {}).get("direccion", "neutral")
                     tipo  = smc.get("estructura", {}).get("tipo", "?")
                     precio = smc.get("precio", 0)
@@ -1257,6 +1411,9 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         f"   SL:`{sl:.5f}` TP:`{tp_:.5f}`"
                     )
                     marcar_señal_enviada(sig_id)
+                    _senal = {"ticker": ticker, "tf": tf, "direccion": dir_, "entrada": precio, "sl": sl, "tp": tp_, "confianza": conf}
+                    _ultimas_senales[(chat_id, ticker)] = _senal
+                    _ultimas_senales[chat_id] = _senal
                 try:
                     await _send(ctx.bot, chat_id, "\n".join(lineas))
                 except Exception as e:
@@ -1310,9 +1467,14 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                         if _dsl > 0 and (_dtp / _dsl) < 1.5: continue
                     dir_mtf = mtf.get("direccion", "neutral")
                     if (ticker, dir_mtf) in mtf_recientes: continue
+                    if obtener_trade_activo(chat_id, ticker): continue
                     df_bajo_ctx, _ = obtener_datos(ticker, tf_bajo)
                     ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
                     await _send(ctx.bot, chat_id, "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo))
+                    entrada_m = mtf.get("entrada_sugerida") or 0
+                    _senal_mtf = {"ticker": ticker, "tf": tf_bajo, "direccion": dir_mtf, "entrada": entrada_m, "sl": sl_m, "tp": tp_m, "confianza": mtf.get("confianza_mtf", 0)}
+                    _ultimas_senales[(chat_id, ticker)] = _senal_mtf
+                    _ultimas_senales[chat_id] = _senal_mtf
                 except Exception as e:
                     logger.error(f"job_mtf {ticker}: {e}")
     except Exception as e:
@@ -1464,6 +1626,54 @@ async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
             )
             await _send(ctx.bot, chat_id, msg)
             disparar_alerta(alerta["id"])
+
+        # ── Monitoreo de trades confirmados (TP/SL) ──────────────────────────
+        for trade in obtener_todos_trades_activos():
+            ticker = trade["ticker"]
+            if ticker not in precios_cache:
+                try:
+                    df_t, _ = obtener_datos(ticker, "5m")
+                    if df_t is not None:
+                        precios_cache[ticker] = float(df_t["Close"].iloc[-1])
+                except Exception:
+                    continue
+            precio_actual = precios_cache.get(ticker)
+            if precio_actual is None: continue
+            dir_    = trade["direccion"]
+            sl, tp  = trade["sl"], trade["tp"]
+            entrada = trade["entrada"]
+            tp_hit  = (dir_ == "SHORT" and precio_actual <= tp) or (dir_ == "LONG"  and precio_actual >= tp)
+            sl_hit  = (dir_ == "SHORT" and precio_actual >= sl) or (dir_ == "LONG"  and precio_actual <= sl)
+            if not tp_hit and not sl_hit: continue
+            pips = _calcular_pips(ticker, tp if tp_hit else sl, entrada)
+            if tp_hit:
+                msg = (
+                    f"🎯 *OBJETIVO ALCANZADO — TP HIT*\n"
+                    f"━━━━━━━━━━━━━━━━\n"
+                    f"{_emoji_dir(dir_)} *{ticker}* {dir_}\n"
+                    f"💰 Entrada: `{entrada:.5f}`\n"
+                    f"✅ TP: `{tp:.5f}` alcanzado\n"
+                    f"📈 +{pips} pips\n"
+                    f"🕐 {_hora_mx()} CDMX\n\n"
+                    f"✅ Señales de *{ticker}* reactivadas."
+                )
+                cerrar_trade_confirmado(trade["id"], "tp")
+            else:
+                msg = (
+                    f"🛑 *STOP LOSS ALCANZADO*\n"
+                    f"━━━━━━━━━━━━━━━━\n"
+                    f"{_emoji_dir(dir_)} *{ticker}* {dir_}\n"
+                    f"💰 Entrada: `{entrada:.5f}`\n"
+                    f"🛑 SL: `{sl:.5f}` alcanzado\n"
+                    f"📉 -{pips} pips\n"
+                    f"🕐 {_hora_mx()} CDMX\n\n"
+                    f"✅ Señales de *{ticker}* reactivadas."
+                )
+                cerrar_trade_confirmado(trade["id"], "sl")
+            try:
+                await _send(ctx.bot, trade["chat_id"], msg)
+            except Exception as e:
+                logger.error(f"job_confirmed_trade notify {ticker}: {e}")
     except Exception as e:
         logger.error(f"job_verificar_alertas: {e}")
 
@@ -1504,6 +1714,9 @@ def main():
         ("alertas",     cmd_alertas),
         ("resumen",     cmd_resumen),
         ("ayuda",       cmd_ayuda),
+        ("tomar",       cmd_tomar),
+        ("cerrar",      cmd_cerrar),
+        ("activos",     cmd_activos),
     ]:
         app.add_handler(CommandHandler(cmd, handler))
     app.add_handler(MessageHandler(filters.COMMAND, cmd_desconocido))

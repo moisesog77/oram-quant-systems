@@ -276,6 +276,21 @@ CREATE TABLE IF NOT EXISTS signal_log (
     enviada_bot INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS confirmed_trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    timeframe TEXT DEFAULT '15m',
+    direccion TEXT NOT NULL,
+    entrada REAL NOT NULL,
+    sl REAL NOT NULL,
+    tp REAL NOT NULL,
+    confianza REAL DEFAULT 0,
+    activo INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    closed_at TEXT DEFAULT NULL,
+    resultado TEXT DEFAULT NULL
+);
 """
 
 # SQL para PostgreSQL — usa SERIAL y NOW()
@@ -371,6 +386,21 @@ _PG_TABLES = [
         tp REAL DEFAULT 0,
         enviada_bot INTEGER DEFAULT 0,
         created_at TEXT DEFAULT (NOW()::text)
+    )""",
+    """CREATE TABLE IF NOT EXISTS confirmed_trades (
+        id SERIAL PRIMARY KEY,
+        chat_id TEXT NOT NULL,
+        ticker TEXT NOT NULL,
+        timeframe TEXT DEFAULT '15m',
+        direccion TEXT NOT NULL,
+        entrada REAL NOT NULL,
+        sl REAL NOT NULL,
+        tp REAL NOT NULL,
+        confianza REAL DEFAULT 0,
+        activo INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT (NOW()::text),
+        closed_at TEXT DEFAULT NULL,
+        resultado TEXT DEFAULT NULL
     )""",
 ]
 
@@ -816,3 +846,55 @@ def obtener_backtests(user_id: int) -> list:
             "SELECT * FROM backtest_results WHERE user_id=? ORDER BY created_at DESC",
             (user_id,)
         ))
+
+
+# ── CRUD: Confirmed Trades ────────────────────────────────────────────────────
+
+def registrar_trade_confirmado(chat_id: str, ticker: str, timeframe: str,
+                                direccion: str, entrada: float, sl: float,
+                                tp: float, confianza: float) -> int:
+    """Registra un trade que el usuario confirmó haber tomado. Retorna ID."""
+    with get_conn() as conn:
+        cur = _exec(conn,
+            f"INSERT INTO confirmed_trades (chat_id,ticker,timeframe,direccion,entrada,sl,tp,confianza) "
+            f"VALUES ({_ph(8)})",
+            (chat_id, ticker, timeframe, direccion, entrada, sl, tp, confianza)
+        )
+        return _lastrowid(cur, "confirmed_trades", conn)
+
+
+def obtener_trade_activo(chat_id: str, ticker: str):
+    """Retorna el trade confirmado activo para (chat_id, ticker) o None."""
+    with get_conn() as conn:
+        return _fetchone(_exec(conn,
+            "SELECT * FROM confirmed_trades WHERE chat_id=? AND ticker=? AND activo=1 "
+            "ORDER BY created_at DESC LIMIT 1",
+            (chat_id, ticker)
+        ))
+
+
+def obtener_trades_activos_chat(chat_id: str) -> list:
+    """Todos los trades activos confirmados para un chat_id."""
+    with get_conn() as conn:
+        return _fetchall(_exec(conn,
+            "SELECT * FROM confirmed_trades WHERE chat_id=? AND activo=1 ORDER BY created_at DESC",
+            (chat_id,)
+        ))
+
+
+def obtener_todos_trades_activos() -> list:
+    """Todos los trades confirmados activos de todos los usuarios (para monitoreo)."""
+    with get_conn() as conn:
+        return _fetchall(_exec(conn,
+            "SELECT * FROM confirmed_trades WHERE activo=1 ORDER BY created_at DESC"
+        ))
+
+
+def cerrar_trade_confirmado(trade_id: int, resultado: str):
+    """Cierra un trade confirmado (TP, SL o manual)."""
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    with get_conn() as conn:
+        _exec(conn,
+            "UPDATE confirmed_trades SET activo=0, closed_at=?, resultado=? WHERE id=?",
+            (now_str, resultado, trade_id)
+        )
