@@ -63,9 +63,12 @@ _eventos_ya_alertados: set = set()
 # Clave: chat_id → última señal general | (chat_id, ticker) → última señal de ese ticker
 _ultimas_senales: dict = {}
 
-# Persistencia MTF: (chat_id, ticker, direccion) → checks consecutivos ≥63%
-# La alerta automática se dispara solo cuando el setup se mantiene 2 checks seguidos (~30 min)
+# Persistencia MTF — dos niveles:
+#   clave (chat_id, ticker, dir)       → checks consecutivos ≥63% para alerta de acción
+#   clave (chat_id, ticker, dir, "w")  → checks consecutivos 60-62% para alerta de vigilancia
 _mtf_persistencia: dict = {}
+# Timestamp del último envío de alerta de vigilancia — dedup 2h
+_watch_enviados: dict = {}
 
 
 def _calcular_pips(ticker: str, p1: float, p2: float) -> float:
@@ -1462,15 +1465,18 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     if not mtf.get("alineacion"): continue
                     confianza_mtf = mtf.get("confianza_mtf", 0)
                     dir_mtf = mtf.get("direccion", "neutral")
-                    clave_pers = (chat_id, ticker, dir_mtf)
-                    if confianza_mtf < 63:
-                        _mtf_persistencia.pop(clave_pers, None)
+                    clave_acc = (chat_id, ticker, dir_mtf)
+                    clave_vig = (chat_id, ticker, dir_mtf, "w")
+                    if confianza_mtf < 60:
+                        _mtf_persistencia.pop(clave_acc, None)
+                        _mtf_persistencia.pop(clave_vig, None)
                         continue
                     # Verificar que AMBOS timeframes tienen señal válida SMC
                     smc_alto = mtf.get("smc_alto", {})
                     smc_bajo = mtf.get("smc_bajo", {})
                     if not smc_alto.get("señal_valida") or not smc_bajo.get("señal_valida"):
-                        _mtf_persistencia.pop(clave_pers, None)
+                        _mtf_persistencia.pop(clave_acc, None)
+                        _mtf_persistencia.pop(clave_vig, None)
                         continue
                     # FILTRO v4 MTF: RR mínimo 1.5:1 en los niveles calculados
                     entrada_m = mtf.get("entrada_sugerida") or 0
@@ -1480,18 +1486,44 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                         _dsl = abs(entrada_m - sl_m)
                         _dtp = abs(tp_m - entrada_m)
                         if _dsl > 0 and (_dtp / _dsl) < 1.5:
-                            _mtf_persistencia.pop(clave_pers, None)
+                            _mtf_persistencia.pop(clave_acc, None)
+                            _mtf_persistencia.pop(clave_vig, None)
                             continue
-                    # Filtro de persistencia: alerta solo si el setup se mantiene 2 checks (~30 min)
-                    _mtf_persistencia[clave_pers] = _mtf_persistencia.get(clave_pers, 0) + 1
-                    if _mtf_persistencia[clave_pers] < 2: continue
+                    if confianza_mtf < 63:
+                        # ── Alerta de vigilancia 60-62%: 3 checks (~45 min) + dedup 2h ──
+                        _mtf_persistencia.pop(clave_acc, None)
+                        _mtf_persistencia[clave_vig] = _mtf_persistencia.get(clave_vig, 0) + 1
+                        if _mtf_persistencia[clave_vig] < 3: continue
+                        if obtener_trade_activo(chat_id, ticker): continue
+                        ahora_ts = datetime.now(TZ_MX).timestamp()
+                        if ahora_ts - _watch_enviados.get(clave_acc, 0) < 7200: continue
+                        _mtf_persistencia.pop(clave_vig, None)
+                        _watch_enviados[clave_acc] = ahora_ts
+                        icono = "🔴" if "SHORT" in dir_mtf else "🟢"
+                        msg_w = (
+                            f"👁 *SETUP EN FORMACIÓN — VIGILAR*\n"
+                            f"📊 *{ticker}* — {tf_alto}/{tf_bajo}\n"
+                            f"━━━━━━━━━━━━━━━━\n"
+                            f"⚠️ Confianza MTF: {confianza_mtf}% (zona de formación)\n"
+                            f"{icono} Dirección: *{dir_mtf}* — ambos TF alineados\n\n"
+                            f"💡 *No entrar aún* — espera en {tf_bajo}:\n"
+                            f"   • Retroceso a OB/FVG con rechazo claro\n"
+                            f"   • Cuando suba a ≥63% el bot alertará automáticamente\n"
+                            f"   • O usa /mtf para revisar el setup manualmente\n\n"
+                            f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX"
+                        )
+                        await _send(ctx.bot, chat_id, msg_w)
+                        continue
+                    # ── Alerta de acción ≥63%: 2 checks consecutivos (~30 min) ──
+                    _mtf_persistencia.pop(clave_vig, None)
+                    _mtf_persistencia[clave_acc] = _mtf_persistencia.get(clave_acc, 0) + 1
+                    if _mtf_persistencia[clave_acc] < 2: continue
                     if (ticker, dir_mtf) in mtf_recientes: continue
                     if obtener_trade_activo(chat_id, ticker): continue
-                    _mtf_persistencia.pop(clave_pers, None)
+                    _mtf_persistencia.pop(clave_acc, None)
                     df_bajo_ctx, _ = obtener_datos(ticker, tf_bajo)
                     ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
                     await _send(ctx.bot, chat_id, "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo))
-                    entrada_m = mtf.get("entrada_sugerida") or 0
                     _senal_mtf = {"ticker": ticker, "tf": tf_bajo, "direccion": dir_mtf, "entrada": entrada_m, "sl": sl_m, "tp": tp_m, "confianza": confianza_mtf}
                     _ultimas_senales[(chat_id, ticker)] = _senal_mtf
                     _ultimas_senales[chat_id] = _senal_mtf
