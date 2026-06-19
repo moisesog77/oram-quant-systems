@@ -63,6 +63,10 @@ _eventos_ya_alertados: set = set()
 # Clave: chat_id → última señal general | (chat_id, ticker) → última señal de ese ticker
 _ultimas_senales: dict = {}
 
+# Persistencia MTF: (chat_id, ticker, direccion) → checks consecutivos ≥63%
+# La alerta automática se dispara solo cuando el setup se mantiene 2 checks seguidos (~30 min)
+_mtf_persistencia: dict = {}
+
 
 def _calcular_pips(ticker: str, p1: float, p2: float) -> float:
     diff = abs(p1 - p2)
@@ -1456,11 +1460,18 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                 try:
                     mtf = analisis_mtf(ticker, tf_alto, tf_bajo)
                     if not mtf.get("alineacion"): continue
-                    if mtf.get("confianza_mtf", 0) < UMBRAL_MTF_ALINEADO: continue
+                    confianza_mtf = mtf.get("confianza_mtf", 0)
+                    dir_mtf = mtf.get("direccion", "neutral")
+                    clave_pers = (chat_id, ticker, dir_mtf)
+                    if confianza_mtf < 63:
+                        _mtf_persistencia.pop(clave_pers, None)
+                        continue
                     # Verificar que AMBOS timeframes tienen señal válida SMC
                     smc_alto = mtf.get("smc_alto", {})
                     smc_bajo = mtf.get("smc_bajo", {})
-                    if not smc_alto.get("señal_valida") or not smc_bajo.get("señal_valida"): continue
+                    if not smc_alto.get("señal_valida") or not smc_bajo.get("señal_valida"):
+                        _mtf_persistencia.pop(clave_pers, None)
+                        continue
                     # FILTRO v4 MTF: RR mínimo 1.5:1 en los niveles calculados
                     entrada_m = mtf.get("entrada_sugerida") or 0
                     sl_m      = mtf.get("sl_sugerido")      or 0
@@ -1468,15 +1479,20 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     if entrada_m > 0 and sl_m > 0 and tp_m > 0:
                         _dsl = abs(entrada_m - sl_m)
                         _dtp = abs(tp_m - entrada_m)
-                        if _dsl > 0 and (_dtp / _dsl) < 1.5: continue
-                    dir_mtf = mtf.get("direccion", "neutral")
+                        if _dsl > 0 and (_dtp / _dsl) < 1.5:
+                            _mtf_persistencia.pop(clave_pers, None)
+                            continue
+                    # Filtro de persistencia: alerta solo si el setup se mantiene 2 checks (~30 min)
+                    _mtf_persistencia[clave_pers] = _mtf_persistencia.get(clave_pers, 0) + 1
+                    if _mtf_persistencia[clave_pers] < 2: continue
                     if (ticker, dir_mtf) in mtf_recientes: continue
                     if obtener_trade_activo(chat_id, ticker): continue
+                    _mtf_persistencia.pop(clave_pers, None)
                     df_bajo_ctx, _ = obtener_datos(ticker, tf_bajo)
                     ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
                     await _send(ctx.bot, chat_id, "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo))
                     entrada_m = mtf.get("entrada_sugerida") or 0
-                    _senal_mtf = {"ticker": ticker, "tf": tf_bajo, "direccion": dir_mtf, "entrada": entrada_m, "sl": sl_m, "tp": tp_m, "confianza": mtf.get("confianza_mtf", 0)}
+                    _senal_mtf = {"ticker": ticker, "tf": tf_bajo, "direccion": dir_mtf, "entrada": entrada_m, "sl": sl_m, "tp": tp_m, "confianza": confianza_mtf}
                     _ultimas_senales[(chat_id, ticker)] = _senal_mtf
                     _ultimas_senales[chat_id] = _senal_mtf
                 except Exception as e:
