@@ -457,6 +457,18 @@ section[data-testid="stSidebar"]{{display:none!important;}}
 
             st.divider()
             st.markdown('<div style="margin-top:1.6rem"></div>', unsafe_allow_html=True)
+            st.markdown("""<style>
+section[data-testid="stSidebar"] [data-testid="stColumns"],
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {
+    flex-wrap: nowrap !important;
+    gap: 0.5rem !important;
+}
+section[data-testid="stSidebar"] [data-testid="stColumn"] {
+    min-width: 0 !important;
+    flex: 1 1 0 !important;
+    width: auto !important;
+}
+</style>""", unsafe_allow_html=True)
 
             col_t, col_s = st.columns(2)
             with col_t:
