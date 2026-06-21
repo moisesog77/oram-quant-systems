@@ -11,7 +11,7 @@ from ui.styles import get_colors, page_header, oram_bienvenida, get_theme, injec
 
 
 
-def _overlay_error(mensaje: str) -> None:
+def _overlay_error(mensaje: str, dark: bool = True) -> None:
     """Overlay premium de error."""
     import time
     dark = get_theme() == "dark"
@@ -129,7 +129,7 @@ def render_journal():
 
             if st.form_submit_button("💾 Guardar Trade", use_container_width=True):
                 if entrada == 0 or sl == 0 or tp == 0:
-                    _overlay_error("Entrada, Stop Loss y Take Profit son campos obligatorios.")
+                    _overlay_error("Entrada, Stop Loss y Take Profit son campos obligatorios.", dark=dark)
                 else:
                     insertar_trade(user["id"], {
                         "fecha": str(fecha), "activo": activo, "timeframe": tf,

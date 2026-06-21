@@ -179,59 +179,9 @@ else:
 
     _just_logged_in = st.session_state.pop("_just_logged_in", False)
     _transitioning  = st.session_state.pop("_transitioning", False)
-    _logout_pending = st.session_state.pop("_logout_pending", False)
-
-    # ── FASE LOGOUT: overlay de cierre de sesión ─────────────────────────────
-    if _logout_pending:
-        _dark_lo  = get_theme() == "dark"
-        _olay_lo  = "rgba(6,9,15,0.92)"  if _dark_lo else "rgba(238,242,247,0.94)"
-        _cbg_lo   = "#0c1219"             if _dark_lo else "#ffffff"
-        _cbdr_lo  = "#1b2a40"             if _dark_lo else "#dde5ef"
-        _tmain_lo = "#edf4ff"             if _dark_lo else "#0b1824"
-        _tmut_lo  = "#637a94"             if _dark_lo else "#7a8fa0"
-        _user_lo  = user.get("username", "").upper()
-        st.markdown(f"""
-<style>
-section[data-testid="stSidebar"]{{display:none!important;}}
-[data-testid="stSidebarCollapsedControl"]{{display:none!important;}}
-@keyframes oram-lo-in{{from{{opacity:0;transform:translateY(14px) scale(0.97);}}to{{opacity:1;transform:translateY(0) scale(1);}}}}
-@keyframes oram-lo-pulse{{0%,100%{{box-shadow:0 0 0 0 rgba(201,162,39,0.40);}}50%{{box-shadow:0 0 0 18px rgba(201,162,39,0);}}}}
-@keyframes oram-lo-spin{{to{{transform:rotate(360deg);}}}}
-#oram-lo-overlay{{position:fixed;inset:0;background:{_olay_lo};backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:99999;display:flex;align-items:center;justify-content:center;}}
-#oram-lo-card{{background:{_cbg_lo};border:1px solid {_cbdr_lo};border-radius:20px;padding:2.8rem 3rem 2.4rem;text-align:center;max-width:400px;width:90%;animation:oram-lo-in 0.45s cubic-bezier(0.22,1,0.36,1) both;box-shadow:0 24px 60px rgba(0,0,0,0.35);}}
-.oram-lo-ring{{width:64px;height:64px;border-radius:50%;background:rgba(201,162,39,0.12);border:2px solid {LOGO_GOLD};display:flex;align-items:center;justify-content:center;margin:0 auto 1.4rem;animation:oram-lo-pulse 1.6s ease-in-out infinite;}}
-.oram-lo-ring svg{{width:28px;height:28px;stroke:{LOGO_GOLD};fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}}
-.oram-lo-logo{{font-family:'Space Grotesk',sans-serif;font-size:1.1rem;font-weight:800;letter-spacing:-1px;margin-bottom:0.15rem;}}
-.oram-lo-title{{font-family:'Inter',sans-serif;font-size:1.1rem;font-weight:700;color:{_tmain_lo};margin-bottom:0.3rem;}}
-.oram-lo-sub{{font-family:'Inter',sans-serif;font-size:0.82rem;color:{_tmut_lo};margin-bottom:1.6rem;line-height:1.5;}}
-.oram-lo-spin-row{{display:flex;align-items:center;justify-content:center;gap:0.55rem;}}
-.oram-lo-spinner{{width:16px;height:16px;border:2px solid rgba(201,162,39,0.25);border-top-color:{LOGO_GOLD};border-radius:50%;animation:oram-lo-spin 0.75s linear infinite;flex-shrink:0;}}
-.oram-lo-label{{font-family:'JetBrains Mono',monospace;font-size:0.72rem;letter-spacing:1.5px;text-transform:uppercase;color:{_tmut_lo};}}
-</style>
-<div id="oram-lo-overlay"><div id="oram-lo-card">
-  <div class="oram-lo-ring">
-    <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-  </div>
-  <div class="oram-lo-logo">
-    <span style="color:{LOGO_GOLD}">O</span><span style="color:{LOGO_BLUE}">R</span><span style="color:{LOGO_TEAL}">A</span><span style="color:{_tmain_lo}">M</span>
-    <span style="color:{_tmut_lo};font-weight:500;font-size:0.85rem;letter-spacing:0"> Quant Systems</span>
-  </div>
-  <div class="oram-lo-title">Hasta pronto, {_user_lo}</div>
-  <div class="oram-lo-sub">Tu sesión ha sido cerrada de forma segura.</div>
-  <div class="oram-lo-spin-row">
-    <div class="oram-lo-spinner"></div>
-    <span class="oram-lo-label">Cerrando sesión…</span>
-  </div>
-</div></div>
-""", unsafe_allow_html=True)
-        _time.sleep(2.5)
-        st.session_state.user = None
-        st.session_state.pop("session_start", None)
-        st.session_state["logged_out"] = True
-        st.rerun()
 
     # ── FASE BIENVENIDA: overlay al iniciar sesión ───────────────────────────
-    elif _just_logged_in:
+    if _just_logged_in:
         _dark_w  = get_theme() == "dark"
         _olay_w  = "rgba(6,9,15,0.98)"  if _dark_w else "rgba(238,242,247,0.98)"
         _cbg_w   = "#0c1219"             if _dark_w else "#ffffff"
@@ -528,7 +478,97 @@ section[data-testid="stSidebar"] [data-testid="stColumn"] {
                     st.rerun()
             with col_s:
                 if st.button("🚪 Salir", key="sb_logout"):
-                    st.session_state["_logout_pending"] = True
+                    _dark_lo  = get_theme() == "dark"
+                    _olay_lo  = "rgba(6,9,15,0.92)"  if _dark_lo else "rgba(238,242,247,0.94)"
+                    _cbg_lo   = "#0c1219"             if _dark_lo else "#ffffff"
+                    _cbdr_lo  = "#1b2a40"             if _dark_lo else "#dde5ef"
+                    _tmain_lo = "#edf4ff"             if _dark_lo else "#0b1824"
+                    _tmut_lo  = "#637a94"             if _dark_lo else "#7a8fa0"
+                    _user_lo  = user.get("username", "").upper()
+                    _ph_lo = st.empty()
+                    _ph_lo.markdown(f"""
+<style>
+@keyframes oram-lo-in {{
+    from {{ opacity:0; transform:translateY(14px) scale(0.97); }}
+    to   {{ opacity:1; transform:translateY(0) scale(1); }}
+}}
+@keyframes oram-lo-pulse {{
+    0%,100% {{ box-shadow:0 0 0 0    rgba(201,162,39,0.40); }}
+    50%      {{ box-shadow:0 0 0 18px rgba(201,162,39,0); }}
+}}
+@keyframes oram-lo-spin {{ to {{ transform:rotate(360deg); }} }}
+#oram-lo-overlay {{
+    position:fixed;inset:0;background:{_olay_lo};
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    z-index:99999;display:flex;align-items:center;justify-content:center;
+}}
+#oram-lo-card {{
+    background:{_cbg_lo};border:1px solid {_cbdr_lo};border-radius:20px;
+    padding:2.8rem 3rem 2.4rem;text-align:center;
+    max-width:400px;width:90%;
+    animation:oram-lo-in 0.45s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow:0 24px 60px rgba(0,0,0,0.35);
+}}
+.oram-lo-ring {{
+    width:64px;height:64px;border-radius:50%;
+    background:rgba(201,162,39,0.12);border:2px solid {LOGO_GOLD};
+    display:flex;align-items:center;justify-content:center;
+    margin:0 auto 1.4rem;
+    animation:oram-lo-pulse 1.6s ease-in-out infinite;
+}}
+.oram-lo-ring svg {{
+    width:28px;height:28px;stroke:{LOGO_GOLD};fill:none;
+    stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+}}
+.oram-lo-logo {{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:1.1rem;font-weight:800;letter-spacing:-1px;margin-bottom:0.15rem;
+}}
+.oram-lo-title {{
+    font-family:'Inter',sans-serif;font-size:1.1rem;font-weight:700;
+    color:{_tmain_lo};margin-bottom:0.3rem;
+}}
+.oram-lo-sub {{
+    font-family:'Inter',sans-serif;font-size:0.82rem;
+    color:{_tmut_lo};margin-bottom:1.6rem;line-height:1.5;
+}}
+.oram-lo-spin-row {{
+    display:flex;align-items:center;justify-content:center;gap:0.55rem;
+}}
+.oram-lo-spinner {{
+    width:16px;height:16px;
+    border:2px solid rgba(201,162,39,0.25);
+    border-top-color:{LOGO_GOLD};border-radius:50%;
+    animation:oram-lo-spin 0.75s linear infinite;flex-shrink:0;
+}}
+.oram-lo-label {{
+    font-family:'JetBrains Mono',monospace;font-size:0.72rem;
+    letter-spacing:1.5px;text-transform:uppercase;color:{_tmut_lo};
+}}
+</style>
+<div id="oram-lo-overlay">
+  <div id="oram-lo-card">
+    <div class="oram-lo-ring">
+      <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </div>
+    <div class="oram-lo-logo">
+      <span style="color:{LOGO_GOLD}">O</span><span style="color:{LOGO_BLUE}">R</span><span style="color:{LOGO_TEAL}">A</span><span style="color:{_tmain_lo}">M</span>
+      <span style="color:{_tmut_lo};font-weight:500;font-size:0.85rem;letter-spacing:0"> Quant Systems</span>
+    </div>
+    <div class="oram-lo-title">Hasta pronto, {_user_lo}</div>
+    <div class="oram-lo-sub">Tu sesión ha sido cerrada de forma segura.</div>
+    <div class="oram-lo-spin-row">
+      <div class="oram-lo-spinner"></div>
+      <span class="oram-lo-label">Cerrando sesión…</span>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+                    _time.sleep(3.0)
+                    _ph_lo.empty()
+                    st.session_state.user = None
+                    st.session_state.pop("session_start", None)
+                    st.session_state["logged_out"] = True
                     st.rerun()
 
             mins = _minutos_restantes(start)
