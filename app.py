@@ -455,8 +455,11 @@ section[data-testid="stSidebar"]{{display:none!important;}}
                 label_visibility="hidden",
             )
 
-            st.divider()
-            st.markdown('<div style="margin-top:0.6rem"></div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="margin-top:.8rem;padding-bottom:.7rem;'
+                f'border-top:1px solid {c["border"]}"></div>',
+                unsafe_allow_html=True
+            )
 
             col_t, col_s = st.columns(2)
             with col_t:
