@@ -364,11 +364,20 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_mercado(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not _en_horario_trading():
+        await _reply(update,
+            "🔒 *MERCADO CERRADO — FIN DE SEMANA*\n"
+            "━━━━━━━━━━━━━━━━\n"
+            "Los mercados Forex y Oro están cerrados.\n\n"
+            "⏰ *Reapertura:* Domingo 16:00 CDMX\n"
+            "🔥 *Mejor sesión:* Lunes 02:00-10:00 CDMX\n\n"
+            "💡 Usa este tiempo para revisar /diario y planificar la semana."
+        )
+        return
     await update.message.reply_text("🔍 Analizando mercado... espera.")
     categorias = {
-        "Forex":   ["EURUSD=X","GBPUSD=X","USDJPY=X","USDCHF=X","AUDUSD=X","USDCAD=X"],
-        "Cripto":  ["BTC-USD","ETH-USD"],
-        "Materias":["GC=F","CL=F"],
+        "Forex":    ["EURUSD=X", "GBPUSD=X"],
+        "Materias": ["GC=F"],
     }
     lineas = [
         "📊 *RESUMEN DE MERCADO*",
@@ -376,8 +385,8 @@ async def cmd_mercado(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━",
     ]
     for cat, tickers in categorias.items():
-        icons = {"Forex":"🔵","Cripto":"🟡","Materias":"🟠"}
-        lineas.append(f"\n{icons[cat]} *{cat}:*")
+        icons = {"Forex": "🔵", "Materias": "🟠"}
+        lineas.append(f"\n{icons.get(cat, '📊')} *{cat}:*")
         for ticker in tickers:
             try:
                 smc, _ = _analizar_activo(ticker, "1h")
@@ -430,8 +439,15 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         activos = json.loads(cfg.get("activos_monitor", "[]")) if cfg else []
     except Exception:
         activos = []
+    if not _en_horario_trading():
+        await _reply(update,
+            "🔒 *MERCADO CERRADO — FIN DE SEMANA*\n"
+            "━━━━━━━━━━━━━━━━\n"
+            "No hay señales activas. Los mercados reabren el domingo 16:00 CDMX."
+        )
+        return
     if not activos:
-        activos = ["EURUSD=X","GBPUSD=X","USDJPY=X","USDCHF=X","AUDUSD=X","USDCAD=X","XAUUSD=X"]
+        activos = ["EURUSD=X", "GBPUSD=X", "GC=F"]
 
     await update.message.reply_text(f"⚡ Escaneando {len(activos)} activos en {tf}...")
 
@@ -1215,6 +1231,20 @@ async def cmd_desconocido(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── JOBS AUTOMÁTICOS ─────────────────────────────────────────────────────────
 
 async def _generar_resumen_diario() -> str:
+    if not _en_horario_trading():
+        return (
+            "🔒 *MERCADO CERRADO — FIN DE SEMANA*\n"
+            f"_{datetime.now(TZ_MX).strftime('%A %d/%m/%Y — %H:%M')} CDMX_\n"
+            "━━━━━━━━━━━━━━━━\n\n"
+            "Los mercados Forex y Oro están cerrados.\n"
+            "⏰ *Reapertura:* Domingo 16:00 CDMX\n\n"
+            "💡 *Úsalo para prepararte:*\n"
+            "   • Revisa tus trades con /diario\n"
+            "   • Identifica zonas clave para la semana\n"
+            "   • Descansa — el mercado reabre el lunes\n"
+            "━━━━━━━━━━━━━━━━\n"
+            "🤖 _ORAM Quant Systems_"
+        )
     activos = ["EURUSD=X", "GBPUSD=X", "GC=F"]
     lineas  = [
         "🌅 *REPORTE DIARIO SMC — ORAM*",

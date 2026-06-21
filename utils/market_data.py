@@ -95,6 +95,17 @@ def _td_symbol(ticker: str) -> str:
     return _TD_SYMBOL_MAP.get(ticker, ticker.replace("=X", "").replace("-", "/").replace("^", ""))
 
 
+def mercado_cerrado() -> bool:
+    """True si los mercados Forex y materias están cerrados (sábado completo, domingo antes 22h UTC, viernes después 22h UTC)."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    wd, h = now.weekday(), now.hour
+    if wd == 5: return True
+    if wd == 6 and h < 22: return True
+    if wd == 4 and h >= 22: return True
+    return False
+
+
 # ── Indicadores técnicos (compartido entre ambas fuentes) ─────────────────────
 def _agregar_indicadores(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     """

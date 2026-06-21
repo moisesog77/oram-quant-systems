@@ -16,7 +16,7 @@ Combos predefinidos (utils/multi_timeframe.MTF_COMBOS):
 import streamlit as st
 import plotly.graph_objects as go
 from utils.multi_timeframe import analisis_mtf, MTF_COMBOS
-from utils.market_data import ACTIVOS_DEFAULT, obtener_datos
+from utils.market_data import ACTIVOS_DEFAULT, obtener_datos, mercado_cerrado
 from ui.styles import get_colors, page_header, signal_box, get_theme, oram_bienvenida, inject_module_css
 
 
@@ -100,6 +100,8 @@ def render_multi_tf():
 
     page_header("🔭", "Multi-Timeframe", "Confluencia entre TF alto (estructura) y TF bajo (entrada)")
     inject_module_css(dark)
+    if mercado_cerrado():
+        st.warning("🔒 **Mercado cerrado — Fin de semana.** Los datos mostrados corresponden al último cierre del viernes. Reapertura: Domingo 16:00 CDMX.")
 
     # ── Controles ──────────────────────────────────────────────────────────
     col1, col2, col3 = st.columns([2, 1, 1])

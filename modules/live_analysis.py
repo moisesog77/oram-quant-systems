@@ -11,7 +11,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from utils.market_data import obtener_datos, ACTIVOS_DEFAULT
+from utils.market_data import obtener_datos, ACTIVOS_DEFAULT, mercado_cerrado
 from utils.smc_engine import analisis_completo, calcular_riesgo
 from utils.economic_calendar import (hay_evento_alto_impacto_pronto,
                                       obtener_proximos_eventos,
@@ -378,6 +378,8 @@ def render_live_analysis():
 
     page_header("📡", "Análisis en Vivo",
                 "Smart Money Concepts · Order Blocks · FVG · Liquidez")
+    if mercado_cerrado():
+        st.warning("🔒 **Mercado cerrado — Fin de semana.** Los datos mostrados corresponden al último cierre del viernes. Reapertura: Domingo 16:00 CDMX.")
     _render_news_banner(dark, c)
     inject_module_css(dark)
 

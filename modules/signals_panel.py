@@ -5,7 +5,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from utils.market_data import ACTIVOS_DEFAULT, obtener_datos
+from utils.market_data import ACTIVOS_DEFAULT, obtener_datos, mercado_cerrado
 from utils.smc_engine import analisis_completo
 from utils.economic_calendar import hay_evento_alto_impacto_pronto
 from ui.styles import get_colors, page_header, get_theme, inject_module_css
@@ -171,6 +171,9 @@ def render_signals_panel():
 
     page_header("⚡", "Panel de Señales", "Escaneo multi-activo en tiempo real · SMC Score")
     inject_module_css(dark, multiselect=True)
+    if mercado_cerrado():
+        st.warning("🔒 **Mercado cerrado — Fin de semana.** No hay señales activas. Los mercados reabren el domingo 16:00 CDMX.")
+        return
 
     # ── Alerta noticias ────────────────────────────────────────────────────
     hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=60)
