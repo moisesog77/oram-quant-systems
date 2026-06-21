@@ -68,11 +68,6 @@ TIMEFRAME_CONFIG = {
     "1wk": {"td_interval": "1week", "td_outputsize": 100,  "yf_interval": "1wk", "yf_period": "5y"},
 }
 
-ACTIVOS_DEFAULT = {
-    "Forex":    ["EURUSD=X", "GBPUSD=X"],
-    "Materias": ["GC=F"],
-}
-
 # ── Mapeo de símbolos yfinance → Twelve Data ──────────────────────────────────
 _TD_SYMBOL_MAP = {
     # Forex
@@ -93,17 +88,6 @@ _TD_SYMBOL_MAP = {
 def _td_symbol(ticker: str) -> str:
     """Convierte símbolo yfinance al formato Twelve Data."""
     return _TD_SYMBOL_MAP.get(ticker, ticker.replace("=X", "").replace("-", "/").replace("^", ""))
-
-
-def mercado_cerrado() -> bool:
-    """True si los mercados Forex y materias están cerrados (sábado completo, domingo antes 22h UTC, viernes después 22h UTC)."""
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
-    wd, h = now.weekday(), now.hour
-    if wd == 5: return True
-    if wd == 6 and h < 22: return True
-    if wd == 4 and h >= 22: return True
-    return False
 
 
 # ── Indicadores técnicos (compartido entre ambas fuentes) ─────────────────────

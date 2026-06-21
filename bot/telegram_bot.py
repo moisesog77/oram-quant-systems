@@ -71,6 +71,30 @@ _mtf_persistencia: dict = {}
 _watch_enviados: dict = {}
 
 
+def _normalizar_ticker(s: str) -> str:
+    """Convierte input de usuario al ticker estándar compatible con yfinance."""
+    _map = {
+        "EURUSD": "EURUSD=X", "EUR":    "EURUSD=X",
+        "GBPUSD": "GBPUSD=X", "GBP":    "GBPUSD=X",
+        "USDJPY": "USDJPY=X", "JPY":    "USDJPY=X",
+        "USDCHF": "USDCHF=X", "CHF":    "USDCHF=X",
+        "AUDUSD": "AUDUSD=X", "AUD":    "AUDUSD=X",
+        "USDCAD": "USDCAD=X", "CAD":    "USDCAD=X",
+        "NZDUSD": "NZDUSD=X", "NZD":    "NZDUSD=X",
+        "BTCUSD": "BTC-USD",  "BTC":    "BTC-USD",
+        "ETHUSD": "ETH-USD",  "ETH":    "ETH-USD",
+        "XAUUSD": "GC=F",     "GOLD":   "GC=F",    "XAU": "GC=F",
+        "XAGUSD": "SI=F",     "SILVER": "SI=F",    "XAG": "SI=F",
+        "WTIUSD": "CL=F",     "OIL":    "CL=F",    "WTI": "CL=F",
+    }
+    t = s.upper().replace("/", "")
+    if t in _map:
+        return _map[t]
+    if t.endswith("=X") or "-" in t or t in ("GC=F", "CL=F", "SI=F", "NG=F"):
+        return t
+    return t + "=X"
+
+
 def _calcular_pips(ticker: str, p1: float, p2: float) -> float:
     diff = abs(p1 - p2)
     if "JPY" in ticker: return round(diff * 100, 1)
@@ -515,9 +539,7 @@ async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "Timeframes: 1m, 5m, 15m, 30m, 1h, 4h, 1d"
         )
         return
-    ticker = args[0].upper()
-    if not ticker.endswith("=X") and ticker not in ["BTC-USD","ETH-USD","GC=F","CL=F"]:
-        ticker = ticker + "=X"
+    ticker = _normalizar_ticker(args[0])
     tf = args[1] if len(args) > 1 else "15m"
     chat_id = str(update.effective_chat.id)
     user, cfg = _get_user_by_chat(chat_id)
@@ -562,10 +584,7 @@ async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Multi-Timeframe. Uso: /mtf EURUSD [combo]
     Combos: scalping, intraday, swing, posicional"""
     args   = ctx.args
-    ticker = args[0].upper() if args else "EURUSD=X"
-    if not ticker.endswith("=X") and ticker not in ["BTC-USD","ETH-USD","GC=F","CL=F"]:
-        ticker = ticker + "=X"
-
+    ticker = _normalizar_ticker(args[0]) if args else "EURUSD=X"
     combo_key = (args[1].lower() if len(args) > 1 else "intraday")
     combo_map = {
         "scalping": "Scalping (5m/1m)",
@@ -738,7 +757,7 @@ async def cmd_performance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         # Drawdown y Sharpe
         dd  = calcular_drawdown(pnl_serie)
         sr  = calcular_sharpe(pnl_serie)
-        max_dd = dd.get("max_drawdown_usd", 0)
+        max_dd = abs(dd.get("max_drawdown", 0))
 
         lineas = [
             "📊 *PERFORMANCE & IA*",
@@ -758,24 +777,32 @@ async def cmd_performance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if len(df) >= 5:
             try:
                 ia = analizar_performance_ia(df)
-                if "error" not in ia:
+                if ia.get("disponible"):
                     lineas.append("🤖 *Análisis IA:*")
-                    mejor_setup   = ia.get("mejor_setup", "?")
-                    mejor_dir     = ia.get("mejor_direccion", "?")
-                    mejor_tf      = ia.get("mejor_timeframe", "?")
-                    recom         = ia.get("recomendaciones", [])
+                    mejor_setup = ia.get("mejor_setup", "")
+                    mejor_ses   = ia.get("mejor_sesion", "")
+                    recom       = ia.get("recomendacion", "")
+                    racha_win   = ia.get("racha_max_win", 0)
+                    racha_loss  = ia.get("racha_max_loss", 0)
+                    acc         = ia.get("accuracy_cv", 0)
                     if mejor_setup:
                         lineas.append(f"  🎯 Mejor setup: *{mejor_setup}*")
-                    if mejor_dir:
-                        emoji_d = "🟢" if "LONG" in str(mejor_dir) else "🔴"
-                        lineas.append(f"  {emoji_d} Mejor dirección: *{mejor_dir}*")
-                    if mejor_tf:
-                        lineas.append(f"  ⏱ Mejor timeframe: *{mejor_tf}*")
+                    if mejor_ses:
+                        lineas.append(f"  🌍 Mejor sesión: *{mejor_ses}*")
+                    if racha_win > 0:
+                        lineas.append(f"  🟢 Racha máx. wins: *{racha_win}*")
+                    if racha_loss > 0:
+                        lineas.append(f"  🔴 Racha máx. pérdidas: *{racha_loss}*")
+                    if acc > 0:
+                        lineas.append(f"  🧠 Accuracy CV: *{acc:.1%}*")
                     if recom:
                         lineas.append("")
-                        lineas.append("💡 *Recomendaciones IA:*")
-                        for r in recom[:3]:
-                            lineas.append(f"  • {r}")
+                        lineas.append(f"💡 *IA:* {recom}")
+                    adv = ia.get("advertencia_ia", "")
+                    if adv:
+                        lineas.append(f"  ⚠️ {adv}")
+                elif ia.get("mensaje"):
+                    lineas.append(f"🤖 IA: _{ia['mensaje']}_")
             except Exception:
                 pass
 
@@ -798,9 +825,7 @@ async def cmd_backtest(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "⚠️ _Puede tardar 30-90 segundos_"
         )
         return
-    ticker = args[0].upper()
-    if not ticker.endswith("=X") and ticker not in ["BTC-USD","ETH-USD","GC=F","CL=F"]:
-        ticker = ticker + "=X"
+    ticker = _normalizar_ticker(args[0])
     tf     = args[1] if len(args) > 1 else "1h"
     umbral = int(args[2]) if len(args) > 2 else 50
     chat_id = str(update.effective_chat.id)
@@ -928,7 +953,7 @@ async def cmd_capital(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         # Sharpe y Drawdown
         pnl_serie = pd.Series([t.get("resultado_usd", 0) or 0 for t in trades])
         sharpe    = calcular_sharpe(pnl_serie) if n >= 3 else 0
-        dd        = calcular_drawdown(pnl_serie).get("max_drawdown_usd", 0) if n >= 2 else 0
+        dd        = abs(calcular_drawdown(pnl_serie).get("max_drawdown", 0)) if n >= 2 else 0
         pf_num    = abs(float(pnl_serie[pnl_serie>0].sum()))
         pf_den    = max(abs(float(pnl_serie[pnl_serie<0].sum())), 0.01)
         pf        = pf_num / pf_den if n >= 2 else 0
@@ -1102,13 +1127,7 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     args = ctx.args or []
 
     if args:
-        ticker_input = args[0].upper().replace("/", "")
-        # Normalizar: EURUSD → EURUSD=X, BTCUSD → BTC-USD, etc.
-        _map = {"EURUSD":"EURUSD=X","GBPUSD":"GBPUSD=X","USDJPY":"USDJPY=X",
-                "USDCHF":"USDCHF=X","AUDUSD":"AUDUSD=X","USDCAD":"USDCAD=X",
-                "NZDUSD":"NZDUSD=X","BTCUSD":"BTC-USD","ETHUSD":"ETH-USD",
-                "XAUUSD":"GC=F","GOLD":"GC=F"}
-        ticker = _map.get(ticker_input, ticker_input + "=X" if "=" not in ticker_input and "-" not in ticker_input else ticker_input)
+        ticker = _normalizar_ticker(args[0])
         senal = _ultimas_senales.get((chat_id, ticker))
     else:
         senal = _ultimas_senales.get(chat_id)
@@ -1152,11 +1171,7 @@ async def cmd_cerrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     args = ctx.args or []
 
     if args:
-        ticker_input = args[0].upper()
-        _map = {"EURUSD":"EURUSD=X","GBPUSD":"GBPUSD=X","USDJPY":"USDJPY=X",
-                "USDCHF":"USDCHF=X","AUDUSD":"AUDUSD=X","USDCAD":"USDCAD=X",
-                "BTCUSD":"BTC-USD","ETHUSD":"ETH-USD","XAUUSD":"GC=F","GOLD":"GC=F"}
-        ticker = _map.get(ticker_input, ticker_input + "=X" if "=" not in ticker_input and "-" not in ticker_input else ticker_input)
+        ticker = _normalizar_ticker(args[0])
         trade = obtener_trade_activo(chat_id, ticker)
     else:
         trades = obtener_trades_activos_chat(chat_id)

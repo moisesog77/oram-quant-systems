@@ -1,6 +1,8 @@
 """
-utils/time_utils.py — Zona horaria CDMX sin pytz (usa stdlib zoneinfo).
-Compatible con Python 3.9+. No requiere instalación de pytz.
+utils/time_utils.py — DEPRECADO.
+Las constantes TZ_MEXICO y TZ_UTC no se usan en el proyecto.
+Cada módulo define su propia instancia ZoneInfo inline.
+Este archivo se conserva únicamente para no romper imports externos.
 """
 from zoneinfo import ZoneInfo
 
