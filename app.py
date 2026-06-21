@@ -123,8 +123,14 @@ if "user" not in st.session_state:
 
 if st.session_state.user is None and COOKIES_OK:
     if st.session_state.get("logged_out"):
-        st.session_state.pop("logged_out", None)
+        # Intentar borrar cookie cada render hasta que realmente desaparezca.
+        # NO hacer pop aquí: stx.CookieManager dispara rerenders internos y si
+        # se consume el flag antes de que la cookie se borre, el restore la
+        # vuelve a leer y restaura el usuario (causa el doble-click para salir).
         _eliminar_cookie()
+        if not _leer_cookie():
+            st.session_state.pop("logged_out", None)
+        # En cualquier caso: no restaurar usuario, ir directo al login.
     else:
         cookie_data = _leer_cookie()
         if cookie_data:
@@ -546,12 +552,11 @@ section[data-testid="stSidebar"]{{display:none!important;}}
   </div>
 </div>
 """, unsafe_allow_html=True)
-                    _time.sleep(2.0)
+                    _time.sleep(3.0)
                     _ph_lo.empty()
                     st.session_state.user = None
                     st.session_state.pop("session_start", None)
                     st.session_state["logged_out"] = True
-                    _eliminar_cookie()
                     st.rerun()
 
             mins = _minutos_restantes(start)
