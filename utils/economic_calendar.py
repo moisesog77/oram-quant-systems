@@ -31,6 +31,13 @@ def _es_ultimo_jueves_del_mes(fecha: date) -> bool:
     return (fecha + timedelta(days=7)).month != fecha.month
 
 
+def _es_ultimo_miercoles_del_mes(fecha: date) -> bool:
+    """True si la fecha es el último miércoles del mes."""
+    if fecha.weekday() != 2:
+        return False
+    return (fecha + timedelta(days=7)).month != fecha.month
+
+
 def _es_semana_del_primer_viernes(fecha: date) -> bool:
     """True si el viernes de la misma semana es el primer viernes del mes.
     Usado para ADP, que siempre sale en la semana del NFP (2 días antes)."""
@@ -45,6 +52,14 @@ _SOLO_SEMANA_NFP = {
 }
 _SOLO_SEMANA_2_3 = {
     "IPC de EE.UU. (Inflación)",   # 2do o 3er miércoles del mes (días 8-21)
+    "IPC del Reino Unido",          # 2da-3ra semana (días 8-21)
+    "Claimant Count / Empleo UK",   # 2da-3ra semana (días 8-21)
+}
+_SOLO_ULTIMO_MIERCOLES = {
+    "IPC de la Eurozona (Flash)",   # último miércoles del mes
+}
+_SOLO_SEMANA_3_VIE = {
+    "Ventas al Menor UK",           # viernes 3ra semana (días 15-21)
 }
 
 # ── Fechas exactas por año para bancos centrales ──────────────────────────────
@@ -95,6 +110,10 @@ def _evento_aplica_esta_semana(titulo: str, fecha_ev: date) -> bool:
         return _es_semana_del_primer_viernes(fecha_ev)
     if titulo in _SOLO_SEMANA_2_3:
         return 8 <= fecha_ev.day <= 21
+    if titulo in _SOLO_ULTIMO_MIERCOLES:
+        return _es_ultimo_miercoles_del_mes(fecha_ev)
+    if titulo in _SOLO_SEMANA_3_VIE:
+        return 15 <= fecha_ev.day <= 21
     if titulo in _SOLO_FECHA_ESPECIFICA:
         return fecha_ev in _SOLO_FECHA_ESPECIFICA[titulo]
     return True
@@ -115,55 +134,96 @@ class EventoEconomico:
     dia_semana: int   # 0=Lun … 4=Vie
     hora_utc:   str   # "HH:MM"
     descripcion:str = ""
+    activos:    tuple = ()
 
 EVENTOS_RECURRENTES: list[EventoEconomico] = [
     # ── Lunes ──────────────────────────────────────────────────────────────
     EventoEconomico("PMI Manufacturero Flash (EE.UU.)", "USD", "Medium", 0, "13:45",
-        "Índice preliminar de actividad manufacturera de EE.UU."),
+        "Índice preliminar de actividad manufacturera de EE.UU.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
     EventoEconomico("PMI Servicios Flash (EE.UU.)",     "USD", "Medium", 0, "13:45",
-        "Índice preliminar de actividad en el sector servicios de EE.UU."),
+        "Índice preliminar de actividad en el sector servicios de EE.UU.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
+    EventoEconomico("PMI Manufacturero Flash Eurozona", "EUR", "Medium", 0, "08:00",
+        "Índice preliminar de actividad manufacturera de la Eurozona. Impacta directamente al EUR.",
+        ("EURUSD",)),
+    EventoEconomico("PMI Servicios Flash Eurozona",     "EUR", "Medium", 0, "08:00",
+        "Índice preliminar de actividad en el sector servicios de la Eurozona. Mueve el EURUSD.",
+        ("EURUSD",)),
+    EventoEconomico("PMI Manufacturero Flash UK",       "GBP", "Medium", 0, "08:30",
+        "Índice preliminar de actividad manufacturera del Reino Unido. Impacta directamente al GBP.",
+        ("GBPUSD",)),
+    EventoEconomico("PMI Servicios Flash UK",           "GBP", "Medium", 0, "08:30",
+        "Índice preliminar de actividad en el sector servicios del Reino Unido. Mueve el GBPUSD.",
+        ("GBPUSD",)),
 
     # ── Martes ─────────────────────────────────────────────────────────────
     EventoEconomico("Confianza del Consumidor (CB)",    "USD", "High",   1, "14:00",
-        "Indicador de confianza del consumidor del Conference Board. Refleja expectativas económicas."),
+        "Indicador de confianza del consumidor del Conference Board. Refleja expectativas económicas.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
     EventoEconomico("Ofertas de Empleo JOLTS",          "USD", "High",   1, "14:00",
-        "Número de vacantes disponibles. Indicador clave de la salud del mercado laboral."),
+        "Número de vacantes disponibles. Indicador clave de la salud del mercado laboral.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
+    EventoEconomico("Claimant Count / Empleo UK",       "GBP", "High",   1, "06:00",
+        "Solicitudes de desempleo y tasa de empleo del Reino Unido. 2da-3ra semana del mes. Alta volatilidad en GBP.",
+        ("GBPUSD",)),
 
     # ── Miércoles ──────────────────────────────────────────────────────────
     EventoEconomico("Empleo Privado ADP",               "USD", "High",   2, "12:15",
-        "Empleo en el sector privado según ADP. Anticipo del NFP del viernes."),
+        "Empleo en el sector privado según ADP. Anticipo del NFP del viernes.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
     EventoEconomico("IPC de EE.UU. (Inflación)",        "USD", "High",   2, "12:30",
-        "🔴 MÁXIMO IMPACTO — Índice de Precios al Consumidor. El dato de inflación más importante del mes."),
+        "🔴 MÁXIMO IMPACTO — Índice de Precios al Consumidor. El dato de inflación más importante del mes.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
     EventoEconomico("PMI de Servicios ISM",             "USD", "High",   2, "14:00",
-        "Actividad del sector servicios según el Institute for Supply Management."),
-    EventoEconomico("Inventarios de Petróleo EIA",      "USD", "Medium", 2, "14:30",
-        "Variación semanal de inventarios de crudo. Impacta directamente el precio del petróleo (CL=F)."),
+        "Actividad del sector servicios según el Institute for Supply Management.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
+    EventoEconomico("IPC de la Eurozona (Flash)",       "EUR", "High",   2, "09:00",
+        "Inflación flash de la Eurozona. Último miércoles del mes. Impacto muy alto en EURUSD.",
+        ("EURUSD",)),
+    EventoEconomico("IPC del Reino Unido",              "GBP", "High",   2, "06:00",
+        "Índice de Precios al Consumidor del Reino Unido. 2da-3ra semana del mes. Alta volatilidad en GBP.",
+        ("GBPUSD",)),
     EventoEconomico("Decisión Fed / Actas FOMC",        "USD", "High",   2, "18:00",
-        "🔴 MÁXIMO IMPACTO — Decisión de tipos de interés de la Reserva Federal o publicación de actas."),
+        "🔴 MÁXIMO IMPACTO — Decisión de tipos de interés de la Reserva Federal o publicación de actas.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
 
     # ── Jueves ─────────────────────────────────────────────────────────────
     EventoEconomico("Solicitudes Iniciales Desempleo",  "USD", "High",   3, "12:30",
-        "Nuevas solicitudes de subsidio por desempleo. Se publica cada jueves sin excepción."),
+        "Nuevas solicitudes de subsidio por desempleo. Se publica cada jueves sin excepción.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
     EventoEconomico("Índice de Precios PCE Subyacente", "USD", "High",   3, "12:30",
-        "🔴 Indicador favorito de inflación de la Reserva Federal. Se publica ~último jueves del mes."),
+        "🔴 Indicador favorito de inflación de la Reserva Federal. Se publica ~último jueves del mes.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
     EventoEconomico("Decisión de Tipos BCE",            "EUR", "High",   3, "12:15",
-        "Decisión de política monetaria del Banco Central Europeo (cada 6 semanas aprox.)."),
+        "Decisión de política monetaria del Banco Central Europeo (cada 6 semanas aprox.).",
+        ("EURUSD",)),
     EventoEconomico("Conferencia de Prensa BCE",        "EUR", "High",   3, "12:45",
-        "Rueda de prensa del presidente del BCE tras la decisión de tipos. Alta volatilidad en EUR."),
+        "Rueda de prensa del presidente del BCE tras la decisión de tipos. Alta volatilidad en EUR.",
+        ("EURUSD",)),
     EventoEconomico("Decisión de Tipos Banco de Inglaterra","GBP","High", 3, "12:00",
-        "Decisión de política monetaria del BoE. Alta volatilidad en GBP (8 veces por año)."),
+        "Decisión de política monetaria del BoE. Alta volatilidad en GBP (8 veces por año).",
+        ("GBPUSD",)),
 
     # ── Viernes ────────────────────────────────────────────────────────────
     EventoEconomico("Nóminas No Agrícolas (NFP)",       "USD", "High",   4, "12:30",
-        "🔴 MÁXIMO IMPACTO — Empleo no agrícola de EE.UU. El dato más importante del mes (1er viernes). Evita operar ±30 min."),
+        "🔴 MÁXIMO IMPACTO — Empleo no agrícola de EE.UU. El dato más importante del mes (1er viernes). Evita operar ±30 min.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
     EventoEconomico("Tasa de Desempleo EE.UU.",         "USD", "High",   4, "12:30",
-        "Porcentaje de desempleo oficial. Se publica junto con el NFP el 1er viernes del mes."),
+        "Porcentaje de desempleo oficial. Se publica junto con el NFP el 1er viernes del mes.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
     EventoEconomico("Salarios por Hora Promedio",       "USD", "High",   4, "12:30",
-        "Variación salarial mensual. Indica presión inflacionaria desde los salarios."),
+        "Variación salarial mensual. Indica presión inflacionaria desde los salarios.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
     EventoEconomico("Sentimiento Consumidor Michigan",  "USD", "Medium", 4, "14:00",
-        "Índice de confianza del consumidor de la Universidad de Michigan."),
+        "Índice de confianza del consumidor de la Universidad de Michigan.",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
     EventoEconomico("PIB de EE.UU.",                    "USD", "High",   4, "12:30",
-        "Producto Interno Bruto de EE.UU. Publicado trimestralmente (avance, estimado y final)."),
+        "Producto Interno Bruto de EE.UU. Publicado trimestralmente (avance, estimado y final).",
+        ("EURUSD", "GBPUSD", "XAUUSD")),
+    EventoEconomico("Ventas al Menor UK",               "GBP", "Medium", 4, "06:00",
+        "Ventas minoristas del Reino Unido. 3ra semana del mes (días 15-21). Mueve el GBPUSD.",
+        ("GBPUSD",)),
 ]
 
 def _utc_a_mx(hora_utc_str: str, fecha: date) -> str:
@@ -207,6 +267,7 @@ def obtener_eventos_semana() -> list[dict]:
             "descripcion": ev.descripcion,
             "es_hoy":      fecha_ev == hoy,
             "ya_paso":     ya_paso,
+            "activos":     list(ev.activos),
         })
     return sorted(out, key=lambda x: (x["fecha"], x["hora_utc"]))
 

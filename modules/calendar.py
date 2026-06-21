@@ -15,21 +15,25 @@ _FOREX_FACTORY_URL = "https://www.forexfactory.com/calendar"
 
 EVENTOS_ESPECIALES: list = [
     {"titulo": "Decisión de Tipos de la Fed",       "moneda": "USD", "impacto": "High",
-     "descripcion": "🔴 MÁXIMO IMPACTO — Reunión del FOMC con decisión de tipos (8 veces/año). Evita operar 30 min antes y 30 min después."},
+     "descripcion": "🔴 MÁXIMO IMPACTO — Reunión del FOMC con decisión de tipos (8 veces/año). Mueve EURUSD, GBPUSD y XAU/USD con fuerza. Evita operar ±30 min."},
     {"titulo": "IPC de EE.UU. (Inflación)",         "moneda": "USD", "impacto": "High",
-     "descripcion": "Índice de Precios al Consumidor. Mide la inflación mensual (~2do o 3er miércoles del mes)."},
+     "descripcion": "Índice de Precios al Consumidor. El dato más movido del mes (~2do o 3er miércoles). Impacta EURUSD, GBPUSD y XAU/USD simultáneamente."},
     {"titulo": "IPP de EE.UU.",                     "moneda": "USD", "impacto": "Medium",
-     "descripcion": "Índice de Precios al Productor. Mide la inflación en etapas previas al consumidor."},
+     "descripcion": "Índice de Precios al Productor. Mide la inflación en etapas previas al consumidor. Mueve EURUSD y GBPUSD de forma moderada."},
     {"titulo": "PIB de EE.UU.",                     "moneda": "USD", "impacto": "High",
-     "descripcion": "Producto Interno Bruto de EE.UU. — avance, estimado y final, publicados en trimestres escalonados."},
+     "descripcion": "Producto Interno Bruto de EE.UU. — avance, estimado y final, publicados trimestralmente. Fuerte impacto en EURUSD, GBPUSD y XAU/USD."},
     {"titulo": "PCE Subyacente",                    "moneda": "USD", "impacto": "High",
-     "descripcion": "🔴 El indicador de inflación preferido de la Fed — se publica ~último viernes de cada mes."},
-    {"titulo": "Decisión de Tipos Banco de Japón",  "moneda": "JPY", "impacto": "High",
-     "descripcion": "Política monetaria del BoJ. Causa alta volatilidad en USDJPY. Puede ocurrir cualquier día."},
-    {"titulo": "Decisión de Tipos RBA",             "moneda": "AUD", "impacto": "High",
-     "descripcion": "Banco de la Reserva de Australia. Impacta AUDUSD. Se publica generalmente los martes."},
-    {"titulo": "Decisión de Tipos Banco de Canadá", "moneda": "CAD", "impacto": "High",
-     "descripcion": "Política monetaria del BoC. Impacta USDCAD (~8 veces por año)."},
+     "descripcion": "🔴 Indicador de inflación preferido de la Fed. Publicado ~último jueves del mes. Alto impacto en EURUSD, GBPUSD y XAU/USD."},
+    {"titulo": "Decisión de Tipos BCE",             "moneda": "EUR", "impacto": "High",
+     "descripcion": "Política monetaria del BCE (~cada 6 semanas, jueves 12:15 UTC). MÁXIMO IMPACTO en EURUSD. Conferencia de prensa a las 12:45 UTC."},
+    {"titulo": "IPC de la Eurozona",                "moneda": "EUR", "impacto": "High",
+     "descripcion": "Inflación flash de la Eurozona (último miércoles del mes, 09:00 UTC). Impacto muy alto en EURUSD. Puede reposicionar el EUR antes del BCE."},
+    {"titulo": "PIB de la Eurozona",                "moneda": "EUR", "impacto": "High",
+     "descripcion": "Producto Interno Bruto de la Eurozona. Publicado trimestralmente. Alta volatilidad en EURUSD en el momento de la publicación."},
+    {"titulo": "IPC del Reino Unido",               "moneda": "GBP", "impacto": "High",
+     "descripcion": "Inflación mensual del Reino Unido (miércoles 2da-3ra semana, 06:00 UTC). MÁXIMO IMPACTO en GBPUSD. Condiciona las decisiones del BoE."},
+    {"titulo": "Ventas al Menor UK",                "moneda": "GBP", "impacto": "Medium",
+     "descripcion": "Ventas minoristas del Reino Unido (viernes 3ra semana, días 15-21, 06:00 UTC). Indicador de consumo. Mueve el GBPUSD de forma notable."},
 ]
 from ui.styles import get_colors, page_header, get_theme, inject_module_css
 
@@ -77,6 +81,24 @@ def _render_evento(ev, c, dark):
         if descripcion else ""
     )
 
+    # Badges de activos afectados
+    _BADGE_CFG = {
+        "EURUSD": ("rgba(34,197,94,0.12)",  "#22c55e"),
+        "GBPUSD": ("rgba(96,165,250,0.12)", "#60a5fa"),
+        "XAUUSD": ("rgba(245,166,35,0.12)", "#f5a623"),
+    }
+    activos_lista = ev.get("activos", [])
+    activos_html = ""
+    for activo in activos_lista:
+        if activo in _BADGE_CFG:
+            bg_b, col_b = _BADGE_CFG[activo]
+            activos_html += (
+                '<span style="font-family:JetBrains Mono,monospace;font-size:0.6rem;'
+                'background:' + bg_b + ';color:' + col_b + ';'
+                'border-radius:3px;padding:1px 6px;margin-right:4px">'
+                + activo + '</span>'
+            )
+
     # HTML construido como cadena simple — SIN saltos de línea internos
     # para evitar que el parser markdown de Streamlit lo interprete como bloque de código
     html = (
@@ -99,6 +121,7 @@ def _render_evento(ev, c, dark):
         '</div></div>' +
         '<div style="font-size:0.9rem;font-weight:700;margin-top:0.35rem;color:' + text_strong +
         '">' + titulo + '</div>' +
+        ('<div style="margin-top:0.25rem">' + activos_html + '</div>' if activos_html else '') +
         desc_html +
         '</div>'
     )
@@ -149,15 +172,18 @@ def render_calendar():
     dias_pasados = [e for e in todos if e["ya_paso"] and not e["es_hoy"]]
 
     # ── Filtros (aplican solo a pendientes) ────────────────────────────────
-    fc1, fc2 = st.columns(2)
+    fc1, fc2, fc3 = st.columns(3)
     with fc1:
-        filtro_moneda  = st.selectbox("Moneda",  ["Todas","USD","EUR","GBP","JPY","AUD","CAD"], key="cal_mon")
+        filtro_moneda  = st.selectbox("Moneda",          ["Todas","USD","EUR","GBP"],                key="cal_mon")
     with fc2:
-        filtro_impacto = st.selectbox("Impacto", ["Todos","High","Medium","Low"],                key="cal_imp")
+        filtro_impacto = st.selectbox("Impacto",         ["Todos","High","Medium","Low"],            key="cal_imp")
+    with fc3:
+        filtro_activo  = st.selectbox("Activo afectado", ["Todos","EURUSD","GBPUSD","XAUUSD"],      key="cal_act")
 
     def aplicar_filtros(lista):
         if filtro_moneda  != "Todas": lista = [e for e in lista if e["moneda"]  == filtro_moneda]
         if filtro_impacto != "Todos": lista = [e for e in lista if e["impacto"] == filtro_impacto]
+        if filtro_activo  != "Todos": lista = [e for e in lista if filtro_activo in e.get("activos", [])]
         return lista
 
     pendientes_f   = aplicar_filtros(pendientes)
