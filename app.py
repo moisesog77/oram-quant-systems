@@ -171,10 +171,126 @@ else:
     if "_current_nav" not in st.session_state:
         st.session_state["_current_nav"] = "📈 Dashboard"
 
-    _transitioning = st.session_state.pop("_transitioning", False)
+    _just_logged_in = st.session_state.pop("_just_logged_in", False)
+    _transitioning  = st.session_state.pop("_transitioning", False)
+
+    # ── FASE BIENVENIDA: overlay al iniciar sesión ───────────────────────────
+    if _just_logged_in:
+        _dark_w  = get_theme() == "dark"
+        _olay_w  = "rgba(6,9,15,0.98)"  if _dark_w else "rgba(238,242,247,0.98)"
+        _cbg_w   = "#0c1219"             if _dark_w else "#ffffff"
+        _cbdr_w  = "#1b2a40"             if _dark_w else "#dde5ef"
+        _tmain_w = "#edf4ff"             if _dark_w else "#0b1824"
+        _tmut_w  = "#637a94"             if _dark_w else "#7a8fa0"
+        _uname_w = user.get("username", "TRADER").upper()
+        _tag_w   = "🛡️ ADMIN" if is_admin else "TRADER"
+        st.markdown(f"""
+<style>
+section[data-testid="stSidebar"]{{display:none!important;}}
+[data-testid="stSidebarCollapsedControl"]{{display:none!important;}}
+@keyframes oram-wi-fadein{{
+    from{{opacity:0;transform:translateY(20px) scale(0.95);}}
+    to  {{opacity:1;transform:translateY(0) scale(1);}}
+}}
+@keyframes oram-wi-ring{{
+    0%,100%{{box-shadow:0 0 0 0    rgba(201,162,39,0.50);}}
+    50%    {{box-shadow:0 0 0 22px rgba(201,162,39,0);}}
+}}
+@keyframes oram-wi-spin{{to{{transform:rotate(360deg);}}}}
+@keyframes oram-wi-bar{{
+    0%  {{width:0%;}}
+    100%{{width:100%;}}
+}}
+#oram-wi-overlay{{
+    position:fixed;inset:0;background:{_olay_w};
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    z-index:99999;display:flex;align-items:center;justify-content:center;
+}}
+#oram-wi-card{{
+    background:{_cbg_w};border:1px solid {_cbdr_w};border-radius:24px;
+    padding:3rem 3.4rem 2.6rem;text-align:center;max-width:420px;width:92%;
+    animation:oram-wi-fadein 0.5s cubic-bezier(0.22,1,0.36,1) both;
+    box-shadow:0 32px 72px rgba(0,0,0,0.45);
+}}
+.oram-wi-ring{{
+    width:76px;height:76px;border-radius:50%;
+    background:rgba(201,162,39,0.10);border:2px solid {LOGO_GOLD};
+    display:flex;align-items:center;justify-content:center;margin:0 auto 1.6rem;
+    animation:oram-wi-ring 1.8s ease-in-out infinite;
+}}
+.oram-wi-ring svg{{
+    width:34px;height:34px;stroke:{LOGO_GOLD};fill:none;
+    stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;
+}}
+.oram-wi-logo{{
+    font-family:'Space Grotesk',sans-serif;font-size:1.25rem;
+    font-weight:800;letter-spacing:-1px;margin-bottom:0.25rem;
+}}
+.oram-wi-tagline{{
+    font-family:'JetBrains Mono',monospace;font-size:0.6rem;
+    letter-spacing:2.5px;text-transform:uppercase;
+    color:{_tmut_w};margin-bottom:1.4rem;
+}}
+.oram-wi-welcome{{
+    font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:500;
+    color:{_tmut_w};text-transform:uppercase;letter-spacing:1.5px;
+    margin-bottom:0.3rem;
+}}
+.oram-wi-user{{
+    font-family:'Space Grotesk',sans-serif;font-size:1.45rem;font-weight:800;
+    color:{_tmain_w};margin-bottom:0.25rem;letter-spacing:-0.5px;
+}}
+.oram-wi-badge{{
+    display:inline-block;font-family:'JetBrains Mono',monospace;
+    font-size:0.6rem;letter-spacing:2px;font-weight:700;
+    color:{LOGO_GOLD};border:1px solid {LOGO_GOLD}55;
+    border-radius:4px;padding:0.12rem 0.5rem;margin-bottom:1.6rem;
+}}
+.oram-wi-bar-track{{
+    height:3px;background:rgba(201,162,39,0.15);border-radius:2px;
+    overflow:hidden;margin-bottom:1rem;
+}}
+.oram-wi-bar-fill{{
+    height:100%;background:linear-gradient(90deg,{LOGO_GOLD},{LOGO_TEAL});
+    border-radius:2px;animation:oram-wi-bar 3.0s linear forwards;
+}}
+.oram-wi-spin-row{{display:flex;align-items:center;justify-content:center;gap:0.55rem;}}
+.oram-wi-spinner{{
+    width:13px;height:13px;border:2px solid rgba(201,162,39,0.20);
+    border-top-color:{LOGO_GOLD};border-radius:50%;
+    animation:oram-wi-spin 0.7s linear infinite;flex-shrink:0;
+}}
+.oram-wi-label{{
+    font-family:'JetBrains Mono',monospace;font-size:0.70rem;
+    letter-spacing:1.5px;text-transform:uppercase;color:{_tmut_w};
+}}
+</style>
+<div id="oram-wi-overlay">
+  <div id="oram-wi-card">
+    <div class="oram-wi-ring">
+      <svg viewBox="0 0 24 24"><path d="M12 2L13.09 8.26L19 7L15.45 12L19 17L13.09 15.74L12 22L10.91 15.74L5 17L8.55 12L5 7L10.91 8.26Z"/></svg>
+    </div>
+    <div class="oram-wi-logo">
+      <span style="color:{LOGO_GOLD}">O</span><span style="color:{LOGO_BLUE}">R</span><span style="color:{LOGO_TEAL}">A</span><span style="color:{_tmain_w}">M</span>
+      <span style="color:{_tmut_w};font-weight:500;font-size:0.82rem;letter-spacing:0"> Quant Systems</span>
+    </div>
+    <div class="oram-wi-tagline">Institutional-Grade Trading Intelligence</div>
+    <div class="oram-wi-welcome">Bienvenido de vuelta</div>
+    <div class="oram-wi-user">{_uname_w}</div>
+    <div class="oram-wi-badge">{_tag_w}</div>
+    <div class="oram-wi-bar-track"><div class="oram-wi-bar-fill"></div></div>
+    <div class="oram-wi-spin-row">
+      <div class="oram-wi-spinner"></div>
+      <span class="oram-wi-label">Iniciando sistema…</span>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+        _time.sleep(3.0)
+        st.rerun()
 
     # ── FASE DE TRANSICIÓN: solo overlay, sin sidebar ────────────────────────
-    if _transitioning:
+    elif _transitioning:
         _nav_target  = st.session_state["_current_nav"]
         _dark  = get_theme() == "dark"
         _olay  = "rgba(6,9,15,0.97)"  if _dark else "rgba(238,242,247,0.97)"
