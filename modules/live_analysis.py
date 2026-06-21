@@ -13,6 +13,7 @@ from plotly.subplots import make_subplots
 
 from utils.market_data import obtener_datos, ACTIVOS_DEFAULT, mercado_cerrado
 from utils.smc_engine import analisis_completo, calcular_riesgo
+from database.db import obtener_bot_config, actualizar_bot_config
 from utils.economic_calendar import (hay_evento_alto_impacto_pronto,
                                       obtener_proximos_eventos,
                                       impacto_emoji, impacto_color)
@@ -372,7 +373,8 @@ def _grafica_velas(df, ticker, smc):
 
 
 def render_live_analysis():
-    user = st.session_state.user
+    user    = st.session_state.user
+    user_id = user.get("id") or user.get("user_id")
     c    = get_colors()
     dark = get_theme() == "dark"
 
@@ -383,7 +385,19 @@ def render_live_analysis():
     _render_news_banner(dark, c)
     inject_module_css(dark)
 
-    col1, col2, col3, col4, col5 = st.columns([2, 2, 1.5, 1.5, 1.5])
+    # Capital se administra en Configuración de cuenta (dashboard)
+    capital = int(user.get("capital_inicial", 1000))
+
+    # Riesgo % se carga desde bot_config al iniciar sesión y se guarda al cambiar
+    if "rsk_live" not in st.session_state:
+        cfg_db = obtener_bot_config(user_id) if user_id else {}
+        st.session_state["rsk_live"] = float(cfg_db.get("riesgo_pct") or 1.0)
+
+    def _guardar_riesgo():
+        if user_id:
+            actualizar_bot_config(user_id, riesgo_pct=st.session_state["rsk_live"])
+
+    col1, col2, col3, col4 = st.columns([2, 2, 1.5, 1.5])
     with col1:
         categoria = st.selectbox("Categoría", list(ACTIVOS_DEFAULT.keys()), key="cat_live")
     with col2:
@@ -392,12 +406,8 @@ def render_live_analysis():
         tf = st.selectbox("Temporalidad", list(TIMEFRAME_LABELS.keys()),
                           format_func=lambda x: TIMEFRAME_LABELS[x], index=2, key="tf_live")
     with col4:
-        capital = st.number_input("Capital USD",
-                                  value=int(user.get("capital_inicial", 1000)),
-                                  min_value=100, step=500, format="%d", key="cap_live")
-    with col5:
-        riesgo_pct = st.number_input("Riesgo %", value=1.0, min_value=0.1,
-                                     max_value=5.0, step=0.1, key="rsk_live")
+        riesgo_pct = st.number_input("Riesgo %", min_value=0.1, max_value=5.0,
+                                     step=0.1, key="rsk_live", on_change=_guardar_riesgo)
 
     actualizar = st.button("🔄 Actualizar análisis", key="btn_actualizar_live",
                            type="primary", use_container_width=False)
