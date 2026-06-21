@@ -132,7 +132,7 @@ def render_multi_tf():
             titulo="🔭 Analizando confluencia MTF",
             subtitulo=f"{ticker} · {tf_alto} (estructura) → {tf_bajo} (entrada)",
             spinner_label="Calculando alineación de timeframes…",
-            delay=2.0,
+            delay=3.0,
         )
 
     forzar    = st.session_state.pop("_mtf_analizar", False)

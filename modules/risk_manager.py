@@ -27,7 +27,7 @@ def _resultado_overlay(prob_ruina: float, dark: bool):
         titulo        = titulo,
         subtitulo     = msg,
         spinner_label = "Cerrando automáticamente…",
-        delay         = 2.0,
+        delay=3.0,
     )
 
 

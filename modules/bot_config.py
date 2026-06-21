@@ -97,7 +97,7 @@ def render_bot_config():
                     titulo        = "✅ Configuración guardada",
                     subtitulo     = f"Bot Telegram configurado.<br>Umbral: <b>{umbral:.0f}%</b> · Riesgo: <b>{riesgo_pct:.2f}%</b> · TF: <b>{tf_mon}</b>",
                     spinner_label = "Aplicando configuración…",
-                    delay         = 2.0,
+                    delay=3.0,
                 )
 
         # Estado actual
@@ -228,7 +228,7 @@ def render_bot_config():
                         titulo        = "🔔 Alerta creada",
                         subtitulo     = f"<b>{ticker_a}</b> notificará cuando el precio {dir_label} <b>{precio_a:.5f}</b>.",
                         spinner_label = "Registrando alerta…",
-                        delay         = 2.0,
+                        delay=3.0,
                     )
 
         st.divider()
@@ -276,7 +276,7 @@ def render_bot_config():
                             titulo        = "🗑️ Alerta eliminada",
                             subtitulo     = f"La alerta de <b>{al['ticker']}</b> ha sido eliminada del historial.",
                             spinner_label = "Actualizando alertas…",
-                            delay         = 2.0,
+                            delay=3.0,
                         )
 
     # ── HISTORIAL DE SEÑALES ──────────────────────────────────────────────

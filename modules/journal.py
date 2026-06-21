@@ -143,7 +143,7 @@ def render_journal():
                         titulo        = "💾 Trade registrado",
                         subtitulo     = f"<b>{activo}</b> {direccion} — {setup}<br>Riesgo: ${riesgo_usd:.2f} USD",
                         spinner_label = "Actualizando diario…",
-                        delay         = 2.0,
+                        delay=3.0,
                     )
 
     # ── HISTORIAL ──────────────────────────────────────────────────────────
@@ -212,5 +212,5 @@ def render_journal():
                         titulo        = "🗑️ Trade eliminado",
                         subtitulo     = f"El trade <b>#{del_id}</b> ha sido eliminado de tu historial.",
                         spinner_label = "Actualizando diario…",
-                        delay         = 2.0,
+                        delay=3.0,
                     )

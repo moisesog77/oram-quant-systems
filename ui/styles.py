@@ -2623,7 +2623,7 @@ def oram_bienvenida(
     titulo: str,
     subtitulo: str,
     spinner_label: str = "Aplicando cambios\u2026",
-    delay: float = 2.2,
+    delay: float = 3.0,
 ) -> None:
     """
     Overlay de confirmación premium — idéntico al que aparece al crear cuenta.
@@ -2645,7 +2645,7 @@ def oram_bienvenida(
             titulo        = "✅ Trade guardado",
             subtitulo     = "EURUSD LONG registrado en tu diario.",
             spinner_label = "Actualizando historial…",
-            delay         = 2.0,
+            delay         = 3.0,
         )
     """
     t    = get_theme()

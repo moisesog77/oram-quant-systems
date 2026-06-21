@@ -419,7 +419,7 @@ def render_live_analysis():
         oram_bienvenida(
             titulo="🔄 Analizando mercado",
             subtitulo=f"Descargando datos de {ticker} · {TIMEFRAME_LABELS.get(tf, tf)}",
-            spinner_label="Actualizando análisis…", delay=2.0)
+            spinner_label="Actualizando análisis…", delay=3.0)
 
     forzar    = st.session_state.pop("_live_actualizar", False)
     theme_key = get_theme()

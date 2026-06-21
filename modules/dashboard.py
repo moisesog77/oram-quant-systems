@@ -264,5 +264,5 @@ def render_dashboard():
                 titulo        = "💾 Capital actualizado",
                 subtitulo     = f"Capital inicial establecido en <b>${new_cap:,.2f}</b>.<br>Tu P&L se recalculará desde este valor.",
                 spinner_label = "Actualizando dashboard…",
-                delay         = 2.0,
+                delay=3.0,
             )

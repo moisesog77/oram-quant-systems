@@ -115,7 +115,7 @@ def render_admin():
                                 titulo="✅ Usuario creado",
                                 subtitulo=f"<b>{nu_user}</b> registrado con capital ${nu_cap:,.0f}.",
                                 spinner_label="Actualizando base de datos…",
-                                delay=2.0,
+                                delay=3.0,
                             )
                         else:
                             oram_overlay_error(f"El usuario <b>{nu_user}</b> ya existe en el sistema.")
@@ -155,7 +155,7 @@ def render_admin():
                         oram_bienvenida(
                             titulo="💾 Capital actualizado",
                             subtitulo=f"Capital de <b>{uname}</b> actualizado a <b>${nuevo_cap:,.0f}</b>.",
-                            spinner_label="Guardando cambios…", delay=2.0,
+                            spinner_label="Guardando cambios…", delay=3.0,
                         )
                 else:
                     # 3 columnas alineadas: capital | contraseña | eliminar
@@ -169,7 +169,7 @@ def render_admin():
                             oram_bienvenida(
                                 titulo="💾 Capital actualizado",
                                 subtitulo=f"Capital de <b>{uname}</b> actualizado a <b>${nuevo_cap:,.0f}</b>.",
-                                spinner_label="Guardando cambios…", delay=2.0,
+                                spinner_label="Guardando cambios…", delay=3.0,
                             )
 
                     with col_b:
@@ -180,7 +180,7 @@ def render_admin():
                                 oram_bienvenida(
                                     titulo="🔑 Contraseña actualizada",
                                     subtitulo=f"Contraseña de <b>{uname}</b> reseteada exitosamente.",
-                                    spinner_label="Aplicando cambios…", delay=2.0,
+                                    spinner_label="Aplicando cambios…", delay=3.0,
                                 )
                             else:
                                 oram_overlay_error("La contraseña debe tener mínimo 6 caracteres.")
@@ -234,7 +234,7 @@ def render_admin():
                                     titulo        = "🗑️ Usuario eliminado",
                                     subtitulo     = f"<b>{uname}</b> y todos sus datos han sido eliminados permanentemente.",
                                     spinner_label = "Actualizando base de datos…",
-                                    delay         = 2.0,
+                                    delay=3.0,
                                 )
                             else:
                                 oram_overlay_error(
@@ -298,7 +298,7 @@ def render_admin():
                             oram_bienvenida(
                                 titulo="💾 Bot actualizado",
                                 subtitulo=f"Configuración del bot de <b>{uname}</b> guardada.",
-                                spinner_label="Aplicando cambios…", delay=2.0,
+                                spinner_label="Aplicando cambios…", delay=3.0,
                             )
 
     # ── LOG SEÑALES ───────────────────────────────────────────────────────
