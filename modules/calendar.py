@@ -164,29 +164,14 @@ def render_calendar():
     dias_pasados_f = aplicar_filtros(dias_pasados)
 
     # ── Eventos pendientes (hoy + resto de semana) ─────────────────────────
-    n_pend = len(pendientes_f)
-    container_bg  = "#0c1219" if dark else "#f8fafc"
-    container_bdr = c["border"]
-    _header_pend = (
-        "<div style=\"background:" + container_bg + ";border:1px solid " + container_bdr + ";"
-        "border-radius:14px;padding:1rem 1rem 0.5rem;margin-bottom:1rem\">"
-        "<div style=\"font-family:Inter,sans-serif;font-size:0.72rem;font-weight:600;"
-        "letter-spacing:1px;text-transform:uppercase;color:" + c["text_muted"] + ";"
-        "margin-bottom:0.75rem\">📅 " + str(n_pend) + " evento" + ("s" if n_pend != 1 else "") +
-        " pendiente" + ("s" if n_pend != 1 else "") + "</div>"
-    )
-    if pendientes_f:
-        st.markdown(_header_pend + "</div>", unsafe_allow_html=True)
-        for ev in pendientes_f:
-            _render_evento(ev, c, dark)
-    else:
-        st.markdown(
-            _header_pend +
-            "<div style=\"font-size:0.88rem;padding:0.3rem 0 0.6rem;color:" + c["text_muted"] + "\">"
-            "✅ No hay más eventos pendientes esta semana.</div>"
-            "</div>",
-            unsafe_allow_html=True
-        )
+    n_pend      = len(pendientes_f)
+    label_pend  = f"📅 {n_pend} evento{'s' if n_pend != 1 else ''} pendiente{'s' if n_pend != 1 else ''}"
+    with st.expander(label_pend, expanded=False):
+        if pendientes_f:
+            for ev in pendientes_f:
+                _render_evento(ev, c, dark)
+        else:
+            st.caption("No hay más eventos pendientes esta semana.")
 
     st.divider()
 
