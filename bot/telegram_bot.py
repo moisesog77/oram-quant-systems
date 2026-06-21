@@ -1215,7 +1215,7 @@ async def cmd_desconocido(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── JOBS AUTOMÁTICOS ─────────────────────────────────────────────────────────
 
 async def _generar_resumen_diario() -> str:
-    activos = ["EURUSD=X","GBPUSD=X","USDJPY=X","USDCHF=X","BTC-USD","GC=F"]
+    activos = ["EURUSD=X", "GBPUSD=X", "GC=F"]
     lineas  = [
         "🌅 *REPORTE DIARIO SMC — ORAM*",
         f"_{datetime.now(TZ_MX).strftime('%A %d/%m/%Y — %H:%M')} CDMX_",
