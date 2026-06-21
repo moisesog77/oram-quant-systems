@@ -371,7 +371,7 @@ async def cmd_mercado(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "Los mercados Forex y Oro están cerrados.\n\n"
             "⏰ *Reapertura:* Domingo 16:00 CDMX\n"
             "🔥 *Mejor sesión:* Lunes 02:00-10:00 CDMX\n\n"
-            "💡 Usa este tiempo para revisar /diario y planificar la semana."
+            "💡 Usa este tiempo para planificar la semana en la app."
         )
         return
     await update.message.reply_text("🔍 Analizando mercado... espera.")
@@ -1239,9 +1239,9 @@ async def _generar_resumen_diario() -> str:
             "Los mercados Forex y Oro están cerrados.\n"
             "⏰ *Reapertura:* Domingo 16:00 CDMX\n\n"
             "💡 *Úsalo para prepararte:*\n"
-            "   • Revisa tus trades con /diario\n"
-            "   • Identifica zonas clave para la semana\n"
-            "   • Descansa — el mercado reabre el lunes\n"
+            "   • Revisa tus trades de la semana en la app\n"
+            "   • Identifica zonas clave para el lunes\n"
+            "   • Descansa — el mercado reabre el domingo\n"
             "━━━━━━━━━━━━━━━━\n"
             "🤖 _ORAM Quant Systems_"
         )
