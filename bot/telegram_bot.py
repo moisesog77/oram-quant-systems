@@ -1336,7 +1336,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
             pass
 
         configs = obtener_todas_configs_bot()
-        activos_default = ["EURUSD=X","GBPUSD=X","USDJPY=X","USDCHF=X","AUDUSD=X"]
+        activos_default = ["EURUSD=X", "GBPUSD=X", "GC=F"]
 
         for cfg in configs:
             chat_id = cfg.get("telegram_chat_id", "")
@@ -1443,7 +1443,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         configs = obtener_todas_configs_bot()
-        activos_default = ["EURUSD=X","GBPUSD=X","USDJPY=X"]
+        activos_default = ["EURUSD=X", "GBPUSD=X", "GC=F"]
         for cfg in configs:
             chat_id = cfg.get("telegram_chat_id", "")
             if not chat_id or not cfg.get("alertas_activas"): continue
@@ -1566,7 +1566,7 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
 
         tf_map         = {"1m": "5m", "5m": "1h", "15m": "1h", "30m": "4h", "1h": "4h", "4h": "1d"}
         configs        = obtener_todas_configs_bot()
-        activos_default = ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "USDCHF=X", "AUDUSD=X"]
+        activos_default = ["EURUSD=X", "GBPUSD=X", "GC=F"]
 
         for cfg in configs:
             chat_id = cfg.get("telegram_chat_id", "")

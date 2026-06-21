@@ -69,10 +69,8 @@ TIMEFRAME_CONFIG = {
 }
 
 ACTIVOS_DEFAULT = {
-    "Forex":    ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "USDCHF=X", "AUDUSD=X", "USDCAD=X", "NZDUSD=X"],
-    "Índices":  ["^GSPC", "^NDX", "^DJI", "^FTSE", "^N225"],
-    "Cripto":   ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD"],
-    "Materias": ["GC=F", "SI=F", "CL=F", "NG=F"],
+    "Forex":    ["EURUSD=X", "GBPUSD=X"],
+    "Materias": ["GC=F"],
 }
 
 # ── Mapeo de símbolos yfinance → Twelve Data ──────────────────────────────────
