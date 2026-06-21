@@ -79,7 +79,7 @@ def render_bot_config():
 
             st.markdown("**Activos a monitorear:**")
             todos_activos = [a for lista in ACTIVOS_DEFAULT.values() for a in lista]
-            actuales = json.loads(cfg.get("activos_monitor",'["EURUSD=X","GBPUSD=X","GC=F"]'))
+            actuales = json.loads(cfg.get("activos_monitor",'["EURUSD=X","GBPUSD=X","USDJPY=X"]'))
             sel_activos = st.multiselect("Selecciona activos", todos_activos, default=actuales, key="sel_act_bot")
 
             if st.form_submit_button("💾 Guardar configuración", width='stretch'):

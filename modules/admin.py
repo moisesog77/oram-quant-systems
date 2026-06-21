@@ -321,7 +321,7 @@ def render_admin():
         if "direccion"  in df.columns: df["direccion"]  = df["direccion"].apply(lambda x: "🟢 LONG" if x=="LONG" else "🔴 SHORT" if x=="SHORT" else "⚪")
         cols_show = [x for x in ["created_at","ticker","timeframe","tipo","direccion","confianza","precio","sl","tp","enviada_bot"] if x in df.columns]
         st.dataframe(df[cols_show], use_container_width=True, hide_index=True)
-        raw = senales
+        raw = admin_logs_senales(limite)
         c1, c2, c3 = st.columns(3)
         c1.metric("🟢 LONG",    sum(1 for s in raw if s.get("direccion") == "LONG"))
         c2.metric("🔴 SHORT",   sum(1 for s in raw if s.get("direccion") == "SHORT"))
