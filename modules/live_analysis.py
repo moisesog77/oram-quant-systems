@@ -397,7 +397,7 @@ def render_live_analysis():
         if user_id:
             actualizar_bot_config(user_id, riesgo_pct=st.session_state["rsk_live"])
 
-    col1, col2, col3, col4 = st.columns([2, 2, 1.5, 1.5])
+    col1, col2, col3, col4, col5 = st.columns([2, 2, 1.5, 1.5, 1.5])
     with col1:
         categoria = st.selectbox("Categoría", list(ACTIVOS_DEFAULT.keys()), key="cat_live")
     with col2:
@@ -406,6 +406,9 @@ def render_live_analysis():
         tf = st.selectbox("Temporalidad", list(TIMEFRAME_LABELS.keys()),
                           format_func=lambda x: TIMEFRAME_LABELS[x], index=2, key="tf_live")
     with col4:
+        st.number_input("Capital USD", value=capital, min_value=100, step=500,
+                        format="%d", disabled=True)
+    with col5:
         riesgo_pct = st.number_input("Riesgo %", min_value=0.1, max_value=5.0,
                                      step=0.1, key="rsk_live", on_change=_guardar_riesgo)
 
