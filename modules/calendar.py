@@ -167,20 +167,28 @@ def render_calendar():
     n_pend = len(pendientes_f)
     container_bg  = "#0c1219" if dark else "#f8fafc"
     container_bdr = c["border"]
-    st.markdown(
+    _header_pend = (
         "<div style=\"background:" + container_bg + ";border:1px solid " + container_bdr + ";"
         "border-radius:14px;padding:1rem 1rem 0.5rem;margin-bottom:1rem\">"
         "<div style=\"font-family:Inter,sans-serif;font-size:0.72rem;font-weight:600;"
         "letter-spacing:1px;text-transform:uppercase;color:" + c["text_muted"] + ";"
         "margin-bottom:0.75rem\">📅 " + str(n_pend) + " evento" + ("s" if n_pend != 1 else "") +
-        " pendiente" + ("s" if n_pend != 1 else "") + "</div></div>",
-        unsafe_allow_html=True
+        " pendiente" + ("s" if n_pend != 1 else "") + "</div>"
     )
     if pendientes_f:
+        st.markdown(_header_pend + "</div>", unsafe_allow_html=True)
         for ev in pendientes_f:
             _render_evento(ev, c, dark)
     else:
-        st.info("✅ No hay más eventos pendientes esta semana.")
+        st.markdown(
+            _header_pend +
+            "<div style=\"font-size:0.88rem;padding:0.3rem 0 0.6rem;color:" + c["text_muted"] + "\">"
+            "✅ No hay más eventos pendientes esta semana.</div>"
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+    st.divider()
 
     # ── Eventos pasados (esta semana, colapsados) ──────────────────────────
     if dias_pasados_f:
