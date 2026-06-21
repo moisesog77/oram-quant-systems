@@ -68,6 +68,25 @@ TIMEFRAME_CONFIG = {
     "1wk": {"td_interval": "1week", "td_outputsize": 100,  "yf_interval": "1wk", "yf_period": "5y"},
 }
 
+# ── Activos por categoría — usado en selectores de la UI ─────────────────────
+# Importado por: modules/backtesting.py, bot_config.py, journal.py, live_analysis.py
+ACTIVOS_DEFAULT = {
+    "Forex":    ["EURUSD=X", "GBPUSD=X"],
+    "Materias": ["GC=F"],
+}
+
+
+def mercado_cerrado() -> bool:
+    """True si los mercados Forex/materias están cerrados (sáb. completo, dom. <22h UTC, vie. ≥22h UTC)."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    wd, h = now.weekday(), now.hour
+    if wd == 5: return True
+    if wd == 6 and h < 22: return True
+    if wd == 4 and h >= 22: return True
+    return False
+
+
 # ── Mapeo de símbolos yfinance → Twelve Data ──────────────────────────────────
 _TD_SYMBOL_MAP = {
     # Forex
