@@ -75,6 +75,28 @@ _ultima_alerta_rango: dict = {}
 _checks_sin_senal:    dict = {}   # chat_id → checks consecutivos sin señal
 
 
+def _normalizar_ticker(s: str) -> str:
+    """Convierte alias cortos al ticker real de yfinance/TwelveData."""
+    _map = {
+        "EURUSD": "EURUSD=X", "EUR":    "EURUSD=X",
+        "GBPUSD": "GBPUSD=X", "GBP":    "GBPUSD=X",
+        "USDJPY": "USDJPY=X", "JPY":    "USDJPY=X",
+        "USDCHF": "USDCHF=X", "CHF":    "USDCHF=X",
+        "AUDUSD": "AUDUSD=X", "AUD":    "AUDUSD=X",
+        "USDCAD": "USDCAD=X", "CAD":    "USDCAD=X",
+        "NZDUSD": "NZDUSD=X", "NZD":    "NZDUSD=X",
+        "BTCUSD": "BTC-USD",  "BTC":    "BTC-USD",
+        "ETHUSD": "ETH-USD",  "ETH":    "ETH-USD",
+        "XAUUSD": "GC=F",     "GOLD":   "GC=F",   "XAU": "GC=F",
+        "XAGUSD": "SI=F",     "SILVER": "SI=F",   "XAG": "SI=F",
+        "WTIUSD": "CL=F",     "OIL":    "CL=F",   "WTI": "CL=F",
+    }
+    t = s.upper().replace("/", "")
+    if t in _map: return _map[t]
+    if t.endswith("=X") or "-" in t or t in ("GC=F", "CL=F", "SI=F", "NG=F"): return t
+    return t + "=X"
+
+
 def _calcular_pips(ticker: str, p1: float, p2: float) -> float:
     diff = abs(p1 - p2)
     if "JPY" in ticker: return round(diff * 100, 1)
@@ -519,9 +541,7 @@ async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "Timeframes: 1m, 5m, 15m, 30m, 1h, 4h, 1d"
         )
         return
-    ticker = args[0].upper()
-    if not ticker.endswith("=X") and ticker not in ["BTC-USD","ETH-USD","GC=F","CL=F"]:
-        ticker = ticker + "=X"
+    ticker = _normalizar_ticker(args[0])
     tf = args[1] if len(args) > 1 else "15m"
     chat_id = str(update.effective_chat.id)
     user, cfg = _get_user_by_chat(chat_id)
@@ -563,21 +583,45 @@ async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Multi-Timeframe. Uso: /mtf EURUSD [combo]
+    """Multi-Timeframe.
+    Sin args → escanea todos tus activos configurados.
+    /mtf EURUSD [combo]  → par específico.
     Combos: scalping, intraday, swing, posicional"""
-    args   = ctx.args
-    ticker = args[0].upper() if args else "EURUSD=X"
-    if not ticker.endswith("=X") and ticker not in ["BTC-USD","ETH-USD","GC=F","CL=F"]:
-        ticker = ticker + "=X"
+    args    = ctx.args
+    chat_id = str(update.effective_chat.id)
 
-    combo_key = (args[1].lower() if len(args) > 1 else "intraday")
     combo_map = {
-        "scalping": "Scalping (5m/1m)",
-        "intraday": "Intraday (1h/15m)",
-        "swing":    "Swing (4h/1h)",
+        "scalping":   "Scalping (5m/1m)",
+        "intraday":   "Intraday (1h/15m)",
+        "swing":      "Swing (4h/1h)",
         "posicional": "Posicional (1d/4h)",
     }
-    combo    = combo_map.get(combo_key, "Intraday (1h/15m)")
+
+    if not args:
+        # ── Sin argumentos: escanear todos los activos configurados ──────────
+        _, cfg = _get_user_by_chat(chat_id)
+        try:
+            activos = json.loads(cfg.get("activos_monitor", "[]")) if cfg else []
+        except Exception:
+            activos = []
+        if not activos:
+            activos = ["EURUSD=X", "GBPUSD=X", "GC=F"]
+        tf_alto, tf_bajo = MTF_COMBOS.get("Intraday (1h/15m)", ("1h", "15m"))
+        await update.message.reply_text(
+            f"🔭 Analizando {len(activos)} activos MTF ({tf_alto}/{tf_bajo})..."
+        )
+        for tkr in activos:
+            try:
+                mtf = analisis_mtf(tkr, tf_alto, tf_bajo)
+                await _reply(update, _formato_mtf(mtf, tkr))
+            except Exception as e:
+                await update.message.reply_text(f"❌ {tkr}: {str(e)[:80]}")
+        return
+
+    # ── Con argumento: par específico ─────────────────────────────────────────
+    ticker    = _normalizar_ticker(args[0])
+    combo_key = args[1].lower() if len(args) > 1 else "intraday"
+    combo     = combo_map.get(combo_key, "Intraday (1h/15m)")
     tf_alto, tf_bajo = MTF_COMBOS.get(combo, ("1h", "15m"))
 
     await update.message.reply_text(f"🔭 Analizando {ticker} MTF ({tf_alto}/{tf_bajo})...")
@@ -802,9 +846,7 @@ async def cmd_backtest(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "⚠️ _Puede tardar 30-90 segundos_"
         )
         return
-    ticker = args[0].upper()
-    if not ticker.endswith("=X") and ticker not in ["BTC-USD","ETH-USD","GC=F","CL=F"]:
-        ticker = ticker + "=X"
+    ticker = _normalizar_ticker(args[0])
     tf     = args[1] if len(args) > 1 else "1h"
     umbral = int(args[2]) if len(args) > 2 else 50
     chat_id = str(update.effective_chat.id)
