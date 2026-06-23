@@ -70,6 +70,10 @@ _mtf_persistencia: dict = {}
 # Timestamp del último envío de alerta de vigilancia — dedup 2h
 _watch_enviados: dict = {}
 
+# Alerta de mercado en rango — dedup 2h por chat
+_ultima_alerta_rango: dict = {}
+_checks_sin_senal:    dict = {}   # chat_id → checks consecutivos sin señal
+
 
 def _calcular_pips(ticker: str, p1: float, p2: float) -> float:
     diff = abs(p1 - p2)
@@ -1317,6 +1321,82 @@ async def job_resumen_diario(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_resumen_diario: {e}")
 
 
+async def _generar_reporte_cierre() -> str:
+    """Reporte de cierre de día — NY close (22:00 UTC / 16:00 CDMX)."""
+    categorias = {"Forex": ["EURUSD=X", "GBPUSD=X"], "Materias": ["GC=F"]}
+    ahora      = datetime.now(TZ_MX)
+
+    senales_hoy = obtener_señales_recientes(horas=24)
+    longs_hoy   = sum(1 for s in senales_hoy if s.get("direccion") == "LONG"  and s.get("enviada_bot"))
+    shorts_hoy  = sum(1 for s in senales_hoy if s.get("direccion") == "SHORT" and s.get("enviada_bot"))
+    total_hoy   = longs_hoy + shorts_hoy
+
+    lineas = [
+        "🌆 *REPORTE DE CIERRE — NY CLOSE*",
+        f"_{ahora.strftime('%A %d/%m/%Y')} — {ahora.strftime('%H:%M')} CDMX_",
+        "━━━━━━━━━━━━━━━━",
+        "", "📊 *Estructura de cierre (1H):*",
+    ]
+    for cat, tickers in categorias.items():
+        icons = {"Forex": "🔵", "Materias": "🟠"}
+        lineas.append(f"\n{icons.get(cat, '📊')} *{cat}:*")
+        for ticker in tickers:
+            try:
+                smc, _ = _analizar_activo(ticker, "1h")
+                if smc and "error" not in smc:
+                    dir_   = smc.get("estructura", {}).get("direccion", "neutral")
+                    conf   = smc.get("confluencia", {}).get("confianza", 0)
+                    precio = smc.get("precio", 0)
+                    tipo   = smc.get("estructura", {}).get("tipo", "?")
+                    rsi    = smc.get("rsi", 0) or 0
+                    lineas.append(
+                        f"{_emoji_dir(dir_)} *{ticker}* `{precio:.4f}` — {tipo} ({conf:.0f}%) RSI:{rsi:.0f}"
+                    )
+                else:
+                    lineas.append(f"⚫ {ticker} — Sin datos")
+            except Exception:
+                lineas.append(f"⚫ {ticker} — Error")
+
+    lineas += [
+        "", "⚡ *Actividad de señales (día):*",
+        f"  🟢 LONG: {longs_hoy}  |  🔴 SHORT: {shorts_hoy}  |  Total: {total_hoy}",
+    ]
+    if total_hoy == 0:
+        lineas.append("  _Mercado en rango — sin setups de alta probabilidad hoy._")
+
+    try:
+        proximos = obtener_proximos_eventos(16)
+        if proximos:
+            lineas += ["", "📰 *Eventos importantes mañana:*"]
+            for ev in proximos[:5]:
+                lineas.append(f"{impacto_emoji(ev['impacto'])} {ev['titulo']} — {ev['hora_mx']} CDMX")
+    except Exception:
+        pass
+
+    lineas += [
+        "", "🌅 *Sesiones de mañana (CDMX):*",
+        "  🟡 London Open: 02:00-04:00",
+        "  🔥 Overlap L+NY: 07:00-10:00",
+        "  🟠 NY Open: 07:30-09:30",
+        "", "━━━━━━━━━━━━━━━━",
+        "⚠️ _Max 1-2% riesgo por trade_",
+        "🤖 _ORAM Quant Systems_",
+    ]
+    return "\n".join(lineas)
+
+
+async def job_reporte_cierre(ctx: ContextTypes.DEFAULT_TYPE):
+    """Reporte de fin de día al NY close (22:00 UTC = 16:00 CDMX)."""
+    try:
+        configs = obtener_todas_configs_bot()
+        txt     = await _generar_reporte_cierre()
+        for cfg in configs:
+            if cfg.get("resumen_diario") and cfg.get("telegram_chat_id"):
+                await _send(ctx.bot, cfg["telegram_chat_id"], txt)
+    except Exception as e:
+        logger.error(f"job_reporte_cierre: {e}")
+
+
 async def job_alerta_noticias(ctx: ContextTypes.DEFAULT_TYPE):
     global _eventos_ya_alertados
     try:
@@ -1459,6 +1539,39 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         await _send(ctx.bot, chat_id, "\n".join(lineas))
                     except Exception as e:
                         logger.error(f"send medias: {e}")
+
+            # ── Alerta de mercado en rango ────────────────────────────────────
+            if not altas and not medias:
+                _checks_sin_senal[chat_id] = _checks_sin_senal.get(chat_id, 0) + 1
+                ahora_ts = datetime.now(TZ_MX).timestamp()
+                # Enviar después de 12 checks (~60 min) sin señal y sin haberlo avisado en 2h
+                if (_checks_sin_senal.get(chat_id, 0) >= 12 and
+                        ahora_ts - _ultima_alerta_rango.get(chat_id, 0) > 7200):
+                    _checks_sin_senal[chat_id]   = 0
+                    _ultima_alerta_rango[chat_id] = ahora_ts
+                    lineas_r = [
+                        "⚪ *MERCADO EN RANGO — Sin setups activos*",
+                        "━━━━━━━━━━━━━━━━",
+                    ]
+                    for tkr in activos:
+                        try:
+                            smc_r, _ = _analizar_activo(tkr, tf)
+                            if smc_r and "error" not in smc_r:
+                                dir_r  = smc_r.get("estructura", {}).get("direccion", "neutral")
+                                conf_r = smc_r.get("confluencia", {}).get("confianza", 0)
+                                tipo_r = smc_r.get("estructura", {}).get("tipo", "Sin señal")
+                                lineas_r.append(f"{_emoji_dir(dir_r)} *{tkr}*: {tipo_r} ({conf_r:.0f}%)")
+                        except Exception:
+                            pass
+                    lineas_r += [
+                        "",
+                        f"💡 _Ningún activo supera el umbral {umbral:.0f}% — mercado lateral o comprimido._",
+                        "_No hay setup de alta probabilidad ahora. El bot alertará cuando aparezca uno._",
+                        f"🕐 _{_hora_mx()} CDMX_",
+                    ]
+                    await _send(ctx.bot, chat_id, "\n".join(lineas_r))
+            else:
+                _checks_sin_senal[chat_id] = 0  # reset si apareció señal
 
     except Exception as e:
         logger.error(f"job_monitoreo_senales: {e}")
@@ -1804,13 +1917,14 @@ def main():
 
     jq = app.job_queue
     if jq is not None:
-        jq.run_daily(job_resumen_diario, time=dtime(hour=13, minute=0))  # 7AM CDMX
-        jq.run_repeating(job_monitoreo_senales,    interval=300,  first=60)
-        jq.run_repeating(job_monitoreo_mtf,        interval=900,  first=120)
-        jq.run_repeating(job_monitoreo_reversal,   interval=60,   first=90)  # 60s en premium — retorna rápido fuera de sesión
+        jq.run_daily(job_resumen_diario,  time=dtime(hour=13, minute=0))   # 7AM CDMX
+        jq.run_daily(job_reporte_cierre,  time=dtime(hour=22, minute=0))   # 4PM CDMX / NY close
+        jq.run_repeating(job_monitoreo_senales,       interval=300, first=60)
+        jq.run_repeating(job_monitoreo_mtf,           interval=900, first=120)
+        jq.run_repeating(job_monitoreo_reversal,      interval=60,  first=90)
         jq.run_repeating(job_verificar_alertas_precio, interval=300, first=30)
-        jq.run_repeating(job_alerta_noticias,      interval=300,  first=60)
-        print("✅ Jobs activos: Reporte diario · Señales c/5m · MTF c/15m · Reversal c/1m · Alertas precio c/5m · Noticias c/5m")
+        jq.run_repeating(job_alerta_noticias,         interval=300, first=60)
+        print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Señales c/5m · MTF c/15m · Reversal c/1m · Alertas precio c/5m · Noticias c/5m")
     else:
         print("⚠️  Sin jobs. Instala: pip install APScheduler")
 
