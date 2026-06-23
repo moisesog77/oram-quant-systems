@@ -244,7 +244,8 @@ CREATE TABLE IF NOT EXISTS bot_config (
     activos_monitor TEXT DEFAULT '["EURUSD=X","GBPUSD=X","GC=F"]',
     tf_monitor TEXT DEFAULT '15m',
     umbral_confianza REAL DEFAULT 70.0,
-    riesgo_pct REAL DEFAULT 1.0,
+    riesgo_pct REAL DEFAULT 2.0,
+    capital_cuenta REAL DEFAULT 0,
     ultima_alerta TEXT DEFAULT NULL
 );
 CREATE TABLE IF NOT EXISTS backtest_results (
@@ -355,7 +356,8 @@ _PG_TABLES = [
         activos_monitor TEXT DEFAULT '["EURUSD=X","GBPUSD=X","GC=F"]',
         tf_monitor TEXT DEFAULT '15m',
         umbral_confianza REAL DEFAULT 70.0,
-        riesgo_pct REAL DEFAULT 1.0,
+        riesgo_pct REAL DEFAULT 2.0,
+        capital_cuenta REAL DEFAULT 0,
         ultima_alerta TEXT DEFAULT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS backtest_results (
@@ -419,9 +421,10 @@ def inicializar_db():
             conn.executescript(_SQLITE_SCHEMA)
             # Migración segura: añadir columnas nuevas en DBs antiguas
             for table, col, definition in [
-                ("users",      "is_admin",   "INTEGER DEFAULT 0"),
-                ("users",      "is_active",  "INTEGER DEFAULT 1"),
-                ("bot_config", "riesgo_pct", "REAL DEFAULT 1.0"),
+                ("users",      "is_admin",       "INTEGER DEFAULT 0"),
+                ("users",      "is_active",       "INTEGER DEFAULT 1"),
+                ("bot_config", "riesgo_pct",      "REAL DEFAULT 2.0"),
+                ("bot_config", "capital_cuenta",  "REAL DEFAULT 0"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
@@ -434,7 +437,8 @@ def inicializar_db():
                 _exec(conn, sql)
             # Migración segura para columnas nuevas en PostgreSQL
             for table, col, definition in [
-                ("bot_config", "riesgo_pct", "REAL DEFAULT 1.0"),
+                ("bot_config", "riesgo_pct",     "REAL DEFAULT 2.0"),
+                ("bot_config", "capital_cuenta",  "REAL DEFAULT 0"),
             ]:
                 try:
                     _exec(conn, f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {definition}")

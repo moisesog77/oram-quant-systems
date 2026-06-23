@@ -598,12 +598,23 @@ def calcular_riesgo(
 
     rr = dist_tp / dist_sl
 
-    # Pares JPY usan 2 decimales (pip = 0.01) y pip_value ~9.3 USD/lot
+    # Pip value y multiplicador según instrumento
     _t = ticker.upper()
     if "JPY" in _t:
+        # Par JPY: pip = 0.01, valor ~$9.3/pip/lot
         pip_value = 9.3
         pip_mult  = 100
+    elif any(x in _t for x in ("GC=F", "XAUUSD", "GOLD")):
+        # Oro: 1 lot = 100 oz. $1 de precio = $100 P&L/lot.
+        # Usamos pip = $0.01 → pip_value = $1/lot, pip_mult = 100
+        pip_value = 1.0
+        pip_mult  = 100
+    elif any(x in _t for x in ("CL=F", "WTIUSD", "OIL")):
+        # Petróleo: 1 lot = 100 barriles. $1 = $100/lot.
+        pip_value = 1.0
+        pip_mult  = 100
     else:
+        # Forex estándar (EUR/USD, GBP/USD, etc.): pip = 0.0001, $10/pip/lot
         pip_value = 10.0
         pip_mult  = 10000
 

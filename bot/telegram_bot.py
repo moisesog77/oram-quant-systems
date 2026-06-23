@@ -511,8 +511,8 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    capital    = float(user.get("capital_inicial", 10000)) if user else 10000.0
-    riesgo_pct = float(cfg.get("riesgo_pct", 1.0)) if cfg else 1.0
+    capital    = float(cfg.get("capital_cuenta") or 0) or float(user.get("capital_inicial", 10000) if user else 10000.0) if cfg else 10000.0
+    riesgo_pct = float(cfg.get("riesgo_pct", 2.0)) if cfg else 2.0
 
     if altas:
         await update.message.reply_text(f"🔥 *{len(altas)} señal(es) ALTA PRIORIDAD:*", parse_mode=MD)
@@ -545,8 +545,8 @@ async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     tf = args[1] if len(args) > 1 else "15m"
     chat_id = str(update.effective_chat.id)
     user, cfg = _get_user_by_chat(chat_id)
-    capital    = float(user.get("capital_inicial", 10000)) if user else 10000.0
-    riesgo_pct = float(cfg.get("riesgo_pct", 1.0)) if cfg else 1.0
+    capital    = float(cfg.get("capital_cuenta") or 0) or float(user.get("capital_inicial", 10000) if user else 10000.0) if cfg else 10000.0
+    riesgo_pct = float(cfg.get("riesgo_pct", 2.0)) if cfg else 2.0
 
     await update.message.reply_text(f"🔍 Analizando {ticker} en {tf}...")
     try:
@@ -649,8 +649,8 @@ async def cmd_riesgo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         tp      = float(args[3])
         chat_id = str(update.effective_chat.id)
         user, cfg = _get_user_by_chat(chat_id)
-        capital    = float(user.get("capital_inicial", 10000)) if user else 10000.0
-        riesgo_pct = float(cfg.get("riesgo_pct", 1.0)) if cfg else 1.0
+        capital    = float(cfg.get("capital_cuenta") or 0) or float(user.get("capital_inicial", 10000) if user else 10000.0) if cfg else 10000.0
+        riesgo_pct = float(cfg.get("riesgo_pct", 2.0)) if cfg else 2.0
 
         res = calcular_riesgo(entrada, sl, tp, capital, riesgo_pct)
         if not res:
@@ -996,6 +996,42 @@ async def cmd_capital(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         await _reply(update, f"❌ Error: {str(e)[:100]}")
+
+
+async def cmd_setcapital(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Actualiza el capital de cuenta para cálculo de volumen. Uso: /setcapital 100"""
+    chat_id = str(update.effective_chat.id)
+    user, cfg = _get_user_by_chat(chat_id)
+    if not user:
+        await _reply(update, "⚙️ Vincula tu Chat ID primero en la app → Bot Telegram.")
+        return
+    args = ctx.args or []
+    if not args:
+        capital_actual = float(cfg.get("capital_cuenta") or 0) if cfg else 0
+        riesgo_actual  = float(cfg.get("riesgo_pct", 2.0)) if cfg else 2.0
+        await _reply(update,
+            f"💼 *Capital configurado:* ${capital_actual:.2f}\n"
+            f"📊 *Riesgo por trade:* {riesgo_actual:.2f}%\n"
+            f"💡 Riesgo por operación: *${capital_actual * riesgo_actual / 100:.2f}*\n\n"
+            f"_Uso: /setcapital 150 — para actualizar a $150_"
+        )
+        return
+    try:
+        nuevo_capital = float(args[0])
+        if nuevo_capital < 0:
+            raise ValueError
+    except (ValueError, IndexError):
+        await _reply(update, "❌ Uso correcto: `/setcapital 100` (monto en USD)")
+        return
+    from database.db import actualizar_bot_config
+    actualizar_bot_config(user["id"], capital_cuenta=nuevo_capital)
+    riesgo_pct = float(cfg.get("riesgo_pct", 2.0)) if cfg else 2.0
+    riesgo_usd = nuevo_capital * riesgo_pct / 100
+    await _reply(update,
+        f"✅ *Capital actualizado: ${nuevo_capital:.2f}*\n"
+        f"📊 Riesgo por trade ({riesgo_pct:.1f}%): *${riesgo_usd:.2f} USD*\n\n"
+        f"_Las próximas señales calcularán el volumen con este capital._"
+    )
 
 
 async def cmd_noticias(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1503,8 +1539,8 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
 
             user_id = cfg.get("user_id")
             user    = obtener_usuario_por_id(user_id)
-            capital    = float(user.get("capital_inicial", 10000)) if user else 10000.0
-            riesgo_pct = float(cfg.get("riesgo_pct", 1.0))
+            capital    = float(cfg.get("capital_cuenta") or 0) or float(user.get("capital_inicial", 10000) if user else 10000.0)
+            riesgo_pct = float(cfg.get("riesgo_pct", 2.0))
 
             altas, medias = [], []
             # Deduplicación: no re-enviar la misma señal (ticker+dirección) en la última 1h
@@ -1944,6 +1980,7 @@ def main():
         ("backtest",    cmd_backtest),
         ("watchlist",   cmd_watchlist),
         ("capital",     cmd_capital),
+        ("setcapital",  cmd_setcapital),
         ("noticias",    cmd_noticias),
         ("proximos",    cmd_proximos),
         ("sesiones",    cmd_sesiones),

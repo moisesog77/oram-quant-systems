@@ -61,9 +61,15 @@ def render_bot_config():
             with col1:
                 alertas_act = st.toggle("Alertas automáticas activas", value=bool(cfg.get("alertas_activas",1)))
                 resumen_d   = st.toggle("Resumen diario (8:00 AM CDMX)", value=bool(cfg.get("resumen_diario",1)))
+                capital_cuenta = st.number_input(
+                    "Capital de cuenta (USD)", min_value=0.0, max_value=100000.0,
+                    value=float(cfg.get("capital_cuenta") or 0.0), step=50.0,
+                    help="Saldo real de tu cuenta de trading — usado para calcular el volumen en las señales",
+                    key="capital_bot",
+                )
                 riesgo_pct  = st.number_input(
                     "Riesgo por trade (%)", min_value=0.25, max_value=5.0,
-                    value=float(cfg.get("riesgo_pct") or 1.0), step=0.25,
+                    value=float(cfg.get("riesgo_pct") or 2.0), step=0.25,
                     help="% de capital por operación — aparece en todas las señales automáticas",
                     key="riesgo_bot",
                 )
@@ -92,10 +98,11 @@ def render_bot_config():
                     tf_monitor=tf_mon,
                     activos_monitor=json.dumps(sel_activos),
                     riesgo_pct=float(riesgo_pct),
+                    capital_cuenta=float(capital_cuenta),
                 )
                 oram_bienvenida(
                     titulo        = "✅ Configuración guardada",
-                    subtitulo     = f"Bot Telegram configurado.<br>Umbral: <b>{umbral:.0f}%</b> · Riesgo: <b>{riesgo_pct:.2f}%</b> · TF: <b>{tf_mon}</b>",
+                    subtitulo     = f"Bot Telegram configurado.<br>Capital: <b>${capital_cuenta:.0f}</b> · Riesgo: <b>{riesgo_pct:.2f}%</b> · TF: <b>{tf_mon}</b>",
                     spinner_label = "Aplicando configuración…",
                     delay=3.0,
                 )
@@ -108,7 +115,7 @@ def render_bot_config():
             <div class="smc-card smc-card-green">
                 <div class="card-title">Estado del bot</div>
                 <div class="card-sub">✅ Chat ID configurado: <code>{chat_actual}</code></div>
-                <div class="card-sub">Umbral: {cfg.get('umbral_confianza') or 70:.0f}% · Riesgo: {cfg.get('riesgo_pct') or 1.0:.2f}% · TF: {cfg.get('tf_monitor','15m')}</div>
+                <div class="card-sub">Capital: ${cfg.get('capital_cuenta') or 0:.0f} · Riesgo: {cfg.get('riesgo_pct') or 2.0:.2f}% · Umbral: {cfg.get('umbral_confianza') or 70:.0f}% · TF: {cfg.get('tf_monitor','15m')}</div>
                 <div class="card-sub">Alertas: {'✅ Activas' if cfg.get('alertas_activas') else '❌ Desactivadas'}</div>
                 <div class="card-sub">Resumen diario: {'✅' if cfg.get('resumen_diario') else '❌'}</div>
             </div>
@@ -130,6 +137,7 @@ def render_bot_config():
             <div class="card-sub"><code>/riesgo EURUSD 1.08 1.075 1.09</code> — Calcula lote y RR</div>
             <div class="card-sub"><code>/kelly 55 2.0 [10000]</code> — Kelly Criterion</div>
             <div class="card-sub"><code>/capital</code> — Dashboard completo de tu cuenta</div>
+            <div class="card-sub"><code>/setcapital 100</code> — Actualiza tu capital para calcular el volumen</div>
             <div class="card-sub" style="font-size:0.75rem;color:{c['text_muted']};margin:0.5rem 0 0.2rem">📋 DIARIO & PERFORMANCE</div>
             <div class="card-sub"><code>/trades [N]</code> — Últimos N trades registrados</div>
             <div class="card-sub"><code>/performance</code> — Análisis estadístico + IA</div>
