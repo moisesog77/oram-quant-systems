@@ -1622,8 +1622,12 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
             if not altas and not medias:
                 _checks_sin_senal[chat_id] = _checks_sin_senal.get(chat_id, 0) + 1
                 ahora_ts = datetime.now(TZ_MX).timestamp()
+                hora_mx  = datetime.now(TZ_MX).hour
+                # Solo enviar en horario activo: 5am–5pm CDMX (fuera de sesión asiática)
+                en_horario_activo = 5 <= hora_mx < 17
                 # Enviar después de 12 checks (~60 min) sin señal y sin haberlo avisado en 2h
-                if (_checks_sin_senal.get(chat_id, 0) >= 12 and
+                if (en_horario_activo and
+                        _checks_sin_senal.get(chat_id, 0) >= 12 and
                         ahora_ts - _ultima_alerta_rango.get(chat_id, 0) > 7200):
                     _checks_sin_senal[chat_id]   = 0
                     _ultima_alerta_rango[chat_id] = ahora_ts
