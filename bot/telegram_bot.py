@@ -546,20 +546,53 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Análisis SMC completo. Uso: /analizar EURUSD [TF]"""
-    args = ctx.args
-    if not args:
-        await _reply(update,
-            "💡 *Uso:* `/analizar EURUSD` o `/analizar EURUSD 1h`\n\n"
-            "Timeframes: 1m, 5m, 15m, 30m, 1h, 4h, 1d"
-        )
-        return
-    ticker = _normalizar_ticker(args[0])
-    tf = args[1] if len(args) > 1 else "15m"
+    """Análisis SMC completo. Sin args → analiza los 3 activos. /analizar EURUSD [TF] → par específico."""
+    args    = ctx.args
     chat_id = str(update.effective_chat.id)
     user, cfg = _get_user_by_chat(chat_id)
     capital    = float(cfg.get("capital_cuenta") or 0) or float(user.get("capital_inicial", 10000) if user else 10000.0) if cfg else 10000.0
     riesgo_pct = float(cfg.get("riesgo_pct", 2.0)) if cfg else 2.0
+
+    if not args:
+        # Sin argumentos: analizar todos los activos configurados
+        try:
+            activos = json.loads(cfg.get("activos_monitor", "[]")) if cfg else []
+        except Exception:
+            activos = []
+        if not activos:
+            activos = ["EURUSD=X", "GBPUSD=X", "GC=F"]
+        tf = "15m"
+        await update.message.reply_text(f"🔍 Analizando {len(activos)} activos en {tf}...")
+        for tkr in activos:
+            try:
+                smc, status = _analizar_activo(tkr, tf)
+                if not smc or "error" in smc:
+                    await _reply(update, f"⚪ *{tkr}* — Sin datos suficientes\n_{status}_")
+                    continue
+                msg  = _formato_senal_completo(smc, tkr, tf, capital, riesgo_pct)
+                obs  = smc.get("order_blocks", [])
+                fvgs = smc.get("fvgs", [])
+                liq  = smc.get("liquidez", {})
+                extras = ["\n━━━━━━━━━━━━━━━━", "📐 *Niveles SMC:*"]
+                if obs:
+                    ob = obs[0]
+                    extras.append(f"  🟦 OB: `{ob.precio_bot:.5f}` – `{ob.precio_top:.5f}` (fuerza: {ob.fuerza:.0%})")
+                if fvgs:
+                    fvg = fvgs[0]
+                    extras.append(f"  🟨 FVG: `{fvg.precio_bot:.5f}` – `{fvg.precio_top:.5f}`")
+                if liq:
+                    res_lvls = liq.get("resistance_levels", [])
+                    sup_lvls = liq.get("support_levels", [])
+                    if res_lvls: extras.append(f"  🔴 Resistencias: {', '.join([f'`{x:.5f}`' for x in res_lvls[:2]])}")
+                    if sup_lvls: extras.append(f"  🟢 Soportes: {', '.join([f'`{x:.5f}`' for x in sup_lvls[:2]])}")
+                await _reply(update, msg + "\n" + "\n".join(extras))
+            except Exception as e:
+                logger.error(f"cmd_analizar {tkr}: {e}")
+                await update.message.reply_text(f"❌ {tkr}: {str(e)[:80]}")
+        return
+
+    ticker = _normalizar_ticker(args[0])
+    tf = args[1] if len(args) > 1 else "15m"
 
     await update.message.reply_text(f"🔍 Analizando {ticker} en {tf}...")
     try:
@@ -1146,8 +1179,8 @@ async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "📡 *ANÁLISIS:*\n"
         "/mercado — Resumen de todos los pares (1H)\n"
         "/senales — Señales SMC activas (usa tu config)\n"
-        "/analizar EURUSD [1h] — Análisis SMC completo\n"
-        "/mtf EURUSD [swing] — Multi-Timeframe\n"
+        "/analizar — Análisis SMC (3 activos) o /analizar EURUSD [1h]\n"
+        "/mtf — Multi-Timeframe (3 activos) o /mtf EURUSD [swing]\n"
         "   combos: scalping · intraday · swing · posicional\n\n"
 
         "💼 *GESTIÓN DE RIESGO:*\n"
