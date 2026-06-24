@@ -26,16 +26,25 @@ warnings.filterwarnings("ignore")
 # Evita rate limits de Twelve Data (8 req/min en plan gratuito) y acelera
 # el panel multi-activo que llama obtener_datos() para cada ticker+timeframe.
 _DATA_CACHE: dict = {}
-# TTLs alineados al intervalo real de cada vela:
-# - 1m  → 50s  (vela nueva cada 60s, cache antes de expirar)
-# - 5m  → 240s (vela nueva cada 5min, cache 4min)
-# - 15m → 600s (vela nueva cada 15min, cache 10min — jobs cada 1-5min comparten)
-# - 1h  → 1800s (vela nueva cada 1h, cache 30min)
-# Reducen llamadas Twelve Data de ~5000/día a ~400/día (plan gratuito: 800/día)
-_CACHE_TTL = {
+
+# TTL dinámico por sesión:
+# - Sesión premium (London 07-10 UTC / NY 13-16 UTC): máxima frescura, datos cada ~2 min
+# - Resto del día: TTL largo para conservar las 800 llamadas/día del plan gratuito
+# Estimado de llamadas: ~120 premium + ~240 fuera = ~360 calls/día total
+_CACHE_TTL_PREMIUM = {
+    "1m": 30, "5m": 60, "15m": 120, "30m": 300,
+    "1h": 600, "4h": 1800, "1d": 3600, "1wk": 7200,
+}
+_CACHE_TTL_NORMAL = {
     "1m": 50, "5m": 240, "15m": 600, "30m": 900,
     "1h": 1800, "4h": 3600, "1d": 7200, "1wk": 14400,
 }
+
+def _cache_ttl(timeframe: str) -> int:
+    from datetime import datetime, timezone
+    h = datetime.now(timezone.utc).hour
+    en_premium = (7 <= h < 10) or (13 <= h < 16)
+    return (_CACHE_TTL_PREMIUM if en_premium else _CACHE_TTL_NORMAL).get(timeframe, 120 if en_premium else 600)
 
 try:
     import yfinance as yf
@@ -344,7 +353,7 @@ def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
       (DataFrame con indicadores, str con status/mensaje)
     """
     cache_key = (ticker, timeframe)
-    ttl       = _CACHE_TTL.get(timeframe, 120)
+    ttl       = _cache_ttl(timeframe)
     now       = time.time()
 
     # ── Intento 0: caché ─────────────────────────────────────────────────────
