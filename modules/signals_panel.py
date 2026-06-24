@@ -16,7 +16,7 @@ TZ_MX = ZoneInfo("America/Mexico_City")
 def _semaforo(confianza, dir_):
     if dir_ == "neutral":
         return "⚪", "NEUTRO", "#6b7f99"
-    if confianza >= 70:
+    if confianza >= 65:
         color = "#22c55e" if dir_ == "LONG" else "#ef4444"
         emoji = "🟢" if dir_ == "LONG" else "🔴"
         label = "FUERTE"

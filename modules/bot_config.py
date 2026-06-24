@@ -75,7 +75,7 @@ def render_bot_config():
                 )
             with col2:
                 umbral      = st.slider("Umbral confianza para alertas (%)", 65, 90,
-                                         max(int(cfg.get("umbral_confianza", 70)), 65), key="umbral_bot")
+                                         max(int(cfg.get("umbral_confianza", 65)), 65), key="umbral_bot")
                 _tf_opts    = ["15m","30m","1h","4h"]
                 _tf_actual  = cfg.get("tf_monitor", "15m")
                 _tf_actual  = _tf_actual if _tf_actual in _tf_opts else "15m"
@@ -115,7 +115,7 @@ def render_bot_config():
             <div class="smc-card smc-card-green">
                 <div class="card-title">Estado del bot</div>
                 <div class="card-sub">✅ Chat ID configurado: <code>{chat_actual}</code></div>
-                <div class="card-sub">Capital: ${cfg.get('capital_cuenta') or 0:.0f} · Riesgo: {cfg.get('riesgo_pct') or 2.0:.2f}% · Umbral: {cfg.get('umbral_confianza') or 70:.0f}% · TF: {cfg.get('tf_monitor','15m')}</div>
+                <div class="card-sub">Capital: ${cfg.get('capital_cuenta') or 0:.0f} · Riesgo: {cfg.get('riesgo_pct') or 2.0:.2f}% · Umbral: {cfg.get('umbral_confianza') or 65:.0f}% · TF: {cfg.get('tf_monitor','15m')}</div>
                 <div class="card-sub">Alertas: {'✅ Activas' if cfg.get('alertas_activas') else '❌ Desactivadas'}</div>
                 <div class="card-sub">Resumen diario: {'✅' if cfg.get('resumen_diario') else '❌'}</div>
             </div>

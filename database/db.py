@@ -243,7 +243,7 @@ CREATE TABLE IF NOT EXISTS bot_config (
     hora_resumen TEXT DEFAULT '08:00',
     activos_monitor TEXT DEFAULT '["EURUSD=X","GBPUSD=X","GC=F"]',
     tf_monitor TEXT DEFAULT '15m',
-    umbral_confianza REAL DEFAULT 70.0,
+    umbral_confianza REAL DEFAULT 65.0,
     riesgo_pct REAL DEFAULT 2.0,
     capital_cuenta REAL DEFAULT 0,
     ultima_alerta TEXT DEFAULT NULL
@@ -355,7 +355,7 @@ _PG_TABLES = [
         hora_resumen TEXT DEFAULT '08:00',
         activos_monitor TEXT DEFAULT '["EURUSD=X","GBPUSD=X","GC=F"]',
         tf_monitor TEXT DEFAULT '15m',
-        umbral_confianza REAL DEFAULT 70.0,
+        umbral_confianza REAL DEFAULT 65.0,
         riesgo_pct REAL DEFAULT 2.0,
         capital_cuenta REAL DEFAULT 0,
         ultima_alerta TEXT DEFAULT NULL
@@ -430,6 +430,8 @@ def inicializar_db():
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
                 except sqlite3.OperationalError:
                     pass  # columna ya existe — normal en rearranques
+            # Bajar umbral de 70 → 65 en registros existentes
+            conn.execute("UPDATE bot_config SET umbral_confianza = 65.0 WHERE umbral_confianza >= 70.0")
     else:
         # PostgreSQL — cada sentencia por separado (no soporta executescript)
         with get_conn() as conn:
@@ -444,6 +446,11 @@ def inicializar_db():
                     _exec(conn, f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {definition}")
                 except Exception:
                     pass  # columna ya existe
+            # Bajar umbral de 70 → 65 en registros existentes
+            try:
+                _exec(conn, "UPDATE bot_config SET umbral_confianza = 65.0 WHERE umbral_confianza >= 70.0")
+            except Exception:
+                pass
 
     # Crear superadmin inicial (idempotente — actualiza si ya existe).
     # Credenciales desde env vars o st.secrets — NUNCA hardcodeadas en código.

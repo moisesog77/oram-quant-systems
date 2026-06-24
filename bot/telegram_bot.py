@@ -53,7 +53,7 @@ logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logg
 logger = logging.getLogger(__name__)
 
 UMBRAL_ALERTA_ALTA  = 75
-UMBRAL_ALERTA_MEDIA = 60
+UMBRAL_ALERTA_MEDIA = 65
 UMBRAL_MTF_ALINEADO = 65
 
 # Deduplicación de alertas de noticias — evita enviar el mismo evento múltiples veces
@@ -487,7 +487,7 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception:
         pass
 
-    umbral = float(cfg.get("umbral_confianza", 60)) if cfg else 60
+    umbral = float(cfg.get("umbral_confianza", 65)) if cfg else 65
     tf     = cfg.get("tf_monitor", "15m") if cfg else "15m"
     try:
         activos = json.loads(cfg.get("activos_monitor", "[]")) if cfg else []
@@ -1051,7 +1051,7 @@ async def cmd_capital(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"⚡ Profit Factor: {pf:.2f}\n\n"
             f"📈 Trades: {n}\n"
             f"✅ Win Rate: {wr:.1f}%\n\n"
-            f"⚙️ Umbral señales: {cfg.get('umbral_confianza', 70):.0f}%\n"
+            f"⚙️ Umbral señales: {cfg.get('umbral_confianza', 65):.0f}%\n"
             f"⏱ TF monitor: {cfg.get('tf_monitor', '15m')}\n"
             f"🕐 {_hora_mx()} CDMX"
         )
@@ -1591,7 +1591,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
             chat_id = cfg.get("telegram_chat_id", "")
             if not chat_id or not cfg.get("alertas_activas"):
                 continue
-            umbral = max(float(cfg.get("umbral_confianza", 70)), 65.0)
+            umbral = max(float(cfg.get("umbral_confianza", 65)), 65.0)
             tf     = cfg.get("tf_monitor", "15m")
             try:
                 activos = json.loads(cfg.get("activos_monitor", "[]")) or activos_default
@@ -1753,7 +1753,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     dir_mtf = mtf.get("direccion", "neutral")
                     clave_acc = (chat_id, ticker, dir_mtf)
                     clave_vig = (chat_id, ticker, dir_mtf, "w")
-                    if confianza_mtf < 60:
+                    if confianza_mtf < 65:
                         _mtf_persistencia.pop(clave_acc, None)
                         _mtf_persistencia.pop(clave_vig, None)
                         continue

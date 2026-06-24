@@ -265,7 +265,7 @@ def render_admin():
             for cfg in configs:
                 uname   = cfg.get("username", "?")
                 chat_id = cfg.get("telegram_chat_id", "")
-                umbral  = cfg.get("umbral_confianza", 70)
+                umbral  = cfg.get("umbral_confianza", 65)
                 tf      = cfg.get("tf_monitor", "15m")
                 activas = bool(cfg.get("alertas_activas", 1))
                 resumen = bool(cfg.get("resumen_diario", 1))
