@@ -63,7 +63,7 @@ def render_bot_config():
                 resumen_d   = st.toggle("Resumen diario (8:00 AM CDMX)", value=bool(cfg.get("resumen_diario",1)))
                 capital_cuenta = st.number_input(
                     "Capital de cuenta (USD)", min_value=0.0, max_value=100000.0,
-                    value=float(cfg.get("capital_cuenta") or 0.0), step=50.0,
+                    value=float(cfg.get("capital_cuenta") or user.get("capital_inicial") or 0.0), step=50.0,
                     help="Saldo real de tu cuenta de trading — usado para calcular el volumen en las señales",
                     key="capital_bot",
                 )
@@ -115,7 +115,7 @@ def render_bot_config():
             <div class="smc-card smc-card-green">
                 <div class="card-title">Estado del bot</div>
                 <div class="card-sub">✅ Chat ID configurado: <code>{chat_actual}</code></div>
-                <div class="card-sub">Capital: ${cfg.get('capital_cuenta') or 0:.0f} · Riesgo: {cfg.get('riesgo_pct') or 2.0:.2f}% · Umbral: {cfg.get('umbral_confianza') or 65:.0f}% · TF: {cfg.get('tf_monitor','15m')}</div>
+                <div class="card-sub">Capital: ${cfg.get('capital_cuenta') or user.get('capital_inicial') or 0:.0f} · Riesgo: {cfg.get('riesgo_pct') or 2.0:.2f}% · Umbral: {cfg.get('umbral_confianza') or 65:.0f}% · TF: {cfg.get('tf_monitor','15m')}</div>
                 <div class="card-sub">Alertas: {'✅ Activas' if cfg.get('alertas_activas') else '❌ Desactivadas'}</div>
                 <div class="card-sub">Resumen diario: {'✅' if cfg.get('resumen_diario') else '❌'}</div>
             </div>

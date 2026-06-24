@@ -70,6 +70,11 @@ _mtf_persistencia: dict = {}
 # Timestamp del último envío de alerta de vigilancia — dedup 2h
 _watch_enviados: dict = {}
 
+# Persistencia señales regulares — si se mantiene 60-64% por 4 checks seguidos (~60 min) → alerta excepción
+# clave: (chat_id, ticker, dir)  → checks consecutivos en zona 60-umbral
+_persistencia_senales: dict = {}
+_watch_senales_enviados: dict = {}   # dedup 2h para alertas de excepción por señal
+
 # Alerta de mercado en rango — dedup 2h por chat
 _ultima_alerta_rango: dict = {}
 _checks_sin_senal:    dict = {}   # chat_id → checks consecutivos sin señal
@@ -1621,7 +1626,37 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     precio = smc.get("precio", 0)
                     sl    = smc.get("sl_sugerido", 0)
                     tp_   = smc.get("tp_sugerido", 0)
-                    if dir_ == "neutral" or conf < umbral: continue
+
+                    if dir_ == "neutral" or conf < 60:
+                        # Por debajo del mínimo absoluto — limpiar persistencia
+                        _persistencia_senales.pop((chat_id, ticker, dir_), None)
+                        continue
+
+                    if conf < umbral:
+                        # Zona de persistencia: 60% ≤ conf < umbral configurado
+                        # Si se mantiene sostenido 4 checks (~60 min) → alerta de excepción
+                        clave_p = (chat_id, ticker, dir_)
+                        _persistencia_senales[clave_p] = _persistencia_senales.get(clave_p, 0) + 1
+                        ahora_ts = datetime.now(TZ_MX).timestamp()
+                        if (_persistencia_senales[clave_p] >= 4 and
+                                smc.get("señal_valida", False) and
+                                ahora_ts - _watch_senales_enviados.get(clave_p, 0) > 7200):
+                            _persistencia_senales[clave_p] = 0
+                            _watch_senales_enviados[clave_p] = ahora_ts
+                            accion = "🟢 *COMPRAR*" if dir_ == "LONG" else "🔴 *VENDER*"
+                            await _send(ctx.bot, chat_id,
+                                f"👁 *SETUP SOSTENIDO — VIGILAR*\n"
+                                f"━━━━━━━━━━━━━━━━\n"
+                                f"{accion} *{ticker}* · {tf}\n"
+                                f"Confianza: {conf:.0f}% — sostenida ~60 min\n"
+                                f"💰 `{_fmt_precio(precio, ticker)}` · SL `{_fmt_precio(sl, ticker)}` · TP `{_fmt_precio(tp_, ticker)}`\n"
+                                f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._\n"
+                                f"🕐 {_hora_mx()} CDMX"
+                            )
+                        continue
+
+                    # Confianza ≥ umbral — flujo normal
+                    _persistencia_senales.pop((chat_id, ticker, dir_), None)
                     # FILTRO v2: señal_valida requiere OB activo + mínimo SMC score
                     if not smc.get("señal_valida", False): continue
                     # FILTRO v3: RR mínimo 1.5:1 — señales con RR <1.5 no son operables
@@ -1753,7 +1788,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     dir_mtf = mtf.get("direccion", "neutral")
                     clave_acc = (chat_id, ticker, dir_mtf)
                     clave_vig = (chat_id, ticker, dir_mtf, "w")
-                    if confianza_mtf < 65:
+                    if confianza_mtf < 60:
                         _mtf_persistencia.pop(clave_acc, None)
                         _mtf_persistencia.pop(clave_vig, None)
                         continue
