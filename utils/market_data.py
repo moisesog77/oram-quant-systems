@@ -27,24 +27,40 @@ warnings.filterwarnings("ignore")
 # el panel multi-activo que llama obtener_datos() para cada ticker+timeframe.
 _DATA_CACHE: dict = {}
 
-# TTL dinámico por sesión:
-# - Sesión premium (London 07-10 UTC / NY 13-16 UTC): máxima frescura, datos cada ~2 min
-# - Resto del día: TTL largo para conservar las 800 llamadas/día del plan gratuito
-# Estimado de llamadas: ~120 premium + ~240 fuera = ~360 calls/día total
-_CACHE_TTL_PREMIUM = {
-    "1m": 30, "5m": 60, "15m": 120, "30m": 300,
-    "1h": 600, "4h": 1800, "1d": 3600, "1wk": 7200,
-}
-_CACHE_TTL_NORMAL = {
-    "1m": 50, "5m": 240, "15m": 600, "30m": 900,
-    "1h": 1800, "4h": 3600, "1d": 7200, "1wk": 14400,
-}
-
 def _cache_ttl(timeframe: str) -> int:
+    """
+    TTL dinámico que distribuye las 800 llamadas/día de Twelve Data (plan gratuito)
+    concentrando la frescura en las horas de mayor calidad de mercado:
+
+      GOLDEN   UTC 13-16  (CDMX 08-11): NY open — datos cada ~2 min   → ~324 calls
+      ACTIVE   UTC 07-13  (CDMX 02-08): London + pre-NY                → ~160 calls
+               UTC 16-19  (CDMX 11-14): continuación NY                →  ~80 calls
+      MODERATE UTC 19-22  (CDMX 14-17): tarde NY                       →  ~50 calls
+      QUIET    UTC 22-07  (CDMX 17-02): asiática/madrugada             →  ~60 calls
+                                                              Total estimado: ~674/800
+    """
     from datetime import datetime, timezone
     h = datetime.now(timezone.utc).hour
-    en_premium = (7 <= h < 10) or (13 <= h < 16)
-    return (_CACHE_TTL_PREMIUM if en_premium else _CACHE_TTL_NORMAL).get(timeframe, 120 if en_premium else 600)
+
+    if 13 <= h < 16:                        # GOLDEN: NY open
+        base15, base1h = 90, 600
+    elif (7 <= h < 13) or (16 <= h < 19):  # ACTIVE: London + continuación NY
+        base15, base1h = 420, 1800
+    elif 19 <= h < 22:                      # MODERATE: tarde NY
+        base15, base1h = 900, 3600
+    else:                                    # QUIET: asiática / madrugada
+        base15, base1h = 1800, 7200
+
+    return {
+        "1m":  max(30,  base15 // 3),
+        "5m":  max(60,  base15 // 2),
+        "15m": base15,
+        "30m": base15 * 2,
+        "1h":  base1h,
+        "4h":  base1h * 2,
+        "1d":  7200,
+        "1wk": 14400,
+    }.get(timeframe, base15)
 
 try:
     import yfinance as yf
