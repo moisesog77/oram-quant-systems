@@ -1727,26 +1727,51 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         ahora_ts - _ultima_alerta_rango.get(chat_id, 0) > 7200):
                     _checks_sin_senal[chat_id]   = 0
                     _ultima_alerta_rango[chat_id] = ahora_ts
-                    lineas_r = [
-                        "⚪ *MERCADO EN RANGO — Sin setups activos*",
-                        "━━━━━━━━━━━━━━━━",
-                    ]
+                    lineas_r = ["━━━━━━━━━━━━━━━━"]
+                    bloqueados = []   # conf >= umbral pero filtrado por OB/RR
+                    sin_senal  = []   # conf < umbral
                     for tkr in activos:
                         try:
                             smc_r, _ = _analizar_activo(tkr, tf)
-                            if smc_r and "error" not in smc_r:
-                                dir_r  = smc_r.get("estructura", {}).get("direccion", "neutral")
-                                conf_r = smc_r.get("confluencia", {}).get("confianza", 0)
-                                tipo_r = smc_r.get("estructura", {}).get("tipo", "Sin señal")
-                                lineas_r.append(f"{_emoji_dir(dir_r)} *{tkr}*: {tipo_r} ({conf_r:.0f}%)")
+                            if not smc_r or "error" in smc_r:
+                                continue
+                            dir_r   = smc_r.get("estructura", {}).get("direccion", "neutral")
+                            conf_r  = smc_r.get("confluencia", {}).get("confianza", 0)
+                            tipo_r  = smc_r.get("estructura", {}).get("tipo", "Sin señal")
+                            valid_r = smc_r.get("señal_valida", False)
+                            # Calcular RR
+                            p_r  = smc_r.get("precio", 0)
+                            sl_r = smc_r.get("sl_sugerido", 0)
+                            tp_r = smc_r.get("tp_sugerido", 0)
+                            rr_r = 0.0
+                            if p_r > 0 and sl_r > 0 and tp_r > 0:
+                                d_sl = abs(p_r - sl_r)
+                                rr_r = abs(tp_r - p_r) / d_sl if d_sl > 0 else 0
+                            lineas_r.append(f"{_emoji_dir(dir_r)} *{tkr}*: {tipo_r} ({conf_r:.0f}%)")
+                            if conf_r >= umbral:
+                                motivo = []
+                                if not valid_r:     motivo.append("sin OB activo")
+                                if rr_r < 1.5:      motivo.append(f"RR {rr_r:.1f}:1 < 1.5")
+                                bloqueados.append((tkr, conf_r, motivo))
+                            else:
+                                sin_senal.append(tkr)
                         except Exception:
                             pass
-                    lineas_r += [
-                        "",
-                        f"💡 _Ningún activo supera el umbral {umbral:.0f}% — mercado lateral o comprimido._",
-                        "_No hay setup de alta probabilidad ahora. El bot alertará cuando aparezca uno._",
-                        f"🕐 _{_hora_mx()} CDMX_",
-                    ]
+
+                    if bloqueados:
+                        titulo = "⚠️ *SETUP DETECTADO — Condiciones insuficientes*"
+                        lineas_r.insert(0, titulo)
+                        lineas_r.append("")
+                        for tkr_b, conf_b, motivos in bloqueados:
+                            razon = ", ".join(motivos) if motivos else "filtro secundario"
+                            lineas_r.append(f"⚠️ _{tkr_b} {conf_b:.0f}% bloqueado: {razon}_")
+                        lineas_r.append(f"\n💡 _Confianza alcanzada pero sin condiciones operables. Revisa el chart._")
+                    else:
+                        lineas_r.insert(0, "⚪ *MERCADO EN RANGO — Sin setups activos*")
+                        lineas_r.append(f"\n💡 _Ningún activo supera el umbral {umbral:.0f}% — mercado lateral._")
+
+                    lineas_r.append(f"_El bot alertará cuando aparezca una entrada válida._")
+                    lineas_r.append(f"🕐 _{_hora_mx()} CDMX_")
                     await _send(ctx.bot, chat_id, "\n".join(lineas_r))
             else:
                 _checks_sin_senal[chat_id] = 0  # reset si apareció señal
