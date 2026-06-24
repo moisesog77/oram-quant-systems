@@ -26,9 +26,15 @@ warnings.filterwarnings("ignore")
 # Evita rate limits de Twelve Data (8 req/min en plan gratuito) y acelera
 # el panel multi-activo que llama obtener_datos() para cada ticker+timeframe.
 _DATA_CACHE: dict = {}
+# TTLs alineados al intervalo real de cada vela:
+# - 1m  → 50s  (vela nueva cada 60s, cache antes de expirar)
+# - 5m  → 240s (vela nueva cada 5min, cache 4min)
+# - 15m → 600s (vela nueva cada 15min, cache 10min — jobs cada 1-5min comparten)
+# - 1h  → 1800s (vela nueva cada 1h, cache 30min)
+# Reducen llamadas Twelve Data de ~5000/día a ~400/día (plan gratuito: 800/día)
 _CACHE_TTL = {
-    "1m": 30, "5m": 60, "15m": 120, "30m": 300,
-    "1h": 600, "4h": 1800, "1d": 3600, "1wk": 7200,
+    "1m": 50, "5m": 240, "15m": 600, "30m": 900,
+    "1h": 1800, "4h": 3600, "1d": 7200, "1wk": 14400,
 }
 
 try:
@@ -201,6 +207,10 @@ def _obtener_twelve_data(ticker: str, timeframe: str) -> pd.DataFrame | None:
 
         # Twelve Data retorna {"code": 4xx, "message": "..."} en errores
         if "code" in data or ("status" in data and data.get("status") == "error"):
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Twelve Data error [{ticker}]: code={data.get('code')} msg={data.get('message','')}"
+            )
             return None
 
         values = data.get("values", [])
@@ -228,7 +238,9 @@ def _obtener_twelve_data(ticker: str, timeframe: str) -> pd.DataFrame | None:
 
         return df
 
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Twelve Data excepción [{ticker}]: {e}")
         return None
 
 
