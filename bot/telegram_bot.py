@@ -131,6 +131,19 @@ async def _send(bot, chat_id: str, text: str):
             logger.error(f"send error: {e}")
 
 
+# ─── Helpers de formato ───────────────────────────────────────────────────────
+
+def _fmt_precio(precio: float, ticker: str) -> str:
+    """Formatea el precio con los decimales correctos según el broker."""
+    t = ticker.upper()
+    if any(x in t for x in ("GC=F", "XAUUSD", "GOLD", "CL=F", "WTIUSD", "OIL")):
+        return f"{precio:.2f}"
+    elif "JPY" in t:
+        return f"{precio:.3f}"
+    else:
+        return f"{precio:.5f}"
+
+
 # ─── Helpers de análisis ──────────────────────────────────────────────────────
 
 def _calcular_contexto(df) -> dict:
@@ -242,15 +255,17 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
     accion = "🟢 *COMPRAR*" if dir_ == "LONG" else "🔴 *VENDER*" if dir_ == "SHORT" else "⚪ *NEUTRAL*"
 
     # Tipo de orden sugerido según tipo de señal y entrada
+    fp = lambda p: _fmt_precio(p, ticker)
+
     if tipo_entrada in ("limite_ob", "limite_fvg"):
         orden_tipo = "Límite"
         if tipo_entrada == "limite_ob":
-            entrada_txt = f"📍 *Entrada:* Límite en OB `{entrada_ideal:.5f}` (~{retroceso_pips:.0f} pips)"
+            entrada_txt = f"📍 *Entrada:* Límite en OB `{fp(entrada_ideal)}` (~{retroceso_pips:.0f} pips)"
         else:
-            entrada_txt = f"📍 *Entrada:* Límite en FVG `{entrada_ideal:.5f}` (~{retroceso_pips:.0f} pips)"
+            entrada_txt = f"📍 *Entrada:* Límite en FVG `{fp(entrada_ideal)}` (~{retroceso_pips:.0f} pips)"
     elif "BOS" in tipo:
         orden_tipo = "Stop Limit"
-        entrada_txt = f"📍 *Entrada:* Stop Limit en `{precio:.5f}` (ruptura de nivel)"
+        entrada_txt = f"📍 *Entrada:* Stop Limit en `{fp(precio)}` (ruptura de nivel)"
     else:
         orden_tipo = "Mercado"
         entrada_txt = f"📍 *Entrada:* Mercado (precio ya en zona)"
@@ -264,7 +279,7 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
         "━━━━━━━━━━━━━━━━",
         f"📌 *Señal:* {tipo}",
         f"👉 *Acción:* {accion}  |  📋 *Orden:* {orden_tipo}",
-        f"💰 *Precio actual:* `{precio:.5f}`",
+        f"💰 *Precio actual:* `{fp(precio)}`",
         entrada_txt,
         f"🎯 *Confianza:* {_conf_bar(pct)}",
         ctx_txt,
@@ -272,8 +287,8 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
     ]
     if sl and tp:
         lineas += [
-            f"🛑 *SL:* `{sl:.5f}`",
-            f"✅ *TP:* `{tp:.5f}`",
+            f"🛑 *SL:* `{fp(sl)}`",
+            f"✅ *TP:* `{fp(tp)}`",
             f"⚖️ *RR:* {rr:.1f}:1" if rr else "",
         ]
     if lote:
@@ -286,8 +301,8 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
         ]
     lineas += [
         "",
-        f"📉 *RSI:* {rsi:.1f}  |  📏 *ATR:* {atr:.5f}",
-        f"📈 *EMA50:* {ema50:.5f}" if ema50 else "",
+        f"📉 *RSI:* {rsi:.1f}  |  📏 *ATR:* {fp(atr)}",
+        f"📈 *EMA50:* {fp(ema50)}" if ema50 else "",
     ]
     if factores:
         lineas += ["", "⚡ *Confluencias:*"]
@@ -337,9 +352,9 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None) -> str:
         lineas += [
             "",
             f"👉 *Acción:* {accion_mtf}  |  📋 *Orden:* {orden_mtf}",
-            f"💰 *Entrada sugerida:* `{entrada:.5f}`",
-            f"🛑 *SL:* `{sl:.5f}`" if sl else "",
-            f"✅ *TP:* `{tp:.5f}`" if tp else "",
+            f"💰 *Entrada sugerida:* `{_fmt_precio(entrada, ticker)}`",
+            f"🛑 *SL:* `{_fmt_precio(sl, ticker)}`" if sl else "",
+            f"✅ *TP:* `{_fmt_precio(tp, ticker)}`" if tp else "",
         ]
     ctx_txt = ""
     if contexto and contexto.get("texto"):
@@ -374,9 +389,9 @@ def _formato_reversal(smc_alto: dict, smc_bajo: dict, ticker: str,
         f"*{tf_alto} — Estructura:* {tipo_alto} ({conf_alto:.0f}%) · OB zona ✅",
         f"*{tf_bajo} — Entrada:*    {tipo_bajo} ({conf_bajo:.0f}%) · CHoCH ✅ · Barrido ✅",
         "",
-        f"💰 *Entrada:* `{entrada:.5f}`",
-        f"🛑 *SL:*     `{sl:.5f}`" if sl else "",
-        f"✅ *TP:*     `{tp:.5f}`" if tp else "",
+        f"💰 *Entrada:* `{_fmt_precio(entrada, ticker)}`",
+        f"🛑 *SL:*     `{_fmt_precio(sl, ticker)}`" if sl else "",
+        f"✅ *TP:*     `{_fmt_precio(tp, ticker)}`" if tp else "",
         f"📊 *RR:*     `{rr:.1f}:1`",
     ]
     if extras:
@@ -437,7 +452,7 @@ async def cmd_mercado(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     rsi    = smc.get("rsi", 0) or 0
                     prio   = "🔥" if conf >= 75 else ""
                     lineas.append(
-                        f"{_emoji_dir(dir_)}{prio} *{ticker}* `{precio:.4f}` — {tipo} ({conf:.0f}%) RSI:{rsi:.0f}"
+                        f"{_emoji_dir(dir_)}{prio} *{ticker}* `{_fmt_precio(precio, ticker)}` — {tipo} ({conf:.0f}%) RSI:{rsi:.0f}"
                     )
                 else:
                     lineas.append(f"⚫ {ticker} — Sin datos")
@@ -540,8 +555,8 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             sl    = smc.get("sl_sugerido", 0)
             tp    = smc.get("tp_sugerido", 0)
             await _reply(update,
-                f"{_emoji_dir(dir_)} *{ticker}* `{prec:.5f}` — {tipo} ({conf:.0f}%)\n"
-                f"   SL:`{sl:.5f}` TP:`{tp:.5f}`"
+                f"{_emoji_dir(dir_)} *{ticker}* `{_fmt_precio(prec, ticker)}` — {tipo} ({conf:.0f}%)\n"
+                f"   SL:`{_fmt_precio(sl, ticker)}` TP:`{_fmt_precio(tp, ticker)}`"
             )
 
 
@@ -576,15 +591,15 @@ async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 extras = ["\n━━━━━━━━━━━━━━━━", "📐 *Niveles SMC:*"]
                 if obs:
                     ob = obs[0]
-                    extras.append(f"  🟦 OB: `{ob.precio_bot:.5f}` – `{ob.precio_top:.5f}` (fuerza: {ob.fuerza:.0%})")
+                    extras.append(f"  🟦 OB: `{_fmt_precio(ob.precio_bot, tkr)}` – `{_fmt_precio(ob.precio_top, tkr)}` (fuerza: {ob.fuerza:.0%})")
                 if fvgs:
                     fvg = fvgs[0]
-                    extras.append(f"  🟨 FVG: `{fvg.precio_bot:.5f}` – `{fvg.precio_top:.5f}`")
+                    extras.append(f"  🟨 FVG: `{_fmt_precio(fvg.precio_bot, tkr)}` – `{_fmt_precio(fvg.precio_top, tkr)}`")
                 if liq:
                     res_lvls = liq.get("resistance_levels", [])
                     sup_lvls = liq.get("support_levels", [])
-                    if res_lvls: extras.append(f"  🔴 Resistencias: {', '.join([f'`{x:.5f}`' for x in res_lvls[:2]])}")
-                    if sup_lvls: extras.append(f"  🟢 Soportes: {', '.join([f'`{x:.5f}`' for x in sup_lvls[:2]])}")
+                    if res_lvls: extras.append(f"  🔴 Resistencias: {', '.join([f'`{_fmt_precio(x, tkr)}`' for x in res_lvls[:2]])}")
+                    if sup_lvls: extras.append(f"  🟢 Soportes: {', '.join([f'`{_fmt_precio(x, tkr)}`' for x in sup_lvls[:2]])}")
                 await _reply(update, msg + "\n" + "\n".join(extras))
             except Exception as e:
                 logger.error(f"cmd_analizar {tkr}: {e}")
@@ -611,15 +626,15 @@ async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         extras = ["\n━━━━━━━━━━━━━━━━", "📐 *Niveles SMC:*"]
         if obs:
             ob = obs[0]
-            extras.append(f"  🟦 OB: `{ob.precio_bot:.5f}` – `{ob.precio_top:.5f}` (fuerza: {ob.fuerza:.0%})")
+            extras.append(f"  🟦 OB: `{_fmt_precio(ob.precio_bot, ticker)}` – `{_fmt_precio(ob.precio_top, ticker)}` (fuerza: {ob.fuerza:.0%})")
         if fvgs:
             fvg = fvgs[0]
-            extras.append(f"  🟨 FVG: `{fvg.precio_bot:.5f}` – `{fvg.precio_top:.5f}`")
+            extras.append(f"  🟨 FVG: `{_fmt_precio(fvg.precio_bot, ticker)}` – `{_fmt_precio(fvg.precio_top, ticker)}`")
         if liq:
             res = liq.get("resistance_levels", [])
             sup = liq.get("support_levels", [])
-            if res: extras.append(f"  🔴 Resistencias: {', '.join([f'`{x:.5f}`' for x in res[:2]])}")
-            if sup: extras.append(f"  🟢 Soportes: {', '.join([f'`{x:.5f}`' for x in sup[:2]])}")
+            if res: extras.append(f"  🔴 Resistencias: {', '.join([f'`{_fmt_precio(x, ticker)}`' for x in res[:2]])}")
+            if sup: extras.append(f"  🟢 Soportes: {', '.join([f'`{_fmt_precio(x, ticker)}`' for x in sup[:2]])}")
 
         await _reply(update, msg + "\n" + "\n".join(extras))
         if conf >= 60 and dir_ != "neutral":
@@ -708,9 +723,9 @@ async def cmd_riesgo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"💼 *CALCULADORA DE RIESGO*\n"
             f"{_emoji_dir(dir_)} *{ticker}* — {dir_}\n"
             "━━━━━━━━━━━━━━━━\n"
-            f"💰 Entrada: `{entrada:.5f}`\n"
-            f"🛑 SL: `{sl:.5f}` ({res['pips_sl']:.1f} pips)\n"
-            f"✅ TP: `{tp:.5f}` ({res['pips_tp']:.1f} pips)\n"
+            f"💰 Entrada: `{_fmt_precio(entrada, ticker)}`\n"
+            f"🛑 SL: `{_fmt_precio(sl, ticker)}` ({res['pips_sl']:.1f} pips)\n"
+            f"✅ TP: `{_fmt_precio(tp, ticker)}` ({res['pips_tp']:.1f} pips)\n"
             f"⚖️ RR: *{res['rr']:.1f}:1*\n\n"
             f"💼 *Capital ${capital:,.0f} · Riesgo {riesgo_pct}%:*\n"
             f"   Riesgo USD: ${res['riesgo_usd']:.2f}\n"
@@ -987,7 +1002,7 @@ async def cmd_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 tipo   = smc.get("estructura", {}).get("tipo", "?")
                 prio   = "🔥" if conf >= 75 else ""
                 lineas.append(
-                    f"{_emoji_dir(dir_)}{prio} *{nombre}* `{precio:.5f}`\n"
+                    f"{_emoji_dir(dir_)}{prio} *{nombre}* `{_fmt_precio(precio, ticker)}`\n"
                     f"   {tipo} ({conf:.0f}%) · RSI:{rsi:.0f}"
                 )
             else:
@@ -1265,9 +1280,9 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"✅ *TRADE CONFIRMADO* (ID #{trade_id})\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"{emoji} *{ticker}* · {senal.get('tf','?')}\n"
-        f"💰 Entrada: `{senal['entrada']:.5f}`\n"
-        f"🛑 SL: `{senal['sl']:.5f}`\n"
-        f"✅ TP: `{senal['tp']:.5f}`\n\n"
+        f"💰 Entrada: `{_fmt_precio(senal['entrada'], ticker)}`\n"
+        f"🛑 SL: `{_fmt_precio(senal['sl'], ticker)}`\n"
+        f"✅ TP: `{_fmt_precio(senal['tp'], ticker)}`\n\n"
         f"🔭 Monitoreando TP/SL automáticamente.\n"
         f"Señales de *{ticker}* pausadas hasta que cierre.\n"
         f"Usa /cerrar {ticker.replace('=X','')} para salida manual."
@@ -1316,8 +1331,8 @@ async def cmd_cerrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"🔒 *TRADE CERRADO MANUALMENTE*\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"*{trade['ticker']}* · {trade['direccion']}\n"
-        f"Entrada: `{trade['entrada']:.5f}`\n"
-        + (f"Precio cierre: `{precio_actual:.5f}`" if precio_actual else "") + pips_txt + "\n\n"
+        f"Entrada: `{_fmt_precio(trade['entrada'], trade['ticker'])}`\n"
+        + (f"Precio cierre: `{_fmt_precio(precio_actual, trade['ticker'])}`" if precio_actual else "") + pips_txt + "\n\n"
         f"✅ Señales de *{trade['ticker']}* reactivadas."
     )
 
@@ -1345,8 +1360,8 @@ async def cmd_activos(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             pnl_txt = f" · P&L: {signo}{pips}p"
         lineas += [
             f"\n{emoji} *{t['ticker']}* ({t['timeframe']}){pnl_txt}",
-            f"  Entrada: `{t['entrada']:.5f}`  SL: `{t['sl']:.5f}`  TP: `{t['tp']:.5f}`",
-            f"  Precio: `{precio_actual:.5f}`" if precio_actual else "",
+            f"  Entrada: `{_fmt_precio(t['entrada'], t['ticker'])}`  SL: `{_fmt_precio(t['sl'], t['ticker'])}`  TP: `{_fmt_precio(t['tp'], t['ticker'])}`",
+            f"  Precio: `{_fmt_precio(precio_actual, t['ticker'])}`" if precio_actual else "",
         ]
     lineas += ["", "Usa /cerrar TICKER para salida manual."]
     await _reply(update, "\n".join(l for l in lineas if l is not None))
@@ -1393,7 +1408,7 @@ async def _generar_resumen_diario() -> str:
                 rsi    = smc.get("rsi", 0) or 0
                 prio   = "🔥" if conf >= 75 else ""
                 lineas.append(
-                    f"{_emoji_dir(dir_)}{prio} *{ticker}* `{precio:.4f}` — {tipo} ({conf:.0f}%) RSI:{rsi:.0f}"
+                    f"{_emoji_dir(dir_)}{prio} *{ticker}* `{_fmt_precio(precio, ticker)}` — {tipo} ({conf:.0f}%) RSI:{rsi:.0f}"
                 )
                 if conf >= 60 and dir_ != "neutral":
                     señales_activas += 1
@@ -1474,7 +1489,7 @@ async def _generar_reporte_cierre() -> str:
                     tipo   = smc.get("estructura", {}).get("tipo", "?")
                     rsi    = smc.get("rsi", 0) or 0
                     lineas.append(
-                        f"{_emoji_dir(dir_)} *{ticker}* `{precio:.4f}` — {tipo} ({conf:.0f}%) RSI:{rsi:.0f}"
+                        f"{_emoji_dir(dir_)} *{ticker}* `{_fmt_precio(precio, ticker)}` — {tipo} ({conf:.0f}%) RSI:{rsi:.0f}"
                     )
                 else:
                     lineas.append(f"⚫ {ticker} — Sin datos")
@@ -1649,8 +1664,8 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     sl    = smc.get("sl_sugerido", 0)
                     tp_   = smc.get("tp_sugerido", 0)
                     lineas.append(
-                        f"{_emoji_dir(dir_)} *{ticker}* `{precio:.5f}` — {tipo} ({conf:.0f}%)\n"
-                        f"   SL:`{sl:.5f}` TP:`{tp_:.5f}`"
+                        f"{_emoji_dir(dir_)} *{ticker}* `{_fmt_precio(precio, ticker)}` — {tipo} ({conf:.0f}%)\n"
+                        f"   SL:`{_fmt_precio(sl, ticker)}` TP:`{_fmt_precio(tp_, ticker)}`"
                     )
                     marcar_señal_enviada(sig_id)
                     _senal = {"ticker": ticker, "tf": tf, "direccion": dir_, "entrada": precio, "sl": sl, "tp": tp_, "confianza": conf}
@@ -1939,9 +1954,9 @@ async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
             msg = (
                 f"🔔 *ALERTA DE PRECIO DISPARADA*\n"
                 "━━━━━━━━━━━━━━━━\n"
-                f"{emoji} *{ticker}* {dir_str} `{alerta['precio']:.5f}`\n"
-                f"💰 Precio actual: `{precio_actual:.5f}`\n"
-                f"📏 Diferencia: {diff:.5f}\n"
+                f"{emoji} *{ticker}* {dir_str} `{_fmt_precio(alerta['precio'], ticker)}`\n"
+                f"💰 Precio actual: `{_fmt_precio(precio_actual, ticker)}`\n"
+                f"📏 Diferencia: {_fmt_precio(diff, ticker)}\n"
                 f"{alerta['mensaje'] or ''}\n"
                 f"🕐 {_hora_mx()} CDMX\n\n"
                 f"💡 _Usa /analizar {ticker.replace('=X','')} para análisis completo_"
@@ -1974,8 +1989,8 @@ async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
                     f"🎯 *OBJETIVO ALCANZADO — TP HIT*\n"
                     f"━━━━━━━━━━━━━━━━\n"
                     f"{_emoji_dir(dir_)} *{ticker}* {dir_}\n"
-                    f"💰 Entrada: `{entrada:.5f}`\n"
-                    f"✅ TP: `{tp:.5f}` alcanzado\n"
+                    f"💰 Entrada: `{_fmt_precio(entrada, ticker)}`\n"
+                    f"✅ TP: `{_fmt_precio(tp, ticker)}` alcanzado\n"
                     f"📈 +{pips} pips\n"
                     f"🕐 {_hora_mx()} CDMX\n\n"
                     f"✅ Señales de *{ticker}* reactivadas."
@@ -1985,8 +2000,8 @@ async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
                     f"🛑 *STOP LOSS ALCANZADO*\n"
                     f"━━━━━━━━━━━━━━━━\n"
                     f"{_emoji_dir(dir_)} *{ticker}* {dir_}\n"
-                    f"💰 Entrada: `{entrada:.5f}`\n"
-                    f"🛑 SL: `{sl:.5f}` alcanzado\n"
+                    f"💰 Entrada: `{_fmt_precio(entrada, ticker)}`\n"
+                    f"🛑 SL: `{_fmt_precio(sl, ticker)}` alcanzado\n"
                     f"📉 -{pips} pips\n"
                     f"🕐 {_hora_mx()} CDMX\n\n"
                     f"✅ Señales de *{ticker}* reactivadas."
