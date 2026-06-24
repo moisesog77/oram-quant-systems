@@ -70,7 +70,7 @@ _mtf_persistencia: dict = {}
 # Timestamp del último envío de alerta de vigilancia — dedup 2h
 _watch_enviados: dict = {}
 
-# Persistencia señales regulares — si se mantiene 60-64% por 4 checks seguidos (~60 min) → alerta excepción
+# Persistencia señales regulares — si se mantiene 60-64% por 6 checks seguidos (~30 min) → alerta excepción
 # clave: (chat_id, ticker, dir)  → checks consecutivos en zona 60-umbral
 _persistencia_senales: dict = {}
 _watch_senales_enviados: dict = {}   # dedup 2h para alertas de excepción por señal
@@ -1634,7 +1634,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
 
                     if conf < umbral:
                         # Zona de persistencia: 60% ≤ conf < umbral configurado
-                        # Si se mantiene sostenido 4 checks (~60 min) → alerta de excepción
+                        # Si se mantiene sostenido 6 checks (~30 min) → alerta de excepción
                         clave_p = (chat_id, ticker, dir_)
                         _persistencia_senales[clave_p] = _persistencia_senales.get(clave_p, 0) + 1
                         ahora_ts = datetime.now(TZ_MX).timestamp()
