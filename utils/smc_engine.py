@@ -104,6 +104,14 @@ def _contexto_mercado(df: pd.DataFrame) -> str:
     if atr_avg == 0:
         return 'tendencia'
 
+    # Override: EMA200 con pendiente fuerte → tendencia aunque rango 15m sea comprimido
+    # Captura consolidaciones dentro de tendencias en 1h (micro-rango en macro-tendencia)
+    if 'EMA200' in df.columns and len(df) >= 15:
+        ema_now  = df['EMA200'].iloc[-1]
+        ema_prev = df['EMA200'].iloc[-10]
+        if abs(ema_now - ema_prev) > atr_avg * 0.5:
+            return 'tendencia'
+
     return 'tendencia' if rango >= atr_avg * 1.5 else 'rango'
 
 
@@ -490,11 +498,23 @@ def _calcular_confluencias(
             score += 1; factores.append(f"✅ Volumen elevado ({vol_now/vol_avg:.1f}×)")
 
     # ── Señal válida ────────────────────────────────────────────────────────────
-    # Ruta A: BOS + OB + algo más  (señal clásica completa)
-    # Ruta B: BOS + FVG + liquidez + EMA (sin OB pero confluencia alta — real market)
+    # Ruta A: BOS + OB activo (señal clásica completa)
     ruta_a = smc_score >= 5 and ob_activo is not None
-    ruta_b = smc_score >= 7  # requiere al menos 3 factores SMC fuertes sin OB
-    señal_valida = ruta_a or ruta_b
+    # Ruta B: alta confluencia SMC sin OB (FVG + liquidez + BOS fuertes)
+    ruta_b = smc_score >= 7
+    # Ruta C: tendencia clara con EMA200 alineada — captura continuaciones reales
+    # sin OB en zona pero con múltiples factores técnicos confirmando la dirección.
+    # Ej: EURUSD SHORT en tendencia bajista fuerte con BOS, FVG, RSI, MACD alineados.
+    ema200_val = df['EMA200'].iloc[-1] if 'EMA200' in df.columns else None
+    if ema200_val is not None:
+        ema_alineada = (direccion == "SHORT" and c < ema200_val) or \
+                       (direccion == "LONG"  and c > ema200_val)
+        ruta_c = estructura.get("es_bos", False) and smc_score >= 5 and score >= 8 and ema_alineada
+    else:
+        ruta_c = False
+    señal_valida = ruta_a or ruta_b or ruta_c
+    if ruta_c and not (ruta_a or ruta_b):
+        factores.append("✅ Tendencia confirmada EMA200 (ruta C)")
 
     max_score = 14
     confianza = round(min(score / max_score, 1.0) * 100, 1)
