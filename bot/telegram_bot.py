@@ -332,8 +332,11 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None) -> str:
         f"  {_emoji_dir(dir_bajo)} {tipo_bajo} ({conf_bajo:.0f}%)",
     ]
     if alineado and entrada:
+        accion_mtf = "🟢 *COMPRAR*" if dir_bajo == "LONG" else "🔴 *VENDER*" if dir_bajo == "SHORT" else "⚪ *NEUTRAL*"
+        orden_mtf  = "Stop Limit" if "BOS" in tipo_bajo else "Límite" if "CHoCH" in tipo_bajo else "Mercado"
         lineas += [
             "",
+            f"👉 *Acción:* {accion_mtf}  |  📋 *Orden:* {orden_mtf}",
             f"💰 *Entrada sugerida:* `{entrada:.5f}`",
             f"🛑 *SL:* `{sl:.5f}`" if sl else "",
             f"✅ *TP:* `{tp:.5f}`" if tp else "",
