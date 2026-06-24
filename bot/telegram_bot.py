@@ -1638,7 +1638,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         clave_p = (chat_id, ticker, dir_)
                         _persistencia_senales[clave_p] = _persistencia_senales.get(clave_p, 0) + 1
                         ahora_ts = datetime.now(TZ_MX).timestamp()
-                        if (_persistencia_senales[clave_p] >= 4 and
+                        if (_persistencia_senales[clave_p] >= 6 and
                                 smc.get("señal_valida", False) and
                                 ahora_ts - _watch_senales_enviados.get(clave_p, 0) > 7200):
                             _persistencia_senales[clave_p] = 0
@@ -1648,7 +1648,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                                 f"👁 *SETUP SOSTENIDO — VIGILAR*\n"
                                 f"━━━━━━━━━━━━━━━━\n"
                                 f"{accion} *{ticker}* · {tf}\n"
-                                f"Confianza: {conf:.0f}% — sostenida ~60 min\n"
+                                f"Confianza: {conf:.0f}% — sostenida ~30 min\n"
                                 f"💰 `{_fmt_precio(precio, ticker)}` · SL `{_fmt_precio(sl, ticker)}` · TP `{_fmt_precio(tp_, ticker)}`\n"
                                 f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._\n"
                                 f"🕐 {_hora_mx()} CDMX"
