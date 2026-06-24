@@ -238,11 +238,21 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
     entrada_ideal   = smc.get("precio_entrada_ideal")
     retroceso_pips  = smc.get("retroceso_pips", 0)
 
-    if tipo_entrada == "limite_ob" and entrada_ideal:
-        entrada_txt = f"📍 *Entrada:* Límite en OB `{entrada_ideal:.5f}` (~{retroceso_pips:.0f} pips ↓)"
-    elif tipo_entrada == "limite_fvg" and entrada_ideal:
-        entrada_txt = f"📍 *Entrada:* Límite en FVG `{entrada_ideal:.5f}` (~{retroceso_pips:.0f} pips ↓)"
+    # Acción clara: COMPRAR / VENDER
+    accion = "🟢 *COMPRAR*" if dir_ == "LONG" else "🔴 *VENDER*" if dir_ == "SHORT" else "⚪ *NEUTRAL*"
+
+    # Tipo de orden sugerido según tipo de señal y entrada
+    if tipo_entrada in ("limite_ob", "limite_fvg"):
+        orden_tipo = "Límite"
+        if tipo_entrada == "limite_ob":
+            entrada_txt = f"📍 *Entrada:* Límite en OB `{entrada_ideal:.5f}` (~{retroceso_pips:.0f} pips)"
+        else:
+            entrada_txt = f"📍 *Entrada:* Límite en FVG `{entrada_ideal:.5f}` (~{retroceso_pips:.0f} pips)"
+    elif "BOS" in tipo:
+        orden_tipo = "Stop Limit"
+        entrada_txt = f"📍 *Entrada:* Stop Limit en `{precio:.5f}` (ruptura de nivel)"
     else:
+        orden_tipo = "Mercado"
         entrada_txt = f"📍 *Entrada:* Mercado (precio ya en zona)"
 
     ctx     = smc.get("_contexto_mercado", {})
@@ -253,8 +263,8 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
         f"{emoji} *{ticker}* · {tf}",
         "━━━━━━━━━━━━━━━━",
         f"📌 *Señal:* {tipo}",
+        f"👉 *Acción:* {accion}  |  📋 *Orden:* {orden_tipo}",
         f"💰 *Precio actual:* `{precio:.5f}`",
-        f"📊 *Dirección:* {emoji} {dir_}",
         entrada_txt,
         f"🎯 *Confianza:* {_conf_bar(pct)}",
         ctx_txt,
