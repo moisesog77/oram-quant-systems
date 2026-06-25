@@ -1,46 +1,72 @@
 #!/usr/bin/env python3
 """
-reset_db.py — Script de inicialización de BD para producción.
-Elimina todos los datos y crea SOLO el superadmin "Moises OG".
-Ejecutar UNA VEZ antes del deploy inicial a producción.
+reset_db.py — Limpieza de datos para producción.
+
+Borra todos los datos de trading conservando:
+  - Usuario superadmin (is_admin=1) y su contraseña
+  - bot_config del superadmin (Chat ID Telegram, umbral, activos, etc.)
+
+Tablas limpiadas:
+  trades, signal_log, watchlist, price_alerts,
+  backtest_results, confirmed_trades
 
 USO:
-    python3 reset_db.py
+    python reset_db.py            → modo interactivo (pide confirmación)
+    python reset_db.py --force    → sin confirmación (Railway terminal)
 """
-import os, sys
+import os
+import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from database.db import get_conn, _exec, _hash, USE_POSTGRES
+from database.db import get_conn, _exec, USE_POSTGRES
 
-def reset_para_produccion():
-    print("⚠️  RESET DE BASE DE DATOS PARA PRODUCCIÓN")
-    print("   Esto eliminará TODOS los datos existentes.")
-    confirm = input("Escribe 'CONFIRMAR' para continuar: ")
-    if confirm != "CONFIRMAR":
-        print("Cancelado.")
-        return
+
+def limpiar_datos(force: bool = False):
+    motor = "PostgreSQL" if USE_POSTGRES else "SQLite local"
+    print(f"\n⚠️  LIMPIEZA DE BASE DE DATOS — {motor}")
+    print("   Borra : trades, señales, watchlist, alertas, backtests, confirmed_trades")
+    print("   Conserva: superadmin + bot_config (configuración del bot)\n")
+
+    if not force:
+        confirm = input("Escribe 'CONFIRMAR' para continuar: ")
+        if confirm.strip() != "CONFIRMAR":
+            print("Cancelado.")
+            return
 
     with get_conn() as conn:
-        # Eliminar todos los usuarios excepto el que crearemos
-        _exec(conn, "DELETE FROM users")
-        # Eliminar todos los datos dependientes
-        for table in ["trades", "watchlist", "price_alerts", "bot_config", 
-                      "backtest_results", "signal_log"]:
-            try:
-                _exec(conn, f"DELETE FROM {table}")
-            except Exception:
-                pass  # tabla puede no existir aún
+        # 1. Borrar usuarios NO admin (registros de prueba / invitados)
+        _exec(conn, "DELETE FROM users WHERE is_admin = 0 OR is_admin IS NULL")
+        print("  ✓ users — solo queda superadmin")
 
-        # Crear SOLO el superadmin
-        pw_hash = _hash("1977Emog")
-        ph = "%s" if USE_POSTGRES else "?"
-        conn.execute(
-            f"INSERT INTO users (username, password_hash, capital_inicial, is_admin, is_active) "
-            f"VALUES ({ph},{ph},{ph},{ph},{ph})",
-            ("moises og", pw_hash, 10000.0, 1, 1)
+        # 2. Limpiar bot_config huérfanas (usuarios que ya no existen)
+        _exec(conn,
+            "DELETE FROM bot_config WHERE user_id NOT IN "
+            "(SELECT id FROM users WHERE is_admin = 1)"
         )
-        print("✅ BD reseteada. Solo existe el superadmin 'moises og'.")
-        print("   Credenciales: usuario=moises og | contraseña=1977Emog")
+        print("  ✓ bot_config — configuración del superadmin conservada")
+
+        # 3. Limpiar tablas de datos
+        tablas = [
+            "trades",
+            "signal_log",
+            "watchlist",
+            "price_alerts",
+            "backtest_results",
+            "confirmed_trades",
+        ]
+        for tabla in tablas:
+            try:
+                _exec(conn, f"DELETE FROM {tabla}")
+                print(f"  ✓ {tabla}")
+            except Exception as e:
+                print(f"  ⚠ {tabla}: {e}")
+
+    print("\n✅ Limpieza completada.")
+    print("   Superadmin conservado con contraseña original.")
+    print("   Configuración del bot (Chat ID, umbral, activos) conservada.")
+    print("   Todos los datos de trading eliminados.\n")
+
 
 if __name__ == "__main__":
-    reset_para_produccion()
+    force = "--force" in sys.argv
+    limpiar_datos(force=force)
