@@ -225,48 +225,56 @@ def _obtener_twelve_data(ticker: str, timeframe: str) -> pd.DataFrame | None:
         "timezone":   "UTC",     # forzar UTC para conversión CDMX consistente
     }
 
-    try:
-        resp = requests.get(url, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+    import logging as _log
+    _logger = _log.getLogger(__name__)
 
-        # Twelve Data retorna {"code": 4xx, "message": "..."} en errores
-        if "code" in data or ("status" in data and data.get("status") == "error"):
-            import logging
-            logging.getLogger(__name__).warning(
-                f"Twelve Data error [{ticker}]: code={data.get('code')} msg={data.get('message','')}"
-            )
+    for intento in range(2):  # 1 reintento si hay timeout
+        try:
+            resp = requests.get(url, params=params, timeout=20)
+            resp.raise_for_status()
+            data = resp.json()
+
+            # Twelve Data retorna {"code": 4xx, "message": "..."} en errores
+            if "code" in data or ("status" in data and data.get("status") == "error"):
+                _logger.warning(
+                    f"Twelve Data error [{ticker}]: code={data.get('code')} msg={data.get('message','')}"
+                )
+                return None
+
+            values = data.get("values", [])
+            if not values:
+                return None
+
+            df = pd.DataFrame(values)
+            df["datetime"] = pd.to_datetime(df["datetime"])
+            df = df.set_index("datetime")
+            df = df.rename(columns={
+                "open": "Open", "high": "High",
+                "low":  "Low",  "close": "Close", "volume": "Volume"
+            })
+            for col in ["Open", "High", "Low", "Close"]:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            if "Volume" in df.columns:
+                df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce").fillna(0)
+
+            df = df.dropna(subset=["Open", "High", "Low", "Close"])
+
+            # Localizar a CDMX para consistencia con el resto del sistema
+            if df.index.tz is None:
+                df.index = df.index.tz_localize("UTC")
+            df.index = df.index.tz_convert(TZ_MX)
+
+            return df
+
+        except requests.exceptions.Timeout:
+            _logger.warning(f"Twelve Data timeout [{ticker}] intento {intento+1}/2")
+            if intento == 0:
+                time.sleep(3)   # esperar 3s antes del reintento
+                continue
             return None
-
-        values = data.get("values", [])
-        if not values:
+        except Exception as e:
+            _logger.warning(f"Twelve Data excepción [{ticker}]: {e}")
             return None
-
-        df = pd.DataFrame(values)
-        df["datetime"] = pd.to_datetime(df["datetime"])
-        df = df.set_index("datetime")
-        df = df.rename(columns={
-            "open": "Open", "high": "High",
-            "low":  "Low",  "close": "Close", "volume": "Volume"
-        })
-        for col in ["Open", "High", "Low", "Close"]:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-        if "Volume" in df.columns:
-            df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce").fillna(0)
-
-        df = df.dropna(subset=["Open", "High", "Low", "Close"])
-
-        # Localizar a CDMX para consistencia con el resto del sistema
-        if df.index.tz is None:
-            df.index = df.index.tz_localize("UTC")
-        df.index = df.index.tz_convert(TZ_MX)
-
-        return df
-
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Twelve Data excepción [{ticker}]: {e}")
-        return None
 
 
 # ── Fuente 2: yfinance (respaldo) ─────────────────────────────────────────────
