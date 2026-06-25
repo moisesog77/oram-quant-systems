@@ -75,6 +75,64 @@ def render_journal():
     page_header("📋", "Diario de Trades", "Registro · Análisis · Psicología")
     inject_module_css(dark, textarea=True, date_input=True)
 
+    # ── CSS: Dirección radio → chips pill premium (verde/rojo, sin dorado) ──
+    _pill_bg   = "#080d14" if dark else "#f0f4f8"
+    _pill_bdr  = "#1b2a40" if dark else "#d1dce8"
+    _pill_text = "#4a6a84" if dark else "#6b7f94"
+    st.markdown(f"""
+<style>
+/* ── Dirección: ocultar círculo y mostrar como chip ──────────────────── */
+div[data-testid="stRadio"] div[role="radiogroup"] label {{
+    display: inline-flex !important;
+    align-items: center !important;
+    border: 1.5px solid {_pill_bdr} !important;
+    border-radius: 8px !important;
+    padding: 7px 22px !important;
+    margin-right: 10px !important;
+    cursor: pointer !important;
+    background: {_pill_bg} !important;
+    color: {_pill_text} !important;
+    font-weight: 700 !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    transition: border-color 0.18s, background 0.18s, color 0.18s !important;
+    min-width: 90px !important;
+    justify-content: center !important;
+}}
+/* Ocultar el círculo visual del radio */
+div[data-testid="stRadio"] div[role="radiogroup"] label > div:first-child {{
+    display: none !important;
+}}
+/* LONG seleccionado (1er hijo) */
+div[data-testid="stRadio"] div[role="radiogroup"] label:nth-child(1):has(input:checked) {{
+    border-color: #22c55e !important;
+    background: rgba(34,197,94,0.10) !important;
+    color: #22c55e !important;
+}}
+/* SHORT seleccionado (2do hijo) */
+div[data-testid="stRadio"] div[role="radiogroup"] label:nth-child(2):has(input:checked) {{
+    border-color: #ef4444 !important;
+    background: rgba(239,68,68,0.10) !important;
+    color: #ef4444 !important;
+}}
+/* Hover neutro en no seleccionados */
+div[data-testid="stRadio"] div[role="radiogroup"] label:hover {{
+    border-color: #263d58 !important;
+    color: #c8d8ea !important;
+}}
+/* Label "Dirección" encima */
+div[data-testid="stRadio"] > label {{
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.09em !important;
+    text-transform: uppercase !important;
+    color: {_pill_text} !important;
+    margin-bottom: 6px !important;
+}}
+</style>
+""", unsafe_allow_html=True)
+
     tab_nuevo, tab_historial = st.tabs(["➕ Nuevo Trade", "📋 Historial"])
 
     # ── NUEVO TRADE ────────────────────────────────────────────────────────
@@ -93,8 +151,8 @@ def render_journal():
             with r2c2: setup  = st.selectbox("Setup SMC", SETUPS_SMC)
             with r2c3: estado = st.selectbox("Estado del trade", ["Cerrado", "Abierto", "Breakeven"])
 
-            # Fila 3: Dirección | Estado emocional
-            r3c1, r3c2 = st.columns(2)
+            # Fila 3: Dirección (chips) | Estado emocional
+            r3c1, r3c2 = st.columns([1, 2])
             with r3c1: direccion = st.radio("Dirección", ["LONG", "SHORT"], horizontal=True)
             with r3c2: emocion   = st.selectbox("Estado emocional", EMOCIONES)
 
