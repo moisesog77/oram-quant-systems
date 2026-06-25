@@ -95,7 +95,7 @@ def render_journal():
 
             # Fila 3: Dirección | Estado emocional
             r3c1, r3c2 = st.columns(2)
-            with r3c1: direccion = st.radio("Dirección", ["LONG", "SHORT"], horizontal=True)
+            with r3c1: direccion = st.selectbox("Dirección", ["LONG", "SHORT"])
             with r3c2: emocion   = st.selectbox("Estado emocional", EMOCIONES)
 
             # Fila 4: Entrada | SL | TP | Riesgo
