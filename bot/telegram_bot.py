@@ -18,8 +18,8 @@ except ImportError:
     pass
 
 try:
-    from telegram import Update
-    from telegram.ext import (Application, CommandHandler,
+    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+    from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                                MessageHandler, filters, ContextTypes)
     TELEGRAM_OK = True
 except ImportError:
@@ -40,7 +40,7 @@ from database.db import (
     obtener_trades, obtener_watchlist,
     registrar_trade_confirmado, obtener_trade_activo,
     obtener_trades_activos_chat, obtener_todos_trades_activos,
-    cerrar_trade_confirmado,
+    cerrar_trade_confirmado, insertar_trade,
 )
 
 import pandas as pd
@@ -78,6 +78,9 @@ _watch_senales_enviados: dict = {}   # dedup 2h para alertas de excepción por s
 # Alerta de mercado en rango — dedup 2h por chat
 _ultima_alerta_rango: dict = {}
 _checks_sin_senal:    dict = {}   # chat_id → checks consecutivos sin señal
+
+# Trades pendientes de confirmar desde Telegram — sig_id → datos de la señal
+_pending_trades: dict = {}
 
 
 def _normalizar_ticker(s: str) -> str:
@@ -1700,10 +1703,28 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                 try:
                     # Saltar si ya hay trade confirmado activo para este ticker
                     if obtener_trade_activo(chat_id, ticker): continue
-                    msg = "🚨 *SEÑAL ALTA PRIORIDAD*\n" + _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct)
-                    await _send(ctx.bot, chat_id, msg)
+                    dir_  = smc.get("estructura", {}).get("direccion", "")
+                    tipo  = smc.get("estructura", {}).get("tipo", "SMC Signal")
+                    msg   = "🚨 *SEÑAL ALTA PRIORIDAD*\n" + _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct)
+                    # Guardar datos para registro rápido desde Telegram
+                    _pending_trades[sig_id] = {
+                        "ticker": ticker, "tf": tf, "direccion": dir_,
+                        "entrada": smc.get("precio", 0), "sl": smc.get("sl_sugerido", 0),
+                        "tp": smc.get("tp_sugerido", 0), "confianza": conf,
+                        "setup": tipo, "fecha": datetime.now(TZ_MX).strftime("%Y-%m-%d"),
+                    }
+                    if len(_pending_trades) > 50:
+                        _pending_trades.pop(next(iter(_pending_trades)))
+                    kbd = InlineKeyboardMarkup([[InlineKeyboardButton(
+                        "📝 Registrar en diario", callback_data=f"reg_{sig_id}"
+                    )]])
+                    try:
+                        await ctx.bot.send_message(chat_id=chat_id, text=msg, parse_mode=MD, reply_markup=kbd)
+                    except Exception:
+                        plain = msg.replace("*","").replace("_","").replace("`","")
+                        await ctx.bot.send_message(chat_id=chat_id, text=plain[:4000], reply_markup=kbd)
                     marcar_señal_enviada(sig_id)
-                    _senal = {"ticker": ticker, "tf": tf, "direccion": smc.get("estructura",{}).get("direccion",""), "entrada": smc.get("precio",0), "sl": smc.get("sl_sugerido",0), "tp": smc.get("tp_sugerido",0), "confianza": conf}
+                    _senal = {"ticker": ticker, "tf": tf, "direccion": dir_, "entrada": smc.get("precio",0), "sl": smc.get("sl_sugerido",0), "tp": smc.get("tp_sugerido",0), "confianza": conf, "setup": tipo}
                     _ultimas_senales[(chat_id, ticker)] = _senal
                     _ultimas_senales[chat_id] = _senal
                 except Exception as e:
@@ -2111,6 +2132,161 @@ async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_verificar_alertas: {e}")
 
 
+# ─── REGISTRAR TRADE DESDE TELEGRAM ─────────────────────────────────────────
+
+async def cmd_registrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Registra un trade en el diario.
+    Sin args → usa la última señal del chat.
+    Con args → /registrar EURUSD LONG 1.0850 1.0800 1.0950 [15m]
+    """
+    chat_id = str(update.effective_chat.id)
+    user, cfg = _get_user_by_chat(chat_id)
+    if not user:
+        await _reply(update, "⚙️ Vincula tu Chat ID en la app → Configuración Bot.")
+        return
+
+    args = ctx.args
+    if not args:
+        senal = _ultimas_senales.get(chat_id)
+        if not senal:
+            await _reply(update,
+                "❌ Sin señal reciente en este chat.\n\n"
+                "Uso manual:\n`/registrar EURUSD LONG 1.0850 1.0800 1.0950 15m`"
+            )
+            return
+        ticker  = senal["ticker"]
+        dir_    = senal["direccion"]
+        entrada = senal["entrada"]
+        sl      = senal["sl"]
+        tp      = senal["tp"]
+        tf_     = senal.get("tf", "15m")
+        tipo    = senal.get("setup", "SMC Signal")
+    else:
+        if len(args) < 5:
+            await _reply(update, "❌ Faltan campos.\nUso: `/registrar EURUSD LONG 1.0850 1.0800 1.0950 [15m]`")
+            return
+        try:
+            ticker  = _normalizar_ticker(args[0])
+            dir_    = args[1].upper()
+            if dir_ not in ("LONG", "SHORT"):
+                raise ValueError("Dirección debe ser LONG o SHORT")
+            entrada = float(args[2])
+            sl      = float(args[3])
+            tp      = float(args[4])
+            tf_     = args[5] if len(args) > 5 else "15m"
+            tipo    = "Manual"
+        except (ValueError, IndexError) as e:
+            await _reply(update, f"❌ Formato inválido: {e}\nUso: `/registrar EURUSD LONG 1.0850 1.0800 1.0950 15m`")
+            return
+
+    capital    = float(cfg.get("capital_cuenta") or 0) or 10000.0
+    riesgo_pct = float(cfg.get("riesgo_pct") or 2.0)
+    riesgo_usd = round(capital * riesgo_pct / 100, 2)
+
+    trade_id = insertar_trade(user["id"], {
+        "fecha":        datetime.now(TZ_MX).strftime("%Y-%m-%d"),
+        "activo":       ticker,
+        "timeframe":    tf_,
+        "direccion":    dir_,
+        "entrada":      entrada,
+        "sl":           sl,
+        "tp":           tp,
+        "riesgo_usd":   riesgo_usd,
+        "resultado_usd": 0.0,
+        "setup":        tipo,
+        "emocion":      "Neutral",
+        "notas":        "Registrado desde Telegram",
+        "estado":       "Abierto",
+    })
+
+    fp = lambda p: _fmt_precio(p, ticker)
+    await _reply(update,
+        f"✅ *Trade registrado en el diario*\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"{_emoji_dir(dir_)} *{ticker}* {dir_} · {tf_}\n"
+        f"💰 Entrada: `{fp(entrada)}`\n"
+        f"🛑 SL: `{fp(sl)}`\n"
+        f"✅ TP: `{fp(tp)}`\n"
+        f"💼 Riesgo: ${riesgo_usd:.2f}\n\n"
+        f"📝 _Completa setup, emoción y notas en la app_\n"
+        f"🆔 Trade *#{trade_id}*"
+    )
+
+
+async def callback_registrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Callback del botón 'Registrar en diario' en señales ALTA."""
+    query   = update.callback_query
+    await query.answer()
+    chat_id = str(query.message.chat_id)
+
+    try:
+        sig_id = int(query.data.split("_")[1])
+    except (IndexError, ValueError):
+        await query.answer("❌ Datos inválidos", show_alert=True)
+        return
+
+    pending = _pending_trades.get(sig_id)
+    if not pending:
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await query.answer("⏱ La señal ya expiró. Usa /registrar para registrar manualmente.", show_alert=True)
+        return
+
+    user, cfg = _get_user_by_chat(chat_id)
+    if not user:
+        await query.answer("⚙️ Vincula tu Chat ID en la app primero.", show_alert=True)
+        return
+
+    capital    = float(cfg.get("capital_cuenta") or 0) or 10000.0
+    riesgo_pct = float(cfg.get("riesgo_pct") or 2.0)
+    riesgo_usd = round(capital * riesgo_pct / 100, 2)
+    ticker  = pending["ticker"]
+    dir_    = pending["direccion"]
+    entrada = pending["entrada"]
+    sl      = pending["sl"]
+    tp      = pending["tp"]
+    tf_     = pending.get("tf", "15m")
+    conf    = pending.get("confianza", 0)
+    tipo    = pending.get("setup", "SMC Signal")
+
+    trade_id = insertar_trade(user["id"], {
+        "fecha":        pending.get("fecha", datetime.now(TZ_MX).strftime("%Y-%m-%d")),
+        "activo":       ticker,
+        "timeframe":    tf_,
+        "direccion":    dir_,
+        "entrada":      entrada,
+        "sl":           sl,
+        "tp":           tp,
+        "riesgo_usd":   riesgo_usd,
+        "resultado_usd": 0.0,
+        "setup":        tipo,
+        "emocion":      "Neutral",
+        "notas":        f"Registrado desde Telegram | Confianza: {conf:.0f}%",
+        "estado":       "Abierto",
+    })
+    _pending_trades.pop(sig_id, None)
+
+    try:
+        await query.edit_message_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+    fp = lambda p: _fmt_precio(p, ticker)
+    await _send(ctx.bot, chat_id,
+        f"✅ *Trade registrado en el diario*\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"{_emoji_dir(dir_)} *{ticker}* {dir_} · {tf_}\n"
+        f"💰 Entrada: `{fp(entrada)}`\n"
+        f"🛑 SL: `{fp(sl)}`\n"
+        f"✅ TP: `{fp(tp)}`\n"
+        f"💼 Riesgo: ${riesgo_usd:.2f}\n\n"
+        f"📝 _Completa setup, emoción y notas en la app_\n"
+        f"🆔 Trade *#{trade_id}*"
+    )
+
+
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -2151,8 +2327,10 @@ def main():
         ("tomar",       cmd_tomar),
         ("cerrar",      cmd_cerrar),
         ("activos",     cmd_activos),
+        ("registrar",   cmd_registrar),
     ]:
         app.add_handler(CommandHandler(cmd, handler))
+    app.add_handler(CallbackQueryHandler(callback_registrar, pattern=r"^reg_\d+$"))
     app.add_handler(MessageHandler(filters.COMMAND, cmd_desconocido))
 
     jq = app.job_queue

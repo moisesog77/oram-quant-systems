@@ -699,6 +699,20 @@ def eliminar_trade(trade_id: int, user_id: int):
         _exec(conn, "DELETE FROM trades WHERE id=? AND user_id=?", (trade_id, user_id))
 
 
+def actualizar_trade(trade_id: int, user_id: int, data: dict) -> bool:
+    """Actualiza campos editables de un trade. No modifica precios de entrada/sl/tp."""
+    campos_ok = {"setup", "emocion", "notas", "resultado_usd", "estado"}
+    updates = {k: v for k, v in data.items() if k in campos_ok}
+    if not updates:
+        return False
+    # Recalcular rr_real si cambia resultado_usd
+    sets = ", ".join(f"{k}=?" for k in updates)
+    with get_conn() as conn:
+        _exec(conn, f"UPDATE trades SET {sets} WHERE id=? AND user_id=?",
+              tuple(updates.values()) + (trade_id, user_id))
+    return True
+
+
 # ── CRUD: Watchlist ───────────────────────────────────────────────────────────
 
 def obtener_watchlist(user_id: int) -> list:

@@ -4,7 +4,7 @@ modules/journal.py — ORAM Quant Systems — Diario de Trades
 import streamlit as st
 import pandas as pd
 from datetime import date
-from database.db import insertar_trade, obtener_trades, eliminar_trade
+from database.db import insertar_trade, obtener_trades, eliminar_trade, actualizar_trade
 from utils.market_data import ACTIVOS_DEFAULT
 from utils.smc_engine import calcular_riesgo
 from ui.styles import get_colors, page_header, oram_bienvenida, get_theme, inject_module_css
@@ -194,8 +194,56 @@ def render_journal():
         styled = df_show.style.map(color_result, subset=['resultado_usd'])
         st.dataframe(styled, use_container_width=True, height=400)
 
-        st.divider()
         if len(df) > 0:
+            st.divider()
+            with st.expander("✏️ Editar trade", expanded=False):
+                edit_id = st.selectbox(
+                    "Trade a editar",
+                    df['id'].tolist(),
+                    format_func=lambda i: f"#{i} — {df[df['id']==i]['activo'].values[0]} {df[df['id']==i]['direccion'].values[0]} {str(df[df['id']==i]['fecha'].values[0])[:10]}",
+                    key="edit_trade_id"
+                )
+                row = df[df['id'] == edit_id].iloc[0]
+                with st.form("edit_trade_form", clear_on_submit=False):
+                    ec1, ec2 = st.columns(2)
+                    with ec1:
+                        edit_resultado = st.number_input(
+                            "Resultado (USD)", value=float(row.get('resultado_usd') or 0), step=1.0
+                        )
+                        _est = row.get('estado') or 'Cerrado'
+                        _estados = ["Cerrado", "Abierto", "Breakeven"]
+                        edit_estado = st.selectbox(
+                            "Estado del trade", _estados,
+                            index=_estados.index(_est) if _est in _estados else 0
+                        )
+                    with ec2:
+                        _s = row.get('setup') or SETUPS_SMC[0]
+                        edit_setup = st.selectbox(
+                            "Setup SMC", SETUPS_SMC,
+                            index=SETUPS_SMC.index(_s) if _s in SETUPS_SMC else 0
+                        )
+                        _e = row.get('emocion') or EMOCIONES[0]
+                        edit_emocion = st.selectbox(
+                            "Estado emocional", EMOCIONES,
+                            index=EMOCIONES.index(_e) if _e in EMOCIONES else 0
+                        )
+                    edit_notas = st.text_area("Notas / Plan", value=row.get('notas') or '', height=80)
+                    if st.form_submit_button("💾 Guardar cambios", use_container_width=True):
+                        actualizar_trade(edit_id, user["id"], {
+                            "resultado_usd": edit_resultado,
+                            "estado":        edit_estado,
+                            "setup":         edit_setup,
+                            "emocion":       edit_emocion,
+                            "notas":         edit_notas,
+                        })
+                        oram_bienvenida(
+                            titulo        = "💾 Trade actualizado",
+                            subtitulo     = f"Trade <b>#{edit_id}</b> guardado correctamente.",
+                            spinner_label = "Actualizando diario…",
+                            delay=2.5,
+                        )
+
+            st.divider()
             col_del1, col_del2 = st.columns([3, 1])
             with col_del1:
                 trade_ids = df['id'].tolist()
