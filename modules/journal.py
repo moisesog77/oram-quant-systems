@@ -75,60 +75,78 @@ def render_journal():
     page_header("📋", "Diario de Trades", "Registro · Análisis · Psicología")
     inject_module_css(dark, textarea=True, date_input=True)
 
-    # ── CSS: Dirección radio → chips pill premium (verde/rojo, sin dorado) ──
-    _pill_bg   = "#080d14" if dark else "#f0f4f8"
-    _pill_bdr  = "#1b2a40" if dark else "#d1dce8"
-    _pill_text = "#4a6a84" if dark else "#6b7f94"
+    # ── CSS: Dirección → segmented control premium (verde/rojo, sin dorado) ─
+    _lbl   = "#4a6a84" if dark else "#6b7f94"
+    _bg    = "#080d14" if dark else "#f0f4f8"
+    _bdr   = "#1b2a40" if dark else "#d1dce8"
+    _txt   = "#637a94" if dark else "#8a9ab0"
     st.markdown(f"""
 <style>
-/* ── Dirección: ocultar círculo y mostrar como chip ──────────────────── */
-div[data-testid="stRadio"] div[role="radiogroup"] label {{
-    display: inline-flex !important;
-    align-items: center !important;
-    border: 1.5px solid {_pill_bdr} !important;
-    border-radius: 8px !important;
-    padding: 7px 22px !important;
-    margin-right: 10px !important;
-    cursor: pointer !important;
-    background: {_pill_bg} !important;
-    color: {_pill_text} !important;
-    font-weight: 700 !important;
-    font-size: 0.78rem !important;
-    letter-spacing: 0.1em !important;
-    text-transform: uppercase !important;
-    transition: border-color 0.18s, background 0.18s, color 0.18s !important;
-    min-width: 90px !important;
-    justify-content: center !important;
+/* ── Forzar row (el nav sidebar impone column a todos los radiogroup) ── */
+div[data-testid="stRadio"] div[role="radiogroup"] {{
+    flex-direction: row !important;
+    gap: 8px !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    margin-top: 2px !important;
 }}
-/* Ocultar el círculo visual del radio */
-div[data-testid="stRadio"] div[role="radiogroup"] label > div:first-child {{
-    display: none !important;
-}}
-/* LONG seleccionado (1er hijo) */
-div[data-testid="stRadio"] div[role="radiogroup"] label:nth-child(1):has(input:checked) {{
-    border-color: #22c55e !important;
-    background: rgba(34,197,94,0.10) !important;
-    color: #22c55e !important;
-}}
-/* SHORT seleccionado (2do hijo) */
-div[data-testid="stRadio"] div[role="radiogroup"] label:nth-child(2):has(input:checked) {{
-    border-color: #ef4444 !important;
-    background: rgba(239,68,68,0.10) !important;
-    color: #ef4444 !important;
-}}
-/* Hover neutro en no seleccionados */
-div[data-testid="stRadio"] div[role="radiogroup"] label:hover {{
-    border-color: #263d58 !important;
-    color: #c8d8ea !important;
-}}
-/* Label "Dirección" encima */
-div[data-testid="stRadio"] > label {{
+/* ── Label "Dirección" — mismo estilo que los demás labels del form ── */
+div[data-testid="stRadio"] > label,
+div[data-testid="stRadio"] > label p {{
+    font-family: 'Inter', sans-serif !important;
     font-size: 0.72rem !important;
     font-weight: 600 !important;
     letter-spacing: 0.09em !important;
     text-transform: uppercase !important;
-    color: {_pill_text} !important;
-    margin-bottom: 6px !important;
+    color: {_lbl} !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 0 6px 0 !important;
+    min-width: unset !important;
+    cursor: default !important;
+}}
+/* ── Cada opción: pill limpio ─────────────────────────────────────── */
+div[data-testid="stRadio"] div[role="radiogroup"] > label {{
+    flex: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 1.5px solid {_bdr} !important;
+    border-radius: 8px !important;
+    padding: 9px 12px !important;
+    cursor: pointer !important;
+    background: {_bg} !important;
+    color: {_txt} !important;
+    font-weight: 700 !important;
+    font-size: 0.77rem !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    transition: border-color 0.15s, background 0.15s, color 0.15s !important;
+    min-width: 70px !important;
+}}
+/* Ocultar círculo radio */
+div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {{
+    display: none !important;
+}}
+/* LONG seleccionado */
+div[data-testid="stRadio"] div[role="radiogroup"] > label:nth-child(1):has(input:checked) {{
+    border-color: #22c55e !important;
+    background: rgba(34,197,94,0.09) !important;
+    color: #22c55e !important;
+    box-shadow: 0 0 0 1px rgba(34,197,94,0.25) inset !important;
+}}
+/* SHORT seleccionado */
+div[data-testid="stRadio"] div[role="radiogroup"] > label:nth-child(2):has(input:checked) {{
+    border-color: #ef4444 !important;
+    background: rgba(239,68,68,0.09) !important;
+    color: #ef4444 !important;
+    box-shadow: 0 0 0 1px rgba(239,68,68,0.25) inset !important;
+}}
+/* Hover no seleccionado */
+div[data-testid="stRadio"] div[role="radiogroup"] > label:not(:has(input:checked)):hover {{
+    border-color: #263d58 !important;
+    color: #c8d8ea !important;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -151,8 +169,8 @@ div[data-testid="stRadio"] > label {{
             with r2c2: setup  = st.selectbox("Setup SMC", SETUPS_SMC)
             with r2c3: estado = st.selectbox("Estado del trade", ["Cerrado", "Abierto", "Breakeven"])
 
-            # Fila 3: Dirección (chips) | Estado emocional
-            r3c1, r3c2 = st.columns([1, 2])
+            # Fila 3: Dirección (segmented) | Estado emocional
+            r3c1, r3c2 = st.columns([1, 1])
             with r3c1: direccion = st.radio("Dirección", ["LONG", "SHORT"], horizontal=True)
             with r3c2: emocion   = st.selectbox("Estado emocional", EMOCIONES)
 
