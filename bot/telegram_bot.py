@@ -184,7 +184,9 @@ def _analizar_activo(ticker: str, tf: str = "15m"):
         smc = analisis_completo(df, ticker)
         smc["_contexto_mercado"] = _calcular_contexto(df)
         if "yfinance" in status:
-            smc["_data_warning"] = "⚠️ Datos con 15min delay (yfinance) — Twelve Data no disponible"
+            smc["_data_source"] = "⚠️ yfinance — 15min delay"
+        else:
+            smc["_data_source"] = "🟢 Twelve Data — Tiempo real"
         return smc, status
     except Exception as e:
         return None, str(e)
@@ -314,12 +316,12 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
         for f in factores:
             lineas.append(f"  ✔ {f}")
     lineas += ["", f"🕐 *{_hora_mx()} CDMX*", "⚠️ _Señal orientativa. Usa SL siempre._"]
-    data_warning = smc.get("_data_warning")
-    if data_warning:
-        lineas.append(f"\n_{data_warning}_")
+    data_source = smc.get("_data_source")
+    if data_source:
+        lineas.append(f"📡 _Fuente: {data_source}_")
     return "\n".join(l for l in lineas if l)
 
-def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None) -> str:
+def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None, data_source: str = None) -> str:
     smc_alto  = mtf.get("smc_alto") or {}
     smc_bajo  = mtf.get("smc_bajo") or {}
     tf_alto   = mtf.get("tf_alto", "?")
@@ -364,12 +366,16 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None) -> str:
     ctx_txt = ""
     if contexto and contexto.get("texto"):
         ctx_txt = f"{contexto.get('icono','')} _{contexto.get('texto','')}_"
-    lineas += ["", f"📝 _{desc}_", ctx_txt, "", f"🕐 {_hora_mx()} CDMX"]
+    lineas += ["", f"📝 _{desc}_", ctx_txt, ""]
+    if data_source:
+        lineas.append(f"📡 _Fuente: {data_source}_")
+    lineas.append(f"🕐 {_hora_mx()} CDMX")
     return "\n".join(l for l in lineas if l)
 
 
 def _formato_reversal(smc_alto: dict, smc_bajo: dict, ticker: str,
-                       tf_alto: str, tf_bajo: str, nivel_redondo: bool = False) -> str:
+                       tf_alto: str, tf_bajo: str, nivel_redondo: bool = False,
+                       data_source: str = None) -> str:
     dir_      = smc_bajo.get("estructura", {}).get("direccion", "neutral")
     tipo_bajo = smc_bajo.get("estructura", {}).get("tipo", "")
     tipo_alto = smc_alto.get("estructura", {}).get("tipo", "")
@@ -404,8 +410,10 @@ def _formato_reversal(smc_alto: dict, smc_bajo: dict, ticker: str,
     lineas += [
         "",
         "⚡ _Stop hunt + CHoCH + zona HTF — setup institucional completo_",
-        f"🕐 {_hora_mx()} CDMX",
     ]
+    if data_source:
+        lineas.append(f"📡 _Fuente: {data_source}_")
+    lineas.append(f"🕐 {_hora_mx()} CDMX")
     return "\n".join(l for l in lineas if l)
 
 
@@ -443,6 +451,7 @@ async def cmd_mercado(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"_{datetime.now(TZ_MX).strftime('%d/%m/%Y %H:%M')} CDMX_",
         "━━━━━━━━━━━━━━━━",
     ]
+    _fuentes_mercado = set()
     for cat, tickers in categorias.items():
         icons = {"Forex": "🔵", "Materias": "🟠"}
         lineas.append(f"\n{icons.get(cat, '📊')} *{cat}:*")
@@ -456,6 +465,8 @@ async def cmd_mercado(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     tipo   = smc.get("estructura", {}).get("tipo", "?")
                     rsi    = smc.get("rsi", 0) or 0
                     prio   = "🔥" if conf >= 75 else ""
+                    _ds_merc = smc.get("_data_source", "")
+                    if _ds_merc: _fuentes_mercado.add(_ds_merc)
                     lineas.append(
                         f"{_emoji_dir(dir_)}{prio} *{ticker}* `{_fmt_precio(precio, ticker)}` — {tipo} ({conf:.0f}%) RSI:{rsi:.0f}"
                     )
@@ -471,6 +482,8 @@ async def cmd_mercado(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 lineas.append(f"{impacto_emoji(ev['impacto'])} {ev['titulo']} — {ev['hora_mx']} CDMX")
     except Exception:
         pass
+    if _fuentes_mercado:
+        lineas += ["", f"📡 _Fuente: {' | '.join(_fuentes_mercado)}_"]
     lineas += ["", f"🕐 _{_hora_mx()} CDMX_"]
     await _reply(update, "\n".join(lineas))
 
@@ -559,9 +572,11 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             prec  = smc.get("precio", 0)
             sl    = smc.get("sl_sugerido", 0)
             tp    = smc.get("tp_sugerido", 0)
+            _ds_sm = smc.get("_data_source", "")
             await _reply(update,
                 f"{_emoji_dir(dir_)} *{ticker}* `{_fmt_precio(prec, ticker)}` — {tipo} ({conf:.0f}%)\n"
                 f"   SL:`{_fmt_precio(sl, ticker)}` TP:`{_fmt_precio(tp, ticker)}`"
+                + (f"\n📡 _{_ds_sm}_" if _ds_sm else "")
             )
 
 
@@ -679,7 +694,9 @@ async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         for tkr in activos:
             try:
                 mtf = analisis_mtf(tkr, tf_alto, tf_bajo)
-                await _reply(update, _formato_mtf(mtf, tkr))
+                _, _st = obtener_datos(tkr, tf_alto)
+                _ds = "⚠️ yfinance — 15min delay" if "yfinance" in _st else "🟢 Twelve Data — Tiempo real"
+                await _reply(update, _formato_mtf(mtf, tkr, data_source=_ds))
             except Exception as e:
                 await update.message.reply_text(f"❌ {tkr}: {str(e)[:80]}")
         return
@@ -693,7 +710,9 @@ async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🔭 Analizando {ticker} MTF ({tf_alto}/{tf_bajo})...")
     try:
         mtf = analisis_mtf(ticker, tf_alto, tf_bajo)
-        await _reply(update, _formato_mtf(mtf, ticker))
+        _, _st = obtener_datos(ticker, tf_alto)
+        _ds = "⚠️ yfinance — 15min delay" if "yfinance" in _st else "🟢 Twelve Data — Tiempo real"
+        await _reply(update, _formato_mtf(mtf, ticker, data_source=_ds))
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)[:100]}")
 
@@ -1644,6 +1663,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                             _persistencia_senales[clave_p] = 0
                             _watch_senales_enviados[clave_p] = ahora_ts
                             accion = "🟢 *COMPRAR*" if dir_ == "LONG" else "🔴 *VENDER*"
+                            _ds_sos = smc.get("_data_source", "")
                             await _send(ctx.bot, chat_id,
                                 f"👁 *SETUP SOSTENIDO — VIGILAR*\n"
                                 f"━━━━━━━━━━━━━━━━\n"
@@ -1651,7 +1671,8 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                                 f"Confianza: {conf:.0f}% — sostenida ~30 min\n"
                                 f"💰 `{_fmt_precio(precio, ticker)}` · SL `{_fmt_precio(sl, ticker)}` · TP `{_fmt_precio(tp_, ticker)}`\n"
                                 f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._\n"
-                                f"🕐 {_hora_mx()} CDMX"
+                                + (f"📡 _{_ds_sos}_\n" if _ds_sos else "")
+                                + f"🕐 {_hora_mx()} CDMX"
                             )
                         continue
 
@@ -1691,6 +1712,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
             if medias:
                 lineas = [f"⚡ *SEÑALES MEDIAS — {tf} · {_hora_mx()} CDMX*", ""]
                 _primera_media = True
+                _fuentes_medias = set()
                 for ticker, smc, conf, sig_id in sorted(medias, key=lambda x: -x[2]):
                     if obtener_trade_activo(chat_id, ticker): continue
                     dir_  = smc.get("estructura", {}).get("direccion", "neutral")
@@ -1702,12 +1724,16 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         f"{_emoji_dir(dir_)} *{ticker}* `{_fmt_precio(precio, ticker)}` — {tipo} ({conf:.0f}%)\n"
                         f"   SL:`{_fmt_precio(sl, ticker)}` TP:`{_fmt_precio(tp_, ticker)}`"
                     )
+                    _ds_m = smc.get("_data_source", "")
+                    if _ds_m: _fuentes_medias.add(_ds_m)
                     marcar_señal_enviada(sig_id)
                     _senal = {"ticker": ticker, "tf": tf, "direccion": dir_, "entrada": precio, "sl": sl, "tp": tp_, "confianza": conf}
                     _ultimas_senales[(chat_id, ticker)] = _senal
                     if _primera_media:
                         _ultimas_senales[chat_id] = _senal  # solo la de mayor confianza
                         _primera_media = False
+                if _fuentes_medias:
+                    lineas.append(f"\n📡 _Fuente: {' | '.join(_fuentes_medias)}_")
                 if len(lineas) > 2:  # solo enviar si hay señales reales (no solo el header)
                     try:
                         await _send(ctx.bot, chat_id, "\n".join(lineas))
@@ -1730,6 +1756,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     lineas_r = ["━━━━━━━━━━━━━━━━"]
                     bloqueados = []   # conf >= umbral pero filtrado por OB/RR
                     sin_senal  = []   # conf < umbral
+                    _fuentes_rango = set()
                     for tkr in activos:
                         try:
                             smc_r, _ = _analizar_activo(tkr, tf)
@@ -1739,6 +1766,8 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                             conf_r  = smc_r.get("confluencia", {}).get("confianza", 0)
                             tipo_r  = smc_r.get("estructura", {}).get("tipo", "Sin señal")
                             valid_r = smc_r.get("señal_valida", False)
+                            _ds_r = smc_r.get("_data_source", "")
+                            if _ds_r: _fuentes_rango.add(_ds_r)
                             # Calcular RR
                             p_r  = smc_r.get("precio", 0)
                             sl_r = smc_r.get("sl_sugerido", 0)
@@ -1771,6 +1800,8 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         lineas_r.append(f"\n💡 _Ningún activo supera el umbral {umbral:.0f}% — mercado lateral._")
 
                     lineas_r.append(f"_El bot alertará cuando aparezca una entrada válida._")
+                    if _fuentes_rango:
+                        lineas_r.append(f"📡 _Fuente: {' | '.join(_fuentes_rango)}_")
                     lineas_r.append(f"🕐 _{_hora_mx()} CDMX_")
                     await _send(ctx.bot, chat_id, "\n".join(lineas_r))
             else:
@@ -1846,6 +1877,8 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                         _mtf_persistencia.pop(clave_vig, None)
                         _watch_enviados[clave_acc] = ahora_ts
                         icono = "🔴" if "SHORT" in dir_mtf else "🟢"
+                        _, _st_form = obtener_datos(ticker, tf_alto)
+                        _ds_form = "⚠️ yfinance — 15min delay" if "yfinance" in (_st_form or "") else "🟢 Twelve Data — Tiempo real"
                         msg_w = (
                             f"👁 *SETUP EN FORMACIÓN — VIGILAR*\n"
                             f"📊 *{ticker}* — {tf_alto}/{tf_bajo}\n"
@@ -1856,6 +1889,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                             f"   • Retroceso a OB/FVG con rechazo claro\n"
                             f"   • Cuando suba a ≥63% el bot alertará automáticamente\n"
                             f"   • O usa /mtf para revisar el setup manualmente\n\n"
+                            f"📡 _Fuente: {_ds_form}_\n"
                             f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX"
                         )
                         await _send(ctx.bot, chat_id, msg_w)
@@ -1867,9 +1901,10 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     if (ticker, dir_mtf) in mtf_recientes: continue
                     if obtener_trade_activo(chat_id, ticker): continue
                     _mtf_persistencia.pop(clave_acc, None)
-                    df_bajo_ctx, _ = obtener_datos(ticker, tf_bajo)
+                    df_bajo_ctx, _st_bajo = obtener_datos(ticker, tf_bajo)
                     ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
-                    await _send(ctx.bot, chat_id, "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo))
+                    _ds_mtf = "⚠️ yfinance — 15min delay" if "yfinance" in (_st_bajo or "") else "🟢 Twelve Data — Tiempo real"
+                    await _send(ctx.bot, chat_id, "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo, data_source=_ds_mtf))
                     _senal_mtf = {"ticker": ticker, "tf": tf_bajo, "direccion": dir_mtf, "entrada": entrada_m, "sl": sl_m, "tp": tp_m, "confianza": confianza_mtf}
                     _ultimas_senales[(chat_id, ticker)] = _senal_mtf
                     _ultimas_senales[chat_id] = _senal_mtf
@@ -1972,8 +2007,9 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
 
                     nivel_redondo = _cerca_nivel_redondo(entrada)
                     sig_id = registrar_señal(ticker, tf_bajo, tipo_bajo, dir_bajo, conf_bajo, entrada, sl, tp)
+                    _ds_rev = smc_bajo.get("_data_source", "")
                     msg = "🎯 *REVERSIÓN EN ZONA HTF*\n" + _formato_reversal(
-                        smc_alto, smc_bajo, ticker, tf_alto, tf_bajo, nivel_redondo
+                        smc_alto, smc_bajo, ticker, tf_alto, tf_bajo, nivel_redondo, data_source=_ds_rev
                     )
                     await _send(ctx.bot, chat_id, msg)
                     marcar_señal_enviada(sig_id)
