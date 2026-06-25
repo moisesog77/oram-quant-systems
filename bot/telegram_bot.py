@@ -209,6 +209,18 @@ def _prioridad(conf: float) -> str:
 def _hora_mx() -> str:
     return datetime.now(TZ_MX).strftime("%H:%M")
 
+_DIAS_ES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
+
+def _dia_es(dt=None) -> str:
+    if dt is None: dt = datetime.now(TZ_MX)
+    return _DIAS_ES[dt.weekday()]
+
+def _fecha_es(dt=None, hora: bool = True) -> str:
+    """Fecha en español: 'Miércoles 25/06/2026 — 07:00'"""
+    if dt is None: dt = datetime.now(TZ_MX)
+    base = f"{_dia_es(dt)} {dt.strftime('%d/%m/%Y')}"
+    return f"{base} — {dt.strftime('%H:%M')}" if hora else base
+
 def _en_horario_trading() -> bool:
     # Forex cierra viernes 22:00 UTC y abre domingo 22:00 UTC
     # Se compara en UTC para evitar bugs de DST entre CDMX y New York
@@ -220,6 +232,12 @@ def _en_horario_trading() -> bool:
     if wd == 6 and hut < 22: return False         # domingo hasta las 22:00 UTC
     if wd == 4 and hut >= 22: return False        # viernes desde 22:00 UTC
     return True
+
+def _en_horario_alertas() -> bool:
+    """Alertas automáticas solo en horario profesional: 7:00–17:00 CDMX, lunes a viernes."""
+    if not _en_horario_trading():
+        return False
+    return 7 <= datetime.now(TZ_MX).hour < 17
 
 def _get_user_by_chat(chat_id: str):
     """Obtiene usuario vinculado a este chat_id."""
@@ -1172,7 +1190,7 @@ async def cmd_sesiones(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"🌎 *Nueva York:*       07:30-16:00  {est(7,16)}\n"
         f"📡 *Sydney:*           20:00-05:00  {'🟢 ACTIVA' if h>=20 or h<5 else '⚫ Cerrada'}\n"
         "━━━━━━━━━━━━━━━━\n"
-        f"🕐 _Ahora: {ahora.strftime('%H:%M')} CDMX ({ahora.strftime('%A')})_\n"
+        f"🕐 _Ahora: {ahora.strftime('%H:%M')} CDMX ({_dia_es(ahora)})_\n"
         f"_Mercado: {'en horario de trading' if _en_horario_trading() else 'sin liquidez'}_\n\n"
         "💡 *Mejores momentos:*\n"
         "  🔥 Overlap (07:00-10:00): mayor volatilidad\n"
@@ -1404,7 +1422,7 @@ async def _generar_resumen_diario() -> str:
     if not _en_horario_trading():
         return (
             "🔒 *MERCADO CERRADO — FIN DE SEMANA*\n"
-            f"_{datetime.now(TZ_MX).strftime('%A %d/%m/%Y — %H:%M')} CDMX_\n"
+            f"_{_fecha_es()} CDMX_\n"
             "━━━━━━━━━━━━━━━━\n\n"
             "Los mercados Forex y Oro están cerrados.\n"
             "⏰ *Reapertura:* Domingo 16:00 CDMX\n\n"
@@ -1418,7 +1436,7 @@ async def _generar_resumen_diario() -> str:
     activos = ["EURUSD=X", "GBPUSD=X", "GC=F"]
     lineas  = [
         "🌅 *REPORTE DIARIO SMC — ORAM*",
-        f"_{datetime.now(TZ_MX).strftime('%A %d/%m/%Y — %H:%M')} CDMX_",
+        f"_{_fecha_es()} CDMX_",
         "━━━━━━━━━━━━━━━━",
         "",
         "📊 *Estado del mercado (1H):*",
@@ -1499,7 +1517,7 @@ async def _generar_reporte_cierre() -> str:
 
     lineas = [
         "🌆 *REPORTE DE CIERRE — NY CLOSE*",
-        f"_{ahora.strftime('%A %d/%m/%Y')} — {ahora.strftime('%H:%M')} CDMX_",
+        f"_{_fecha_es(ahora)} CDMX_",
         "━━━━━━━━━━━━━━━━",
         "", "📊 *Estructura de cierre (1H):*",
     ]
@@ -1603,7 +1621,7 @@ async def job_alerta_noticias(ctx: ContextTypes.DEFAULT_TYPE):
 
 async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
     try:
-        if not _en_horario_trading():
+        if not _en_horario_alertas():
             return
         try:
             hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=20)
@@ -1834,7 +1852,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
 
 async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
     try:
-        if not _en_horario_trading(): return
+        if not _en_horario_alertas(): return
         try:
             hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=20)
             if hay_ev: return
@@ -1958,7 +1976,7 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
     7 capas de validación — la alerta de mayor probabilidad del sistema.
     """
     try:
-        if not _en_horario_trading(): return
+        if not _en_horario_alertas(): return
         if not _en_sesion_premium(): return   # Solo en apertura Londres/NY
         try:
             hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=20)
