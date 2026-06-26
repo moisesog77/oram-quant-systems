@@ -26,5 +26,8 @@ requests>=2.31.0
 # ── Sesión persistente (cookie manager) ───────────────────
 extra-streamlit-components>=0.1.71
 
+# ── Traducción (titulares de noticias EN → ES) ────────────
+deep-translator>=1.11.0
+
 # ── Utilidades ────────────────────────────────────────────
 python-dotenv>=1.0.0

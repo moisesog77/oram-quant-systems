@@ -1,13 +1,31 @@
 """
 utils/news_feed.py — ORAM Quant Systems — Noticias de Mercado en Tiempo Real
 Fuente: Yahoo Finance (yfinance) — mismas fuentes que TradingView (Reuters, Bloomberg, etc.)
-Cache 15 min para no saturar peticiones.
+Cache 15 min para no saturar peticiones. Titulares traducidos al español automáticamente.
 """
 import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 TZ_MX = ZoneInfo("America/Mexico_City")
+
+_TRAD_CACHE: dict = {}   # cache de traducciones: texto_en → texto_es
+
+
+def _traducir_es(texto: str) -> str:
+    """Traduce al español con Google (gratuito, sin API key). Falla silenciosamente."""
+    if not texto:
+        return texto
+    if texto in _TRAD_CACHE:
+        return _TRAD_CACHE[texto]
+    try:
+        from deep_translator import GoogleTranslator
+        resultado = GoogleTranslator(source="auto", target="es").translate(texto) or texto
+        _TRAD_CACHE[texto] = resultado
+        return resultado
+    except Exception:
+        return texto
+
 
 _TICKERS_NOTICIAS = {
     "Forex":    ["EURUSD=X", "GBPUSD=X", "USDJPY=X"],
@@ -48,6 +66,7 @@ def _parsear_item(item: dict) -> dict | None:
 
         if not titulo:
             return None
+        titulo = _traducir_es(titulo)
         return {"titulo": titulo, "fuente": fuente, "tiempo": _relativo(ts), "ts": ts}
     except Exception:
         return None
