@@ -317,8 +317,8 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
     ]
     if sl and tp:
         lineas += [
-            f"🛑 *SL:* `{fp(sl)}`",
             f"✅ *TP:* `{fp(tp)}`",
+            f"🛑 *SL:* `{fp(sl)}`",
             f"⚖️ *RR:* {rr:.1f}:1" if rr else "",
         ]
     if lote:
@@ -383,8 +383,8 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None, data_source: str
             "",
             f"👉 *Acción:* {accion_mtf}  |  📋 *Orden:* {orden_mtf}",
             f"💰 *Entrada sugerida:* `{_fmt_precio(entrada, ticker)}`",
-            f"🛑 *SL:* `{_fmt_precio(sl, ticker)}`" if sl else "",
             f"✅ *TP:* `{_fmt_precio(tp, ticker)}`" if tp else "",
+            f"🛑 *SL:* `{_fmt_precio(sl, ticker)}`" if sl else "",
         ]
 
     # Entrada discrecional cuando solo TF bajo tiene señal (≥60%) sin confirmación HTF
@@ -405,8 +405,8 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None, data_source: str
             f"⚡ *ENTRADA DISCRECIONAL ({tf_bajo} solo)*",
             f"👉 *Acción:* {accion_disc}  |  📋 *Orden:* {orden_disc}",
             f"💰 *Entrada:* `{_fmt_precio(entrada_disc, ticker)}`",
-            f"🛑 *SL:* `{_fmt_precio(sl_disc, ticker)}`"  if sl_disc else "",
             f"✅ *TP:* `{_fmt_precio(tp_disc, ticker)}`"  if tp_disc else "",
+            f"🛑 *SL:* `{_fmt_precio(sl_disc, ticker)}`"  if sl_disc else "",
             f"📊 *RR estimado:* {rr_d}:1"                 if rr_d > 0 else "",
             f"⚠️ _Sin confirmación {tf_alto} — opera con tamaño reducido_",
         ]
@@ -449,8 +449,8 @@ def _formato_reversal(smc_alto: dict, smc_bajo: dict, ticker: str,
         f"*{tf_bajo} — Entrada:*    {tipo_bajo} ({conf_bajo:.0f}%) · CHoCH ✅ · Barrido ✅",
         "",
         f"💰 *Entrada:* `{_fmt_precio(entrada, ticker)}`",
-        f"🛑 *SL:*     `{_fmt_precio(sl, ticker)}`" if sl else "",
         f"✅ *TP:*     `{_fmt_precio(tp, ticker)}`" if tp else "",
+        f"🛑 *SL:*     `{_fmt_precio(sl, ticker)}`" if sl else "",
         f"📊 *RR:*     `{rr:.1f}:1`",
     ]
     if extras:
@@ -642,7 +642,7 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             _ds_sm = smc.get("_data_source", "")
             await _reply(update,
                 f"{_emoji_dir(dir_)} *{ticker}* `{_fmt_precio(prec, ticker)}` — {tipo} ({conf:.0f}%)\n"
-                f"   SL:`{_fmt_precio(sl, ticker)}` TP:`{_fmt_precio(tp, ticker)}`"
+                f"   TP:`{_fmt_precio(tp, ticker)}` SL:`{_fmt_precio(sl, ticker)}`"
                 + (f"\n📡 _{_ds_sm}_" if _ds_sm else "")
             )
 
@@ -840,8 +840,8 @@ async def cmd_riesgo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"{_emoji_dir(dir_)} *{ticker}* — {dir_}\n"
             "━━━━━━━━━━━━━━━━\n"
             f"💰 Entrada: `{_fmt_precio(entrada, ticker)}`\n"
-            f"🛑 SL: `{_fmt_precio(sl, ticker)}` ({res['pips_sl']:.1f} pips)\n"
             f"✅ TP: `{_fmt_precio(tp, ticker)}` ({res['pips_tp']:.1f} pips)\n"
+            f"🛑 SL: `{_fmt_precio(sl, ticker)}` ({res['pips_sl']:.1f} pips)\n"
             f"⚖️ RR: *{res['rr']:.1f}:1*\n\n"
             f"💼 *Capital ${capital:,.0f} · Riesgo {riesgo_pct}%:*\n"
             f"   Riesgo USD: ${res['riesgo_usd']:.2f}\n"
@@ -1420,8 +1420,8 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"━━━━━━━━━━━━━━━━\n"
         f"{emoji} *{ticker}* · {senal.get('tf','?')}\n"
         f"💰 Entrada: `{_fmt_precio(senal['entrada'], ticker)}`\n"
-        f"🛑 SL: `{_fmt_precio(senal['sl'], ticker)}`\n"
-        f"✅ TP: `{_fmt_precio(senal['tp'], ticker)}`\n\n"
+        f"✅ TP: `{_fmt_precio(senal['tp'], ticker)}`\n"
+        f"🛑 SL: `{_fmt_precio(senal['sl'], ticker)}`\n\n"
         f"🔭 Monitoreando TP/SL automáticamente.\n"
         f"Señales de *{ticker}* pausadas hasta que cierre.\n"
         f"Usa /cerrar {ticker.replace('=X','')} para salida manual."
@@ -1499,7 +1499,7 @@ async def cmd_activos(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             pnl_txt = f" · P&L: {signo}{pips}p"
         lineas += [
             f"\n{emoji} *{t['ticker']}* ({t['timeframe']}){pnl_txt}",
-            f"  Entrada: `{_fmt_precio(t['entrada'], t['ticker'])}`  SL: `{_fmt_precio(t['sl'], t['ticker'])}`  TP: `{_fmt_precio(t['tp'], t['ticker'])}`",
+            f"  Entrada: `{_fmt_precio(t['entrada'], t['ticker'])}`  TP: `{_fmt_precio(t['tp'], t['ticker'])}`  SL: `{_fmt_precio(t['sl'], t['ticker'])}`",
             f"  Precio: `{_fmt_precio(precio_actual, t['ticker'])}`" if precio_actual else "",
         ]
     lineas += ["", "Usa /cerrar TICKER para salida manual."]
@@ -1809,7 +1809,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                                 f"━━━━━━━━━━━━━━━━\n"
                                 f"{accion} *{ticker}* · {tf}\n"
                                 f"Confianza: {conf:.0f}% — sostenida ~15 min\n"
-                                f"💰 `{_fmt_precio(precio, ticker)}` · SL `{_fmt_precio(sl, ticker)}` · TP `{_fmt_precio(tp_, ticker)}`\n"
+                                f"💰 `{_fmt_precio(precio, ticker)}` · TP `{_fmt_precio(tp_, ticker)}` · SL `{_fmt_precio(sl, ticker)}`\n"
                                 + (f"{_sos_noticia}\n" if _sos_noticia else "")
                                 + f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._\n"
                                 + (f"📡 _{_ds_sos}_\n" if _ds_sos else "")
@@ -1887,7 +1887,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     tp_   = smc.get("tp_sugerido", 0)
                     lineas.append(
                         f"{_emoji_dir(dir_)} *{ticker}* `{_fmt_precio(precio, ticker)}` — {tipo} ({conf:.0f}%)\n"
-                        f"   SL:`{_fmt_precio(sl, ticker)}` TP:`{_fmt_precio(tp_, ticker)}`"
+                        f"   TP:`{_fmt_precio(tp_, ticker)}` SL:`{_fmt_precio(sl, ticker)}`"
                     )
                     _ds_m = smc.get("_data_source", "")
                     if _ds_m: _fuentes_medias.add(_ds_m)
@@ -2355,8 +2355,8 @@ async def cmd_registrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"━━━━━━━━━━━━━━━━\n"
         f"{_emoji_dir(dir_)} *{ticker}* {dir_} · {tf_}\n"
         f"💰 Entrada: `{fp(entrada)}`\n"
-        f"🛑 SL: `{fp(sl)}`\n"
         f"✅ TP: `{fp(tp)}`\n"
+        f"🛑 SL: `{fp(sl)}`\n"
         f"💼 Riesgo: ${riesgo_usd:.2f}\n\n"
         f"📝 _Completa setup, emoción y notas en la app_\n"
         f"🆔 Trade *#{trade_id}*"
@@ -2429,8 +2429,8 @@ async def callback_registrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"━━━━━━━━━━━━━━━━\n"
         f"{_emoji_dir(dir_)} *{ticker}* {dir_} · {tf_}\n"
         f"💰 Entrada: `{fp(entrada)}`\n"
-        f"🛑 SL: `{fp(sl)}`\n"
         f"✅ TP: `{fp(tp)}`\n"
+        f"🛑 SL: `{fp(sl)}`\n"
         f"💼 Riesgo: ${riesgo_usd:.2f}\n\n"
         f"📝 _Completa setup, emoción y notas en la app_\n"
         f"🆔 Trade *#{trade_id}*"
