@@ -31,6 +31,8 @@ from utils.multi_timeframe   import analisis_mtf, MTF_COMBOS
 from utils.backtesting       import ejecutar_backtest
 from utils.economic_calendar import (obtener_eventos_hoy, obtener_proximos_eventos,
                                       hay_evento_alto_impacto_pronto, impacto_emoji)
+from utils.news_feed import (formatear_noticias_telegram, obtener_noticias_ticker,
+                              contexto_noticia_ticker)
 from utils.ai_engine         import analizar_performance_ia, calcular_drawdown, calcular_sharpe
 from database.db import (
     obtener_todas_configs_bot, obtener_todas_alertas_activas,
@@ -1141,23 +1143,40 @@ async def cmd_setcapital(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_noticias(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    try:
-        eventos = obtener_eventos_hoy()
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {str(e)[:100]}")
-        return
-    if not eventos:
-        await update.message.reply_text("📰 Sin eventos económicos importantes hoy.")
-        return
     lineas = [
-        "📰 *EVENTOS ECONÓMICOS HOY*",
-        f"_{datetime.now(TZ_MX).strftime('%d/%m/%Y')}_",
+        "📰 *NOTICIAS Y EVENTOS DEL MERCADO*",
+        f"_{_fecha_es()} CDMX_",
         "━━━━━━━━━━━━━━━━",
     ]
-    for ev in eventos:
-        estado = "✅" if ev["ya_paso"] else "⏳"
-        lineas.append(f"{estado} {impacto_emoji(ev['impacto'])} *{ev['hora_mx']}* — {ev['titulo']} ({ev['moneda']})")
-    lineas += ["", "⚠️ _Evita operar ±30 min alrededor de eventos 🔴_"]
+
+    # ── Noticias en tiempo real (mismas fuentes que TradingView) ──
+    try:
+        bloque_news = formatear_noticias_telegram(max_por_cat=3)
+        if bloque_news:
+            # Quitar encabezado propio del bloque (ya lo tenemos arriba)
+            for linea in bloque_news.split("\n")[2:]:
+                lineas.append(linea)
+        else:
+            lineas.append("_Sin noticias recientes disponibles._")
+    except Exception:
+        lineas.append("_Sin noticias recientes disponibles._")
+
+    # ── Eventos económicos del día ──
+    lineas += ["", "📅 *EVENTOS ECONÓMICOS HOY:*", "━━━━━━━━━━━━━━━━"]
+    try:
+        eventos = obtener_eventos_hoy()
+        if eventos:
+            for ev in eventos:
+                estado = "✅" if ev["ya_paso"] else "⏳"
+                lineas.append(
+                    f"{estado} {impacto_emoji(ev['impacto'])} *{ev['hora_mx']}* — {ev['titulo']} ({ev['moneda']})"
+                )
+            lineas.append("\n⚠️ _Evita operar ±30 min alrededor de eventos 🔴_")
+        else:
+            lineas.append("_Sin eventos de alto impacto hoy._")
+    except Exception:
+        lineas.append("_Sin eventos disponibles._")
+
     await _reply(update, "\n".join(lineas))
 
 
@@ -1488,6 +1507,16 @@ async def _generar_resumen_diario() -> str:
         "  🟠 NY Open: 07:30-09:30",
         "", f"📡 *Señales activas ahora: {señales_activas}*",
         "━━━━━━━━━━━━━━━━",
+    ]
+    try:
+        bloque_news = formatear_noticias_telegram(max_por_cat=2)
+        if bloque_news:
+            lineas.append("")
+            lineas += bloque_news.split("\n")
+    except Exception:
+        pass
+    lineas += [
+        "━━━━━━━━━━━━━━━━",
         "⚠️ _Max 1-2% riesgo por trade_",
         "🤖 _ORAM Quant Systems_",
     ]
@@ -1563,6 +1592,16 @@ async def _generar_reporte_cierre() -> str:
         "  🔥 Overlap L+NY: 07:00-10:00",
         "  🟠 NY Open: 07:30-09:30",
         "", "━━━━━━━━━━━━━━━━",
+    ]
+    try:
+        bloque_news = formatear_noticias_telegram(max_por_cat=2)
+        if bloque_news:
+            lineas.append("")
+            lineas += bloque_news.split("\n")
+    except Exception:
+        pass
+    lineas += [
+        "━━━━━━━━━━━━━━━━",
         "⚠️ _Max 1-2% riesgo por trade_",
         "🤖 _ORAM Quant Systems_",
     ]
@@ -1724,6 +1763,12 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     dir_  = smc.get("estructura", {}).get("direccion", "")
                     tipo  = smc.get("estructura", {}).get("tipo", "SMC Signal")
                     msg   = "🚨 *SEÑAL ALTA PRIORIDAD*\n" + _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct)
+                    try:
+                        noticia_ctx = contexto_noticia_ticker(ticker)
+                        if noticia_ctx:
+                            msg += f"\n{noticia_ctx}"
+                    except Exception:
+                        pass
                     # Guardar datos para registro rápido desde Telegram
                     _pending_trades[sig_id] = {
                         "ticker": ticker, "tf": tf, "direccion": dir_,
