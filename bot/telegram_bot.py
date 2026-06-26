@@ -2426,6 +2426,24 @@ def main():
     except Exception as e:
         logger.warning(f"DB init: {e}")
 
+    # ── Webhook TradingView ───────────────────────────────────────────────────
+    try:
+        from utils.webhook_server import iniciar_servidor, set_chat_ids
+        _wh_port = int(os.getenv("PORT", "8080"))
+        iniciar_servidor(_wh_port)
+        try:
+            _wh_configs = obtener_todas_configs_bot()
+            _wh_chats   = [
+                c["telegram_chat_id"] for c in _wh_configs
+                if c.get("telegram_chat_id") and c.get("alertas_activas")
+            ]
+            set_chat_ids(_wh_chats)
+            print(f"📺 Webhook TV activo en :{_wh_port} — {len(_wh_chats)} chat(s)")
+        except Exception as _e:
+            logger.warning(f"Webhook chat_ids: {_e}")
+    except Exception as _e:
+        logger.warning(f"Webhook no iniciado: {_e}")
+
     print("🤖 Iniciando ORAM Quant Bot v3...")
     app = Application.builder().token(TOKEN).build()
 
