@@ -107,6 +107,17 @@ def analisis_mtf(ticker: str, tf_alto: str, tf_bajo: str) -> dict:
             f"pero {tf_alto} aún no confirma. Espera BOS/CHoCH en {tf_alto}."
         )
         resultado["confianza_mtf"] = round(conf_bajo * 0.3, 1)
+        # Niveles discrecionales: señal solo en TF bajo (sin confirmación HTF)
+        if conf_bajo >= 60:
+            from utils.smc_engine import _calcular_sl_tp_dinamico
+            ob_disc   = smc_bajo.get("confluencia", {}).get("ob_activo")
+            liq_disc  = smc_bajo.get("liquidez", {})
+            sl_d, tp_d = _calcular_sl_tp_dinamico(precio, dir_bajo, ob_disc, liq_disc, atr_bajo)
+            resultado["entrada_discrecional"] = round(precio, 5)
+            resultado["sl_discrecional"]      = sl_d
+            resultado["tp_discrecional"]      = tp_d
+            resultado["dir_discrecional"]     = dir_bajo
+            resultado["conf_discrecional"]    = conf_bajo
 
     elif dir_alto != dir_bajo and dir_alto != "neutral" and dir_bajo != "neutral":
         resultado["señal_mtf"] = "⚠️ Divergencia MTF"

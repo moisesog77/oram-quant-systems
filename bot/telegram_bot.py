@@ -386,6 +386,30 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None, data_source: str
             f"🛑 *SL:* `{_fmt_precio(sl, ticker)}`" if sl else "",
             f"✅ *TP:* `{_fmt_precio(tp, ticker)}`" if tp else "",
         ]
+
+    # Entrada discrecional cuando solo TF bajo tiene señal (≥60%) sin confirmación HTF
+    entrada_disc = mtf.get("entrada_discrecional")
+    sl_disc      = mtf.get("sl_discrecional")
+    tp_disc      = mtf.get("tp_discrecional")
+    dir_disc     = mtf.get("dir_discrecional", "neutral")
+    conf_disc    = mtf.get("conf_discrecional", 0)
+    if not alineado and entrada_disc and conf_disc >= 60:
+        accion_disc = "🟢 *COMPRAR*" if dir_disc == "LONG" else "🔴 *VENDER*"
+        dist_sl_d   = abs(entrada_disc - sl_disc) if sl_disc else 0
+        dist_tp_d   = abs(tp_disc - entrada_disc) if tp_disc else 0
+        rr_d        = round(dist_tp_d / dist_sl_d, 1) if dist_sl_d > 0 else 0
+        lineas += [
+            "",
+            "──────────────",
+            f"⚡ *ENTRADA DISCRECIONAL ({tf_bajo} solo)*",
+            f"  {accion_disc}  |  Confianza: {conf_disc:.0f}%",
+            f"  💰 Entrada: `{_fmt_precio(entrada_disc, ticker)}`",
+            f"  🛑 SL: `{_fmt_precio(sl_disc, ticker)}`"  if sl_disc else "",
+            f"  ✅ TP: `{_fmt_precio(tp_disc, ticker)}`"  if tp_disc else "",
+            f"  📊 RR estimado: {rr_d}:1"                 if rr_d > 0 else "",
+            f"  ⚠️ _Sin confirmación {tf_alto} — opera con tamaño reducido_",
+        ]
+
     ctx_txt = ""
     if contexto and contexto.get("texto"):
         ctx_txt = f"{contexto.get('icono','')} _{contexto.get('texto','')}_"
