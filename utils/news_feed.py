@@ -114,3 +114,24 @@ def contexto_noticia_ticker(ticker: str) -> str:
     fuente = f" — {n['fuente']}"  if n["fuente"] else ""
     tiempo = f" ({n['tiempo']})"  if n["tiempo"]  else ""
     return f"📰 _{n['titulo']}{fuente}{tiempo}_"
+
+
+def contexto_noticias_activos(tickers: list, max_items: int = 2) -> str:
+    """Titulares recientes de los tickers activos para justificar el estado del mercado."""
+    items = []
+    seen: set = set()
+    for ticker in tickers:
+        for n in obtener_noticias_ticker(ticker, max_items=3):
+            clave = n["titulo"][:60].lower()
+            if clave not in seen:
+                seen.add(clave)
+                items.append(n)
+    items.sort(key=lambda x: x["ts"], reverse=True)
+    if not items:
+        return ""
+    lineas = ["📰 *Contexto de mercado:*"]
+    for n in items[:max_items]:
+        fuente = f" — _{n['fuente']}_" if n["fuente"] else ""
+        tiempo = f" ({n['tiempo']})"   if n["tiempo"]  else ""
+        lineas.append(f"• {n['titulo']}{fuente}{tiempo}")
+    return "\n".join(lineas)

@@ -32,7 +32,7 @@ from utils.backtesting       import ejecutar_backtest
 from utils.economic_calendar import (obtener_eventos_hoy, obtener_proximos_eventos,
                                       hay_evento_alto_impacto_pronto, impacto_emoji)
 from utils.news_feed import (formatear_noticias_telegram, obtener_noticias_ticker,
-                              contexto_noticia_ticker)
+                              contexto_noticia_ticker, contexto_noticias_activos)
 from utils.ai_engine         import analizar_performance_ia, calcular_drawdown, calcular_sharpe
 from database.db import (
     obtener_todas_configs_bot, obtener_todas_alertas_activas,
@@ -493,6 +493,12 @@ async def cmd_mercado(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     lineas.append(
                         f"{_emoji_dir(dir_)}{prio} *{ticker}* `{_fmt_precio(precio, ticker)}` — {tipo} ({conf:.0f}%) RSI:{rsi:.0f}"
                     )
+                    try:
+                        _noticia_merc = contexto_noticia_ticker(ticker)
+                        if _noticia_merc:
+                            lineas.append(f"   {_noticia_merc}")
+                    except Exception:
+                        pass
                 else:
                     lineas.append(f"⚫ {ticker} — Sin datos")
             except Exception:
@@ -570,9 +576,15 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             logger.error(f"cmd_senales {ticker}: {e}")
 
     if not altas and not medias:
+        _ctx_sin_senal = ""
+        try:
+            _ctx_sin_senal = contexto_noticias_activos(activos, max_items=2)
+        except Exception:
+            pass
         await _reply(update,
             f"⚪ *Sin señales ≥{umbral:.0f}% en este momento*\n\n"
-            "💡 *Mejores horarios:*\n"
+            + (_ctx_sin_senal + "\n\n" if _ctx_sin_senal else "")
+            + "💡 *Mejores horarios:*\n"
             "🟡 London Open: 02:00-04:00 CDMX\n"
             "🔥 Overlap L+NY: 07:00-10:00 CDMX\n"
             "🟠 NY Open: 07:30-09:30 CDMX\n\n"
@@ -586,7 +598,14 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if altas:
         await update.message.reply_text(f"🔥 *{len(altas)} señal(es) ALTA PRIORIDAD:*", parse_mode=MD)
         for ticker, smc, conf in sorted(altas, key=lambda x: -x[2]):
-            await _reply(update, _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct))
+            _msg_alta = _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct)
+            try:
+                _noticia_alta = contexto_noticia_ticker(ticker)
+                if _noticia_alta:
+                    _msg_alta += f"\n{_noticia_alta}"
+            except Exception:
+                pass
+            await _reply(update, _msg_alta)
     if medias:
         await update.message.reply_text(f"⚡ *{len(medias)} señal(es) media:*", parse_mode=MD)
         for ticker, smc, conf in sorted(medias, key=lambda x: -x[2]):
@@ -643,6 +662,12 @@ async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     sup_lvls = liq.get("support_levels", [])
                     if res_lvls: extras.append(f"  🔴 Resistencias: {', '.join([f'`{_fmt_precio(x, tkr)}`' for x in res_lvls[:2]])}")
                     if sup_lvls: extras.append(f"  🟢 Soportes: {', '.join([f'`{_fmt_precio(x, tkr)}`' for x in sup_lvls[:2]])}")
+                try:
+                    _noticia_an = contexto_noticia_ticker(tkr)
+                    if _noticia_an:
+                        extras += ["", _noticia_an]
+                except Exception:
+                    pass
                 await _reply(update, msg + "\n" + "\n".join(extras))
             except Exception as e:
                 logger.error(f"cmd_analizar {tkr}: {e}")
@@ -678,7 +703,12 @@ async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             sup = liq.get("support_levels", [])
             if res: extras.append(f"  🔴 Resistencias: {', '.join([f'`{_fmt_precio(x, ticker)}`' for x in res[:2]])}")
             if sup: extras.append(f"  🟢 Soportes: {', '.join([f'`{_fmt_precio(x, ticker)}`' for x in sup[:2]])}")
-
+        try:
+            _noticia_an1 = contexto_noticia_ticker(ticker)
+            if _noticia_an1:
+                extras += ["", _noticia_an1]
+        except Exception:
+            pass
         await _reply(update, msg + "\n" + "\n".join(extras))
         if conf >= 60 and dir_ != "neutral":
             await _reply(update, f"💡 _Usa_ `/mtf {ticker.replace('=X','')}` _para confirmar con MTF._")
@@ -719,7 +749,14 @@ async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 mtf = analisis_mtf(tkr, tf_alto, tf_bajo)
                 _, _st = obtener_datos(tkr, tf_alto)
                 _ds = "⚠️ yfinance — 15min delay" if "yfinance" in _st else "🟢 Twelve Data — Tiempo real"
-                await _reply(update, _formato_mtf(mtf, tkr, data_source=_ds))
+                _mtf_txt = _formato_mtf(mtf, tkr, data_source=_ds)
+                try:
+                    _noticia_mtf = contexto_noticia_ticker(tkr)
+                    if _noticia_mtf:
+                        _mtf_txt += f"\n{_noticia_mtf}"
+                except Exception:
+                    pass
+                await _reply(update, _mtf_txt)
             except Exception as e:
                 await update.message.reply_text(f"❌ {tkr}: {str(e)[:80]}")
         return
@@ -735,7 +772,14 @@ async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         mtf = analisis_mtf(ticker, tf_alto, tf_bajo)
         _, _st = obtener_datos(ticker, tf_alto)
         _ds = "⚠️ yfinance — 15min delay" if "yfinance" in _st else "🟢 Twelve Data — Tiempo real"
-        await _reply(update, _formato_mtf(mtf, ticker, data_source=_ds))
+        _mtf_msg = _formato_mtf(mtf, ticker, data_source=_ds)
+        try:
+            _noticia_mtf1 = contexto_noticia_ticker(ticker)
+            if _noticia_mtf1:
+                _mtf_msg += f"\n{_noticia_mtf1}"
+        except Exception:
+            pass
+        await _reply(update, _mtf_msg)
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)[:100]}")
 
@@ -1052,6 +1096,12 @@ async def cmd_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     f"{_emoji_dir(dir_)}{prio} *{nombre}* `{_fmt_precio(precio, ticker)}`\n"
                     f"   {tipo} ({conf:.0f}%) · RSI:{rsi:.0f}"
                 )
+                try:
+                    _noticia_wl = contexto_noticia_ticker(ticker)
+                    if _noticia_wl:
+                        lineas.append(f"   {_noticia_wl}")
+                except Exception:
+                    pass
             else:
                 lineas.append(f"⚫ *{nombre}* — Sin datos")
         except Exception:
@@ -1724,13 +1774,19 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                             _watch_senales_enviados[clave_p] = ahora_ts
                             accion = "🟢 *COMPRAR*" if dir_ == "LONG" else "🔴 *VENDER*"
                             _ds_sos = smc.get("_data_source", "")
+                            _sos_noticia = ""
+                            try:
+                                _sos_noticia = contexto_noticia_ticker(ticker)
+                            except Exception:
+                                pass
                             await _send(ctx.bot, chat_id,
                                 f"👁 *SETUP SOSTENIDO — VIGILAR*\n"
                                 f"━━━━━━━━━━━━━━━━\n"
                                 f"{accion} *{ticker}* · {tf}\n"
                                 f"Confianza: {conf:.0f}% — sostenida ~15 min\n"
                                 f"💰 `{_fmt_precio(precio, ticker)}` · SL `{_fmt_precio(sl, ticker)}` · TP `{_fmt_precio(tp_, ticker)}`\n"
-                                f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._\n"
+                                + (f"{_sos_noticia}\n" if _sos_noticia else "")
+                                + f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._\n"
                                 + (f"📡 _{_ds_sos}_\n" if _ds_sos else "")
                                 + f"🕐 {_hora_mx()} CDMX"
                             )
@@ -1883,6 +1939,12 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         lineas_r.insert(0, "⚪ *MERCADO EN RANGO — Sin setups activos*")
                         lineas_r.append(f"\n💡 _Ningún activo supera el umbral {umbral:.0f}% — mercado lateral._")
 
+                    try:
+                        _ctx_rango = contexto_noticias_activos(activos, max_items=2)
+                        if _ctx_rango:
+                            lineas_r += ["", _ctx_rango]
+                    except Exception:
+                        pass
                     lineas_r.append(f"_El bot alertará cuando aparezca una entrada válida._")
                     if _fuentes_rango:
                         lineas_r.append(f"📡 _Fuente: {' | '.join(_fuentes_rango)}_")
