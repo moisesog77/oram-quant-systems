@@ -116,15 +116,26 @@ def _calcular_pips(ticker: str, p1: float, p2: float) -> float:
 
 # ─── Helpers de comunicación ──────────────────────────────────────────────────
 
+# Registro de IDs de mensajes enviados por el bot para limpieza nocturna
+_msg_ids: dict = {}   # {chat_id: [msg_id, ...]}
+
+
+def _guardar_msg_id(chat_id: str, msg):
+    if msg and hasattr(msg, "message_id"):
+        _msg_ids.setdefault(str(chat_id), []).append(msg.message_id)
+
+
 async def _reply(update, text: str):
     try:
         if len(text) > 4000:
             text = text[:3990] + "\n_...truncado_"
-        await update.message.reply_text(text, parse_mode=MD)
+        msg = await update.message.reply_text(text, parse_mode=MD)
+        _guardar_msg_id(str(update.effective_chat.id), msg)
     except Exception:
         try:
             plain = text.replace("*","").replace("_","").replace("`","")
-            await update.message.reply_text(plain[:4000])
+            msg = await update.message.reply_text(plain[:4000])
+            _guardar_msg_id(str(update.effective_chat.id), msg)
         except Exception as e:
             logger.error(f"reply error: {e}")
 
@@ -132,11 +143,13 @@ async def _send(bot, chat_id: str, text: str):
     try:
         if len(text) > 4000:
             text = text[:3990] + "\n_...truncado_"
-        await bot.send_message(chat_id=chat_id, text=text, parse_mode=MD)
+        msg = await bot.send_message(chat_id=chat_id, text=text, parse_mode=MD)
+        _guardar_msg_id(chat_id, msg)
     except Exception:
         try:
             plain = text.replace("*","").replace("_","").replace("`","")
-            await bot.send_message(chat_id=chat_id, text=plain[:4000])
+            msg = await bot.send_message(chat_id=chat_id, text=plain[:4000])
+            _guardar_msg_id(chat_id, msg)
         except Exception as e:
             logger.error(f"send error: {e}")
 
@@ -2202,6 +2215,23 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_reversal: {e}")
 
 
+async def job_limpiar_chat(ctx: ContextTypes.DEFAULT_TYPE):
+    """Borra todos los mensajes del bot en todos los chats activos — 3 AM CDMX."""
+    try:
+        total = 0
+        for chat_id, ids in list(_msg_ids.items()):
+            for msg_id in ids:
+                try:
+                    await ctx.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+                    total += 1
+                except Exception:
+                    pass  # ya eliminado o expirado
+            _msg_ids[chat_id] = []
+        logger.info(f"job_limpiar_chat: {total} mensajes eliminados")
+    except Exception as e:
+        logger.error(f"job_limpiar_chat: {e}")
+
+
 async def job_apertura_semana(ctx: ContextTypes.DEFAULT_TYPE):
     """Aviso de reapertura del mercado cada domingo a las 22:05 UTC (16:05 CDMX)."""
     try:
@@ -2544,6 +2574,7 @@ def main():
         jq.run_daily(job_resumen_diario,  time=dtime(hour=13, minute=0))   # 7AM CDMX (lun-vie)
         jq.run_daily(job_reporte_cierre,  time=dtime(hour=22, minute=0))   # 4PM CDMX (lun-vie)
         jq.run_daily(job_apertura_semana, time=dtime(hour=22, minute=5))   # Dom 16:05 CDMX
+        jq.run_daily(job_limpiar_chat,    time=dtime(hour=8,  minute=0))   # 3AM CDMX (diario)
         jq.run_repeating(job_monitoreo_senales,        interval=300, first=60)
         jq.run_repeating(job_monitoreo_mtf,            interval=900, first=120)
         jq.run_repeating(job_monitoreo_reversal,       interval=60,  first=90)
