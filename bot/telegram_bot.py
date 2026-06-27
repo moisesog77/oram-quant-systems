@@ -1600,6 +1600,10 @@ async def _generar_resumen_diario() -> str:
 
 async def job_resumen_diario(ctx: ContextTypes.DEFAULT_TYPE):
     try:
+        from datetime import timezone as _tz
+        wd = datetime.now(_tz.utc).weekday()
+        if wd in (5, 6):   # sábado o domingo — sin mensaje
+            return
         configs = obtener_todas_configs_bot()
         txt     = await _generar_resumen_diario()
         for cfg in configs:
@@ -1684,8 +1688,12 @@ async def _generar_reporte_cierre() -> str:
 
 
 async def job_reporte_cierre(ctx: ContextTypes.DEFAULT_TYPE):
-    """Reporte de fin de día al NY close (22:00 UTC = 16:00 CDMX)."""
+    """Reporte de fin de día al NY close (22:00 UTC = 16:00 CDMX). Solo lunes-viernes."""
     try:
+        from datetime import timezone as _tz
+        wd = datetime.now(_tz.utc).weekday()
+        if wd in (5, 6):   # sábado o domingo — sin reporte
+            return
         configs = obtener_todas_configs_bot()
         txt     = await _generar_reporte_cierre()
         for cfg in configs:
@@ -1698,6 +1706,8 @@ async def job_reporte_cierre(ctx: ContextTypes.DEFAULT_TYPE):
 async def job_alerta_noticias(ctx: ContextTypes.DEFAULT_TYPE):
     global _eventos_ya_alertados
     try:
+        if not _en_horario_trading():
+            return
         hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=35)
         if not hay_ev or not ev_info:
             return
@@ -2192,8 +2202,36 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_reversal: {e}")
 
 
+async def job_apertura_semana(ctx: ContextTypes.DEFAULT_TYPE):
+    """Aviso de reapertura del mercado cada domingo a las 22:05 UTC (16:05 CDMX)."""
+    try:
+        from datetime import timezone as _tz
+        now_utc = datetime.now(_tz.utc)
+        if not (now_utc.weekday() == 6 and now_utc.hour == 22):
+            return
+        configs = obtener_todas_configs_bot()
+        msg = (
+            "🔓 *¡EL MERCADO ABRE!*\n"
+            "━━━━━━━━━━━━━━━━\n"
+            "Los mercados Forex y Oro están abiertos.\n\n"
+            "⏰ _Domingo 16:00 CDMX — Inicio de semana_\n\n"
+            "💡 *Próximas sesiones:*\n"
+            "  🟡 London Open: lunes 02:00 CDMX\n"
+            "  🔥 Overlap L+NY: lunes 07:00-10:00 CDMX\n\n"
+            "📡 El bot comenzará a enviar señales automáticamente.\n"
+            "🤖 _ORAM Quant Systems_"
+        )
+        for cfg in configs:
+            if cfg.get("alertas_activas") and cfg.get("telegram_chat_id"):
+                await _send(ctx.bot, cfg["telegram_chat_id"], msg)
+    except Exception as e:
+        logger.error(f"job_apertura_semana: {e}")
+
+
 async def job_verificar_alertas_precio(ctx: ContextTypes.DEFAULT_TYPE):
     try:
+        if not _en_horario_trading():
+            return
         alertas = obtener_todas_alertas_activas()
         precios_cache = {}
         for alerta in alertas:
@@ -2503,14 +2541,15 @@ def main():
 
     jq = app.job_queue
     if jq is not None:
-        jq.run_daily(job_resumen_diario,  time=dtime(hour=13, minute=0))   # 7AM CDMX
-        jq.run_daily(job_reporte_cierre,  time=dtime(hour=22, minute=0))   # 4PM CDMX / NY close
-        jq.run_repeating(job_monitoreo_senales,       interval=300, first=60)
-        jq.run_repeating(job_monitoreo_mtf,           interval=900, first=120)
-        jq.run_repeating(job_monitoreo_reversal,      interval=60,  first=90)
+        jq.run_daily(job_resumen_diario,  time=dtime(hour=13, minute=0))   # 7AM CDMX (lun-vie)
+        jq.run_daily(job_reporte_cierre,  time=dtime(hour=22, minute=0))   # 4PM CDMX (lun-vie)
+        jq.run_daily(job_apertura_semana, time=dtime(hour=22, minute=5))   # Dom 16:05 CDMX
+        jq.run_repeating(job_monitoreo_senales,        interval=300, first=60)
+        jq.run_repeating(job_monitoreo_mtf,            interval=900, first=120)
+        jq.run_repeating(job_monitoreo_reversal,       interval=60,  first=90)
         jq.run_repeating(job_verificar_alertas_precio, interval=300, first=30)
-        jq.run_repeating(job_alerta_noticias,         interval=300, first=60)
-        print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Señales c/5m · MTF c/15m · Reversal c/1m · Alertas precio c/5m · Noticias c/5m")
+        jq.run_repeating(job_alerta_noticias,          interval=300, first=60)
+        print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Alertas precio c/5m · Noticias c/5m")
     else:
         print("⚠️  Sin jobs. Instala: pip install APScheduler")
 
