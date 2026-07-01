@@ -27,6 +27,21 @@ warnings.filterwarnings("ignore")
 # el panel multi-activo que llama obtener_datos() para cada ticker+timeframe.
 _DATA_CACHE: dict = {}
 
+# ── Modo SOLO Twelve Data (plan de pago) ──────────────────────────────────────
+# Con SOLO_TWELVE_DATA=true en las variables de entorno:
+#   - yfinance y datos demo quedan DESACTIVADOS — nunca se usan para señales
+#   - TTLs agresivos (plan de pago: 55+ créditos/min, sin límite diario)
+#   - Si Twelve Data falla momentáneamente, se sirve el último dato bueno
+#     de Twelve Data en caché (máx 30 min de antigüedad) con aviso
+def _solo_td() -> bool:
+    return os.environ.get("SOLO_TWELVE_DATA", "").strip().lower() in (
+        "1", "true", "yes", "si", "sí", "on"
+    )
+
+# Antigüedad máxima del caché de emergencia en modo solo-TD (segundos)
+_STALE_MAX_SOLO_TD = 1800
+
+
 def _cache_ttl(timeframe: str) -> int:
     """
     TTL dinámico que distribuye las 800 llamadas/día de Twelve Data (plan gratuito)
@@ -40,8 +55,25 @@ def _cache_ttl(timeframe: str) -> int:
       QUIET    UTC 22-07  (CDMX 16-01): cierre/asiática                     →  ~40 calls
                                                               Total estimado: ~741/800
     (base15=90 en GOLDEN agotaba la cuota ~4 PM CDMX y forzaba yfinance el resto del día)
+
+    Con SOLO_TWELVE_DATA=true (plan de pago) los TTL son agresivos: el límite
+    pasa a ser por minuto (55+ créditos/min) y el consumo pico del bot es
+    ~12 llamadas/min — sobra margen para datos casi en vivo todo el día.
     """
     from datetime import datetime, timezone
+
+    if _solo_td():
+        return {
+            "1m":  30,
+            "5m":  60,
+            "15m": 60,
+            "30m": 120,
+            "1h":  300,
+            "4h":  900,
+            "1d":  3600,
+            "1wk": 14400,
+        }.get(timeframe, 60)
+
     h = datetime.now(timezone.utc).hour
 
     if 13 <= h < 16:                        # GOLDEN: NY open
@@ -369,11 +401,17 @@ def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
     """
     Descarga y valida datos OHLCV con fallback en cascada y caché TTL:
 
-    Prioridad:
+    Prioridad (modo normal):
       1. Caché en memoria   — devuelve datos frescos si están dentro del TTL
       2. Twelve Data API    — tiempo real, latencia ~1 min (requiere TWELVE_DATA_KEY)
       3. yfinance           — respaldo, latencia ~15 min
       4. datos demo         — sintéticos, sin conexión
+
+    Con SOLO_TWELVE_DATA=true (plan de pago) los pasos 3 y 4 se omiten:
+      - Si Twelve Data falla, se sirve el último dato bueno de Twelve Data
+        en caché (máx 30 min) con aviso de antigüedad.
+      - Si tampoco hay caché, retorna (None, error) — la señal se omite
+        esa ronda en lugar de usar datos retrasados o sintéticos.
 
     Retorna:
       (DataFrame con indicadores, str con status/mensaje)
@@ -405,6 +443,20 @@ def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
                 )
                 _DATA_CACHE[cache_key] = (now, df_td, status)
                 return df_td, status
+
+    # ── Modo SOLO Twelve Data: sin yfinance ni demo ───────────────────────────
+    if _solo_td():
+        # Emergencia: servir el último dato bueno de Twelve Data (máx 30 min)
+        if cache_key in _DATA_CACHE:
+            ts, df_cached, _ = _DATA_CACHE[cache_key]
+            edad = now - ts
+            if edad < _STALE_MAX_SOLO_TD:
+                status_stale = (
+                    f"✅ {len(df_cached)} velas · "
+                    f"🟡 Twelve Data — caché ({edad/60:.0f} min)"
+                )
+                return df_cached, status_stale
+        return None, "🔴 Twelve Data sin respuesta — señal omitida esta ronda"
 
     # ── Intento 2: yfinance ───────────────────────────────────────────────────
     if YF_AVAILABLE:

@@ -182,6 +182,18 @@ def _calcular_contexto(df) -> dict:
         return {}
 
 
+def _fuente_datos(status: str) -> str:
+    """Etiqueta legible de la fuente de datos según el status de obtener_datos()."""
+    s = status or ""
+    if "yfinance" in s:
+        return "⚠️ yfinance — 15min delay"
+    if "caché" in s:
+        return "🟡 Twelve Data — caché reciente"
+    if "sin respuesta" in s or "DEMO" in s:
+        return "🔴 Sin datos frescos"
+    return "🟢 Twelve Data — Tiempo real"
+
+
 def _analizar_activo(ticker: str, tf: str = "15m"):
     try:
         df, status = obtener_datos(ticker, tf)
@@ -189,10 +201,7 @@ def _analizar_activo(ticker: str, tf: str = "15m"):
             return None, status
         smc = analisis_completo(df, ticker)
         smc["_contexto_mercado"] = _calcular_contexto(df)
-        if "yfinance" in status:
-            smc["_data_source"] = "⚠️ yfinance — 15min delay"
-        else:
-            smc["_data_source"] = "🟢 Twelve Data — Tiempo real"
+        smc["_data_source"] = _fuente_datos(status)
         return smc, status
     except Exception as e:
         return None, str(e)
@@ -795,7 +804,7 @@ async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             try:
                 mtf = analisis_mtf(tkr, tf_alto, tf_bajo)
                 _, _st = obtener_datos(tkr, tf_alto)
-                _ds = "⚠️ yfinance — 15min delay" if "yfinance" in _st else "🟢 Twelve Data — Tiempo real"
+                _ds = _fuente_datos(_st)
                 _mtf_txt = _formato_mtf(mtf, tkr, data_source=_ds)
                 try:
                     _noticia_mtf = contexto_noticia_ticker(tkr)
@@ -818,7 +827,7 @@ async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         mtf = analisis_mtf(ticker, tf_alto, tf_bajo)
         _, _st = obtener_datos(ticker, tf_alto)
-        _ds = "⚠️ yfinance — 15min delay" if "yfinance" in _st else "🟢 Twelve Data — Tiempo real"
+        _ds = _fuente_datos(_st)
         _mtf_msg = _formato_mtf(mtf, ticker, data_source=_ds)
         try:
             _noticia_mtf1 = contexto_noticia_ticker(ticker)
@@ -2097,7 +2106,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                         _watch_enviados[clave_acc] = ahora_ts
                         icono = "🔴" if "SHORT" in dir_mtf else "🟢"
                         _, _st_form = obtener_datos(ticker, tf_alto)
-                        _ds_form = "⚠️ yfinance — 15min delay" if "yfinance" in (_st_form or "") else "🟢 Twelve Data — Tiempo real"
+                        _ds_form = _fuente_datos(_st_form)
                         msg_w = (
                             f"👁 *SETUP EN FORMACIÓN — INTRADAY · {tf_alto}/{tf_bajo}*\n"
                             f"📊 *{ticker}* — {tf_alto}/{tf_bajo}\n"
@@ -2122,7 +2131,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     _mtf_persistencia.pop(clave_acc, None)
                     df_bajo_ctx, _st_bajo = obtener_datos(ticker, tf_bajo)
                     ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
-                    _ds_mtf = "⚠️ yfinance — 15min delay" if "yfinance" in (_st_bajo or "") else "🟢 Twelve Data — Tiempo real"
+                    _ds_mtf = _fuente_datos(_st_bajo)
                     _msg_mtf = "🔭 *MTF ALINEADO — INTRADAY · " + tf_alto + "/" + tf_bajo + "*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo, data_source=_ds_mtf)
                     _msg_mtf += "\n⏱ _Objetivo: 2-8 horas_"
                     if _aviso_noticia:
@@ -2343,9 +2352,7 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                     rr      = round(dist_tp / dist_sl, 1) if dist_sl > 0 else 0
 
                     _, _st_5m = obtener_datos(ticker, "5m")
-                    _ds = ("⚠️ yfinance — 15min delay"
-                           if "yfinance" in (_st_5m or "")
-                           else "🟢 Twelve Data — Tiempo real")
+                    _ds = _fuente_datos(_st_5m)
 
                     if modo == "normal":
                         header  = f"⚡ *SCALP · 15m/5m — {ticker}*"
