@@ -30,20 +30,22 @@ _DATA_CACHE: dict = {}
 def _cache_ttl(timeframe: str) -> int:
     """
     TTL dinámico que distribuye las 800 llamadas/día de Twelve Data (plan gratuito)
-    concentrando la frescura en las horas de mayor calidad de mercado:
+    concentrando la frescura en las horas de mayor calidad de mercado.
 
-      GOLDEN   UTC 13-16  (CDMX 08-11): NY open — datos cada ~2 min   → ~324 calls
-      ACTIVE   UTC 07-13  (CDMX 02-08): London + pre-NY                → ~160 calls
-               UTC 16-19  (CDMX 11-14): continuación NY                →  ~80 calls
-      MODERATE UTC 19-22  (CDMX 14-17): tarde NY                       →  ~50 calls
-      QUIET    UTC 22-07  (CDMX 17-02): asiática/madrugada             →  ~60 calls
-                                                              Total estimado: ~674/800
+    Presupuesto recalculado con job_monitoreo_scalp activo (c/90s pide 5m+15m x3):
+      GOLDEN   UTC 13-16  (CDMX 07-10): NY open — 5m c/~3min, 15m c/~4.5min → ~354 calls
+      ACTIVE   UTC 07-13  (CDMX 01-07): London + pre-NY                     → ~245 calls
+               UTC 16-19  (CDMX 10-13): continuación NY
+      MODERATE UTC 19-22  (CDMX 13-16): tarde NY                            → ~102 calls
+      QUIET    UTC 22-07  (CDMX 16-01): cierre/asiática                     →  ~40 calls
+                                                              Total estimado: ~741/800
+    (base15=90 en GOLDEN agotaba la cuota ~4 PM CDMX y forzaba yfinance el resto del día)
     """
     from datetime import datetime, timezone
     h = datetime.now(timezone.utc).hour
 
     if 13 <= h < 16:                        # GOLDEN: NY open
-        base15, base1h = 90, 600
+        base15, base1h = 180, 600
     elif (7 <= h < 13) or (16 <= h < 19):  # ACTIVE: London + continuación NY
         base15, base1h = 420, 1800
     elif 19 <= h < 22:                      # MODERATE: tarde NY
