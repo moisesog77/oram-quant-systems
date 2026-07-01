@@ -237,10 +237,12 @@ def _en_horario_trading() -> bool:
     return True
 
 def _en_horario_alertas() -> bool:
-    """Alertas automáticas solo en horario profesional: 7:00–17:00 CDMX, lunes a viernes."""
+    """Alertas automáticas: 6:30–17:00 CDMX, lunes a viernes."""
     if not _en_horario_trading():
         return False
-    return 7 <= datetime.now(TZ_MX).hour < 17
+    ahora = datetime.now(TZ_MX)
+    hora_dec = ahora.hour + ahora.minute / 60
+    return 6.5 <= hora_dec < 17
 
 def _get_user_by_chat(chat_id: str):
     """Obtiene usuario vinculado a este chat_id."""
@@ -2097,10 +2099,13 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
 
 
 def _en_sesion_premium() -> bool:
-    """Londres open (07-10 UTC) o NY open (13-16 UTC) — mayor actividad institucional."""
+    """Londres open (07-10 UTC) o NY open (12:30-16 UTC = 6:30-10 AM CDMX)."""
     from datetime import datetime, timezone
-    h = datetime.now(timezone.utc).hour
-    return (7 <= h < 10) or (13 <= h < 16)
+    now = datetime.now(timezone.utc)
+    h, m = now.hour, now.minute
+    london = 7 <= h < 10
+    ny     = (h == 12 and m >= 30) or (13 <= h < 16)
+    return london or ny
 
 
 def _cerca_nivel_redondo(precio: float) -> bool:
@@ -2121,9 +2126,15 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
     try:
         if not _en_horario_alertas(): return
         if not _en_sesion_premium(): return   # Solo en apertura Londres/NY
+
+        # Detecta si hay evento próximo — NO bloquea, agrega advertencia al mensaje
+        _noticia_proxima = ""
         try:
-            hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=20)
-            if hay_ev: return
+            hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=20)
+            if hay_ev and ev_info:
+                mins = ev_info.get("minutos_restantes", "~")
+                nombre = ev_info.get("nombre", "Evento alto impacto")
+                _noticia_proxima = f"⚠️ _Noticia en ~{mins} min: {nombre} — ajusta SL o espera post-noticia_"
         except Exception:
             pass
 
@@ -2193,6 +2204,8 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
                     msg = "🎯 *REVERSIÓN EN ZONA HTF*\n" + _formato_reversal(
                         smc_alto, smc_bajo, ticker, tf_alto, tf_bajo, nivel_redondo, data_source=_ds_rev
                     )
+                    if _noticia_proxima:
+                        msg += f"\n{_noticia_proxima}"
                     await _send(ctx.bot, chat_id, msg)
                     marcar_señal_enviada(sig_id)
 
