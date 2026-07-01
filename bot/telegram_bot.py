@@ -2339,6 +2339,57 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_scalp: {e}")
 
 
+async def job_cierre_nocturno(ctx: ContextTypes.DEFAULT_TYPE):
+    """
+    11:59 PM CDMX: cierra en el REGISTRO del bot todos los trades activos.
+    No toca posiciones reales en el broker — solo limpia el registro interno
+    para que no bloqueen señales al día siguiente.
+    Envía aviso al usuario para que cierre manualmente en TradingView/IC Markets.
+    """
+    try:
+        trades = obtener_todos_trades_activos()
+        if not trades:
+            return
+
+        por_chat: dict = {}
+        for t in trades:
+            cid = t.get("chat_id", "")
+            if cid:
+                por_chat.setdefault(cid, []).append(t)
+
+        for chat_id, trades_chat in por_chat.items():
+            lineas = [
+                "🔔 *CIERRE NOCTURNO — REGISTRO DEL BOT*",
+                "━━━━━━━━━━━━━━━━",
+                f"Se encontraron *{len(trades_chat)} posición(es) abiertas* en el registro.",
+                "",
+                "*Trades cerrados en el registro interno:*",
+            ]
+            for t in trades_chat:
+                ticker  = t.get("ticker", "")
+                dir_    = t.get("direccion", "")
+                entrada = t.get("entrada", 0)
+                emoji   = "🟢" if dir_ == "LONG" else "🔴"
+                fp      = lambda p: _fmt_precio(p, ticker)
+                lineas.append(f"  {emoji} {ticker} {dir_} @ `{fp(entrada)}`")
+                cerrar_trade_confirmado(t["id"], "auto-cierre nocturno")
+
+            lineas += [
+                "",
+                "⚠️ *ACCIÓN REQUERIDA:*",
+                "_El bot limpió su registro, pero las posiciones reales en_",
+                "_TradingView / IC Markets siguen abiertas si no las cerraste._",
+                "_Verifica y cierra manualmente las que ya no quieras mantener._",
+                "",
+                f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX · ORAM Quant Systems",
+            ]
+            msg = "\n".join(l for l in lineas if l is not None)
+            await _send(ctx.bot, chat_id, msg)
+
+    except Exception as e:
+        logger.error(f"job_cierre_nocturno: {e}")
+
+
 async def job_apertura_semana(ctx: ContextTypes.DEFAULT_TYPE):
     """Aviso de reapertura del mercado cada domingo a las 22:05 UTC (16:05 CDMX)."""
     try:
@@ -2678,9 +2729,10 @@ def main():
 
     jq = app.job_queue
     if jq is not None:
-        jq.run_daily(job_resumen_diario,  time=dtime(hour=13, minute=0))   # 7AM CDMX (lun-vie)
-        jq.run_daily(job_reporte_cierre,  time=dtime(hour=22, minute=0))   # 4PM CDMX (lun-vie)
-        jq.run_daily(job_apertura_semana, time=dtime(hour=22, minute=5))   # Dom 16:05 CDMX
+        jq.run_daily(job_resumen_diario,   time=dtime(hour=13, minute=0))   # 7AM CDMX (lun-vie)
+        jq.run_daily(job_reporte_cierre,   time=dtime(hour=22, minute=0))   # 4PM CDMX (lun-vie)
+        jq.run_daily(job_apertura_semana,  time=dtime(hour=22, minute=5))   # Dom 16:05 CDMX
+        jq.run_daily(job_cierre_nocturno,  time=dtime(hour=5,  minute=59))  # 11:59 PM CDMX
         jq.run_repeating(job_monitoreo_senales,        interval=300, first=60)
         jq.run_repeating(job_monitoreo_mtf,            interval=900, first=120)
         jq.run_repeating(job_monitoreo_reversal,       interval=60,  first=90)
