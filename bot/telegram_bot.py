@@ -546,9 +546,13 @@ async def cmd_mercado(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Panel de señales SMC multi-activo."""
+    """Panel de señales SMC. /senales → INTRADAY 15m. /senales scalp → SCALP 5m."""
+    args    = ctx.args
     chat_id = str(update.effective_chat.id)
     user, cfg = _get_user_by_chat(chat_id)
+
+    modo_scalp  = bool(args and args[0].lower() == "scalp")
+    modo_label  = "SCALP" if modo_scalp else "INTRADAY"
 
     try:
         hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=30)
@@ -563,7 +567,7 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         pass
 
     umbral = float(cfg.get("umbral_confianza", 65)) if cfg else 65
-    tf     = cfg.get("tf_monitor", "15m") if cfg else "15m"
+    tf     = "5m" if modo_scalp else (cfg.get("tf_monitor", "15m") if cfg else "15m")
     try:
         activos = json.loads(cfg.get("activos_monitor", "[]")) if cfg else []
     except Exception:
@@ -578,7 +582,7 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not activos:
         activos = ["EURUSD=X", "GBPUSD=X", "GC=F"]
 
-    await update.message.reply_text(f"⚡ Escaneando {len(activos)} activos en {tf}...")
+    await update.message.reply_text(f"⚡ Escaneando {len(activos)} activos — {modo_label} ({tf})...")
 
     altas, medias = [], []
     for ticker in activos:
@@ -651,23 +655,32 @@ async def cmd_senales(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Análisis SMC completo. Sin args → analiza los 3 activos. /analizar EURUSD [TF] → par específico."""
+    """Análisis SMC. /analizar → 3 activos INTRADAY. /analizar scalp → 3 activos SCALP 5m.
+    /analizar scalp EURUSD → EURUSD en 5m. /analizar EURUSD [TF] → par en TF específico."""
     args    = ctx.args
     chat_id = str(update.effective_chat.id)
     user, cfg = _get_user_by_chat(chat_id)
     capital    = float(cfg.get("capital_cuenta") or 0) or float(user.get("capital_inicial", 10000) if user else 10000.0) if cfg else 10000.0
     riesgo_pct = float(cfg.get("riesgo_pct", 2.0)) if cfg else 2.0
 
-    if not args:
-        # Sin argumentos: analizar todos los activos configurados
+    # Detectar modo scalp — "scalp" como primer argumento
+    modo_scalp = bool(args and args[0].lower() == "scalp")
+    tf_base    = "5m" if modo_scalp else "15m"
+    modo_label = "SCALP" if modo_scalp else "INTRADAY"
+    args_clean = list(args[1:]) if modo_scalp else list(args)
+
+    if not args_clean:
+        # Sin ticker: analizar todos los activos configurados
         try:
             activos = json.loads(cfg.get("activos_monitor", "[]")) if cfg else []
         except Exception:
             activos = []
         if not activos:
             activos = ["EURUSD=X", "GBPUSD=X", "GC=F"]
-        tf = "15m"
-        await update.message.reply_text(f"🔍 Analizando {len(activos)} activos en {tf}...")
+        tf = tf_base
+        await update.message.reply_text(
+            f"🔍 Analizando {len(activos)} activos — {modo_label} ({tf})..."
+        )
         for tkr in activos:
             try:
                 smc, status = _analizar_activo(tkr, tf)
@@ -702,8 +715,8 @@ async def cmd_analizar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"❌ {tkr}: {str(e)[:80]}")
         return
 
-    ticker = _normalizar_ticker(args[0])
-    tf = args[1] if len(args) > 1 else "15m"
+    ticker = _normalizar_ticker(args_clean[0])
+    tf = args_clean[1] if len(args_clean) > 1 else tf_base
 
     await update.message.reply_text(f"🔍 Analizando {ticker} en {tf}...")
     try:
@@ -1835,6 +1848,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                                 f"💰 `{_fmt_precio(precio, ticker)}` · TP `{_fmt_precio(tp_, ticker)}` · SL `{_fmt_precio(sl, ticker)}`\n"
                                 + (f"{_sos_noticia}\n" if _sos_noticia else "")
                                 + f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._\n"
+                                + "⏱ _Objetivo: 2-6 horas_\n"
                                 + (f"📡 _{_ds_sos}_\n" if _ds_sos else "")
                                 + (f"{_aviso_noticia}\n" if _aviso_noticia else "")
                                 + f"🕐 {_hora_mx()} CDMX"
@@ -1868,6 +1882,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     dir_  = smc.get("estructura", {}).get("direccion", "")
                     tipo  = smc.get("estructura", {}).get("tipo", "SMC Signal")
                     msg   = "🚨 *SEÑAL ALTA PRIORIDAD — INTRADAY · " + tf + "*\n" + _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct)
+                    msg  += "\n⏱ _Objetivo: 2-6 horas_"
                     try:
                         noticia_ctx = contexto_noticia_ticker(ticker)
                         if noticia_ctx:
@@ -1925,6 +1940,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         _primera_media = False
                 if _fuentes_medias:
                     lineas.append(f"\n📡 _Fuente: {' | '.join(_fuentes_medias)}_")
+                lineas.append("⏱ _Objetivo: 2-6 horas_")
                 if _aviso_noticia:
                     lineas.append(f"\n{_aviso_noticia}")
                 if len(lineas) > 2:  # solo enviar si hay señales reales (no solo el header)
@@ -2108,6 +2124,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
                     _ds_mtf = "⚠️ yfinance — 15min delay" if "yfinance" in (_st_bajo or "") else "🟢 Twelve Data — Tiempo real"
                     _msg_mtf = "🔭 *MTF ALINEADO — INTRADAY · " + tf_alto + "/" + tf_bajo + "*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo, data_source=_ds_mtf)
+                    _msg_mtf += "\n⏱ _Objetivo: 2-8 horas_"
                     if _aviso_noticia:
                         _msg_mtf += f"\n{_aviso_noticia}"
                     await _send(ctx.bot, chat_id, _msg_mtf)
@@ -2226,6 +2243,7 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
                     msg = "🔔 *REVERSAL — INTRADAY · " + tf_alto + "/" + tf_bajo + "*\n" + _formato_reversal(
                         smc_alto, smc_bajo, ticker, tf_alto, tf_bajo, nivel_redondo, data_source=_ds_rev
                     )
+                    msg += "\n⏱ _Objetivo: 4-12 horas_"
                     if _noticia_proxima:
                         msg += f"\n{_noticia_proxima}"
                     await _send(ctx.bot, chat_id, msg)
