@@ -1750,9 +1750,13 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
     try:
         if not _en_horario_alertas():
             return
+        _aviso_noticia = ""
         try:
-            hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=20)
-            if hay_ev: return
+            hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=20)
+            if hay_ev and ev_info:
+                mins   = ev_info.get("minutos_restantes", "~")
+                nombre = ev_info.get("nombre", "Evento alto impacto")
+                _aviso_noticia = f"⚠️ _Noticia en ~{mins} min: {nombre} — ajusta SL o espera post-noticia_"
         except Exception:
             pass
 
@@ -1826,6 +1830,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                                 + (f"{_sos_noticia}\n" if _sos_noticia else "")
                                 + f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._\n"
                                 + (f"📡 _{_ds_sos}_\n" if _ds_sos else "")
+                                + (f"{_aviso_noticia}\n" if _aviso_noticia else "")
                                 + f"🕐 {_hora_mx()} CDMX"
                             )
                         continue
@@ -1863,6 +1868,8 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                             msg += f"\n{noticia_ctx}"
                     except Exception:
                         pass
+                    if _aviso_noticia:
+                        msg += f"\n{_aviso_noticia}"
                     # Guardar datos para registro rápido desde Telegram
                     _pending_trades[sig_id] = {
                         "ticker": ticker, "tf": tf, "direccion": dir_,
@@ -1912,6 +1919,8 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         _primera_media = False
                 if _fuentes_medias:
                     lineas.append(f"\n📡 _Fuente: {' | '.join(_fuentes_medias)}_")
+                if _aviso_noticia:
+                    lineas.append(f"\n{_aviso_noticia}")
                 if len(lineas) > 2:  # solo enviar si hay señales reales (no solo el header)
                     try:
                         await _send(ctx.bot, chat_id, "\n".join(lineas))
@@ -1998,9 +2007,13 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
 async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
     try:
         if not _en_horario_alertas(): return
+        _aviso_noticia = ""
         try:
-            hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=20)
-            if hay_ev: return
+            hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=20)
+            if hay_ev and ev_info:
+                mins   = ev_info.get("minutos_restantes", "~")
+                nombre = ev_info.get("nombre", "Evento alto impacto")
+                _aviso_noticia = f"⚠️ _Noticia en ~{mins} min: {nombre} — ajusta SL o espera post-noticia_"
         except Exception:
             pass
         configs = obtener_todas_configs_bot()
@@ -2088,7 +2101,10 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     df_bajo_ctx, _st_bajo = obtener_datos(ticker, tf_bajo)
                     ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
                     _ds_mtf = "⚠️ yfinance — 15min delay" if "yfinance" in (_st_bajo or "") else "🟢 Twelve Data — Tiempo real"
-                    await _send(ctx.bot, chat_id, "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo, data_source=_ds_mtf))
+                    _msg_mtf = "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo, data_source=_ds_mtf)
+                    if _aviso_noticia:
+                        _msg_mtf += f"\n{_aviso_noticia}"
+                    await _send(ctx.bot, chat_id, _msg_mtf)
                     _senal_mtf = {"ticker": ticker, "tf": tf_bajo, "direccion": dir_mtf, "entrada": entrada_m, "sl": sl_m, "tp": tp_m, "confianza": confianza_mtf}
                     _ultimas_senales[(chat_id, ticker)] = _senal_mtf
                     _ultimas_senales[chat_id] = _senal_mtf
@@ -2226,10 +2242,13 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
     try:
         if not _en_horario_alertas():
             return
+        _aviso_noticia = ""
         try:
-            hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=10)
-            if hay_ev:
-                return
+            hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=10)
+            if hay_ev and ev_info:
+                mins   = ev_info.get("minutos_restantes", "~")
+                nombre = ev_info.get("nombre", "Evento alto impacto")
+                _aviso_noticia = f"⚠️ _Noticia en ~{mins} min: {nombre} — ajusta SL o espera post-noticia_"
         except Exception:
             pass
 
@@ -2326,6 +2345,8 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                     ]
                     if warn:
                         lineas.append(warn)
+                    if _aviso_noticia:
+                        lineas.append(_aviso_noticia)
                     lineas += [
                         f"📡 _{_ds}_",
                         f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
