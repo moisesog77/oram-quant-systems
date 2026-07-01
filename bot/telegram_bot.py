@@ -759,8 +759,9 @@ async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "posicional": "Posicional (1d/4h)",
     }
 
-    if not args:
-        # ── Sin argumentos: escanear todos los activos configurados ──────────
+    # ── /mtf scalp → escanea los 3 activos con 15m/5m ───────────────────────
+    if not args or (len(args) == 1 and args[0].lower() == "scalp"):
+        modo_scalp = bool(args and args[0].lower() == "scalp")
         _, cfg = _get_user_by_chat(chat_id)
         try:
             activos = json.loads(cfg.get("activos_monitor", "[]")) if cfg else []
@@ -768,9 +769,14 @@ async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             activos = []
         if not activos:
             activos = ["EURUSD=X", "GBPUSD=X", "GC=F"]
-        tf_alto, tf_bajo = MTF_COMBOS.get("Intraday (1h/15m)", ("1h", "15m"))
+        if modo_scalp:
+            tf_alto, tf_bajo = "15m", "5m"
+            modo_label = "SCALP"
+        else:
+            tf_alto, tf_bajo = MTF_COMBOS.get("Intraday (1h/15m)", ("1h", "15m"))
+            modo_label = "INTRADAY"
         await update.message.reply_text(
-            f"🔭 Analizando {len(activos)} activos MTF ({tf_alto}/{tf_bajo})..."
+            f"🔭 Analizando {len(activos)} activos MTF — {modo_label} ({tf_alto}/{tf_bajo})..."
         )
         for tkr in activos:
             try:
@@ -789,7 +795,7 @@ async def cmd_mtf(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"❌ {tkr}: {str(e)[:80]}")
         return
 
-    # ── Con argumento: par específico ─────────────────────────────────────────
+    # ── Con argumento de ticker: par específico ───────────────────────────────
     ticker    = _normalizar_ticker(args[0])
     combo_key = args[1].lower() if len(args) > 1 else "intraday"
     combo     = combo_map.get(combo_key, "Intraday (1h/15m)")
@@ -1822,7 +1828,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                             except Exception:
                                 pass
                             await _send(ctx.bot, chat_id,
-                                f"👁 *SETUP SOSTENIDO — VIGILAR*\n"
+                                f"👁 *SETUP SOSTENIDO — INTRADAY · {tf}*\n"
                                 f"━━━━━━━━━━━━━━━━\n"
                                 f"{accion} *{ticker}* · {tf}\n"
                                 f"Confianza: {conf:.0f}% — sostenida ~15 min\n"
@@ -1861,7 +1867,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     if obtener_trade_activo(chat_id, ticker): continue
                     dir_  = smc.get("estructura", {}).get("direccion", "")
                     tipo  = smc.get("estructura", {}).get("tipo", "SMC Signal")
-                    msg   = "🚨 *SEÑAL ALTA PRIORIDAD*\n" + _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct)
+                    msg   = "🚨 *SEÑAL ALTA PRIORIDAD — INTRADAY · " + tf + "*\n" + _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct)
                     try:
                         noticia_ctx = contexto_noticia_ticker(ticker)
                         if noticia_ctx:
@@ -1895,7 +1901,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     logger.error(f"send alta {ticker}: {e}")
 
             if medias:
-                lineas = [f"⚡ *SEÑALES MEDIAS — {tf} · {_hora_mx()} CDMX*", ""]
+                lineas = [f"⚡ *SEÑALES MEDIAS — INTRADAY · {tf} · {_hora_mx()} CDMX*", ""]
                 _primera_media = True
                 _fuentes_medias = set()
                 for ticker, smc, conf, sig_id in sorted(medias, key=lambda x: -x[2]):
@@ -2077,7 +2083,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                         _, _st_form = obtener_datos(ticker, tf_alto)
                         _ds_form = "⚠️ yfinance — 15min delay" if "yfinance" in (_st_form or "") else "🟢 Twelve Data — Tiempo real"
                         msg_w = (
-                            f"👁 *SETUP EN FORMACIÓN — VIGILAR*\n"
+                            f"👁 *SETUP EN FORMACIÓN — INTRADAY · {tf_alto}/{tf_bajo}*\n"
                             f"📊 *{ticker}* — {tf_alto}/{tf_bajo}\n"
                             f"━━━━━━━━━━━━━━━━\n"
                             f"⚠️ Confianza MTF: {confianza_mtf}% (zona de formación)\n"
@@ -2101,7 +2107,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     df_bajo_ctx, _st_bajo = obtener_datos(ticker, tf_bajo)
                     ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
                     _ds_mtf = "⚠️ yfinance — 15min delay" if "yfinance" in (_st_bajo or "") else "🟢 Twelve Data — Tiempo real"
-                    _msg_mtf = "🔭 *MTF ALINEADO — SEÑAL CONFIRMADA*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo, data_source=_ds_mtf)
+                    _msg_mtf = "🔭 *MTF ALINEADO — INTRADAY · " + tf_alto + "/" + tf_bajo + "*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo, data_source=_ds_mtf)
                     if _aviso_noticia:
                         _msg_mtf += f"\n{_aviso_noticia}"
                     await _send(ctx.bot, chat_id, _msg_mtf)
@@ -2217,7 +2223,7 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
                     nivel_redondo = _cerca_nivel_redondo(entrada)
                     sig_id = registrar_señal(ticker, tf_bajo, tipo_bajo, dir_bajo, conf_bajo, entrada, sl, tp)
                     _ds_rev = smc_bajo.get("_data_source", "")
-                    msg = "🎯 *REVERSIÓN EN ZONA HTF*\n" + _formato_reversal(
+                    msg = "🔔 *REVERSAL — INTRADAY · " + tf_alto + "/" + tf_bajo + "*\n" + _formato_reversal(
                         smc_alto, smc_bajo, ticker, tf_alto, tf_bajo, nivel_redondo, data_source=_ds_rev
                     )
                     if _noticia_proxima:
@@ -2324,11 +2330,11 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                            else "🟢 Twelve Data — Tiempo real")
 
                     if modo == "normal":
-                        header  = f"⚡ *SCALP — {ticker}* (15m/5m)"
+                        header  = f"⚡ *SCALP · 15m/5m — {ticker}*"
                         subtipo = f"15m + 5m alineados · {conf_show:.0f}%"
                         warn    = ""
                     else:
-                        header  = f"⚡ *SCALP DISCRECIONAL — {ticker}* (5m solo)"
+                        header  = f"⚡ *SCALP DISCRECIONAL · 5m — {ticker}*"
                         subtipo = f"Solo 5m · {conf_show:.0f}% · sin confirmación 15m"
                         warn    = "⚠️ _Sin confirmación 15m — opera con tamaño muy reducido_"
 
