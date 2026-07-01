@@ -76,6 +76,7 @@ _watch_enviados: dict = {}
 # clave: (chat_id, ticker, dir)  → checks consecutivos en zona 60-umbral
 _persistencia_senales: dict = {}
 _watch_senales_enviados: dict = {}   # dedup 2h para alertas de excepción por señal
+_dedup_scalp: dict = {}              # (chat_id, ticker, dir) → timestamp último envío scalp
 
 # Alerta de mercado en rango — dedup 2h por chat
 _ultima_alerta_rango: dict = {}
@@ -2202,6 +2203,142 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_reversal: {e}")
 
 
+async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
+    """
+    Detecta señales rápidas usando el par 15m/5m.
+    SCALP normal     : 15m + 5m alineados (confianza MTF ≥ 60%)
+    SCALP DISCRECIONAL: solo 5m con dirección, 15m neutral (conf 5m ≥ 60%)
+    Corre cada 90 s. Filtro noticias relajado a 10 min. Dedup 30 min por señal.
+    """
+    try:
+        if not _en_horario_alertas():
+            return
+        try:
+            hay_ev, _ = hay_evento_alto_impacto_pronto(minutos=10)
+            if hay_ev:
+                return
+        except Exception:
+            pass
+
+        configs          = obtener_todas_configs_bot()
+        activos_default  = ["EURUSD=X", "GBPUSD=X", "GC=F"]
+        ahora_ts         = datetime.now(TZ_MX).timestamp()
+
+        for cfg in configs:
+            chat_id = cfg.get("telegram_chat_id", "")
+            if not chat_id or not cfg.get("alertas_activas"):
+                continue
+            try:
+                activos = json.loads(cfg.get("activos_monitor", "[]")) or activos_default
+            except Exception:
+                activos = activos_default
+
+            for ticker in activos:
+                try:
+                    mtf       = analisis_mtf(ticker, "15m", "5m")
+                    alineado  = mtf.get("alineacion", False)
+                    conf_mtf  = mtf.get("confianza_mtf", 0)
+                    smc_5m    = mtf.get("smc_bajo") or {}
+                    entrada_d = mtf.get("entrada_discrecional")
+
+                    # ── Determinar modo de señal ──────────────────────────
+                    if alineado and conf_mtf >= 60:
+                        modo      = "normal"
+                        dir_      = smc_5m.get("estructura", {}).get("direccion", "neutral")
+                        entrada   = mtf.get("entrada_sugerida")
+                        sl        = mtf.get("sl_sugerido")
+                        tp        = mtf.get("tp_sugerido")
+                        tipo_5m   = smc_5m.get("estructura", {}).get("tipo", "")
+                        conf_show = conf_mtf
+                    elif not alineado and entrada_d:
+                        modo      = "discrecional"
+                        dir_      = mtf.get("dir_discrecional", "neutral")
+                        conf_disc = mtf.get("conf_discrecional", 0)
+                        if conf_disc < 60:
+                            continue
+                        entrada   = entrada_d
+                        sl        = mtf.get("sl_discrecional")
+                        tp        = mtf.get("tp_discrecional")
+                        tipo_5m   = smc_5m.get("estructura", {}).get("tipo", "")
+                        conf_show = conf_disc
+                    else:
+                        continue
+
+                    if dir_ == "neutral" or not entrada or not sl or not tp:
+                        continue
+
+                    # ── Dedup 30 min ──────────────────────────────────────
+                    clave_dd = (chat_id, ticker, dir_)
+                    if ahora_ts - _dedup_scalp.get(clave_dd, 0) < 1800:
+                        continue
+
+                    # ── Construir mensaje ─────────────────────────────────
+                    fp       = lambda p: _fmt_precio(p, ticker)
+                    accion   = "🟢 *COMPRAR*" if dir_ == "LONG" else "🔴 *VENDER*"
+                    if "BOS" in tipo_5m:
+                        orden = "Stop Limit"
+                    elif "CHoCH" in tipo_5m:
+                        orden = "Límite"
+                    else:
+                        orden = "Mercado"
+
+                    dist_sl = abs(entrada - sl)
+                    dist_tp = abs(tp - entrada)
+                    rr      = round(dist_tp / dist_sl, 1) if dist_sl > 0 else 0
+
+                    _, _st_5m = obtener_datos(ticker, "5m")
+                    _ds = ("⚠️ yfinance — 15min delay"
+                           if "yfinance" in (_st_5m or "")
+                           else "🟢 Twelve Data — Tiempo real")
+
+                    if modo == "normal":
+                        header  = f"⚡ *SCALP — {ticker}* (15m/5m)"
+                        subtipo = f"15m + 5m alineados · {conf_show:.0f}%"
+                        warn    = ""
+                    else:
+                        header  = f"⚡ *SCALP DISCRECIONAL — {ticker}* (5m solo)"
+                        subtipo = f"Solo 5m · {conf_show:.0f}% · sin confirmación 15m"
+                        warn    = "⚠️ _Sin confirmación 15m — opera con tamaño muy reducido_"
+
+                    lineas = [
+                        header,
+                        "━━━━━━━━━━━━━━━━",
+                        f"👉 *Acción:* {accion}  |  📋 *Orden:* {orden}",
+                        f"💰 *Entrada:* `{fp(entrada)}`",
+                        f"✅ *TP:* `{fp(tp)}`",
+                        f"🛑 *SL:* `{fp(sl)}`",
+                        f"⚖️ *RR:* {rr}:1" if rr > 0 else "",
+                        f"📊 _{subtipo}_",
+                        f"⏱ _Objetivo: {'15-30' if modo == 'normal' else '10-20'} min_",
+                    ]
+                    if warn:
+                        lineas.append(warn)
+                    lineas += [
+                        f"📡 _{_ds}_",
+                        f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
+                    ]
+
+                    msg = "\n".join(l for l in lineas if l)
+                    await _send(ctx.bot, chat_id, msg)
+
+                    _dedup_scalp[clave_dd] = ahora_ts
+                    _ultimas_senales[chat_id] = {
+                        "ticker":    ticker,
+                        "direccion": dir_,
+                        "entrada":   entrada,
+                        "sl":        sl,
+                        "tp":        tp,
+                        "tf":        "5m",
+                        "setup":     f"Scalp {'Discrecional' if modo == 'discrecional' else 'SMC'}",
+                    }
+
+                except Exception as e:
+                    logger.error(f"job_scalp {ticker}: {e}")
+
+    except Exception as e:
+        logger.error(f"job_monitoreo_scalp: {e}")
+
+
 async def job_apertura_semana(ctx: ContextTypes.DEFAULT_TYPE):
     """Aviso de reapertura del mercado cada domingo a las 22:05 UTC (16:05 CDMX)."""
     try:
@@ -2547,9 +2684,10 @@ def main():
         jq.run_repeating(job_monitoreo_senales,        interval=300, first=60)
         jq.run_repeating(job_monitoreo_mtf,            interval=900, first=120)
         jq.run_repeating(job_monitoreo_reversal,       interval=60,  first=90)
+        jq.run_repeating(job_monitoreo_scalp,          interval=90,  first=45)
         jq.run_repeating(job_verificar_alertas_precio, interval=300, first=30)
         jq.run_repeating(job_alerta_noticias,          interval=300, first=60)
-        print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Alertas precio c/5m · Noticias c/5m")
+        print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Scalp c/90s · Alertas precio c/5m · Noticias c/5m")
     else:
         print("⚠️  Sin jobs. Instala: pip install APScheduler")
 
