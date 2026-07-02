@@ -56,23 +56,24 @@ def _cache_ttl(timeframe: str) -> int:
                                                               Total estimado: ~741/800
     (base15=90 en GOLDEN agotaba la cuota ~4 PM CDMX y forzaba yfinance el resto del día)
 
-    Con SOLO_TWELVE_DATA=true (plan de pago) los TTL son agresivos: el límite
-    pasa a ser por minuto (55+ créditos/min) y el consumo pico del bot es
-    ~12 llamadas/min — sobra margen para datos casi en vivo todo el día.
+    Con SOLO_TWELVE_DATA=true (plan Grow 55: 55 créditos/min, sin límite diario)
+    los TTL son agresivos: 45s en 5m/15m garantiza dato fresco en cada corrida
+    de los jobs (60s los más rápidos). Consumo sostenido ~10-12/min,
+    pico en arranque ~24/min — margen de 2x sobre el límite del plan.
     """
     from datetime import datetime, timezone
 
     if _solo_td():
         return {
-            "1m":  30,
-            "5m":  60,
-            "15m": 60,
-            "30m": 120,
-            "1h":  300,
-            "4h":  900,
+            "1m":  20,
+            "5m":  45,
+            "15m": 45,
+            "30m": 90,
+            "1h":  180,
+            "4h":  600,
             "1d":  3600,
             "1wk": 14400,
-        }.get(timeframe, 60)
+        }.get(timeframe, 45)
 
     h = datetime.now(timezone.utc).hour
 

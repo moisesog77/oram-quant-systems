@@ -72,7 +72,7 @@ _mtf_persistencia: dict = {}
 # Timestamp del último envío de alerta de vigilancia — dedup 2h
 _watch_enviados: dict = {}
 
-# Persistencia señales regulares — si se mantiene 60-64% por 3 checks seguidos (~15 min) → alerta excepción
+# Persistencia señales regulares — si se mantiene 60-64% por 5 checks seguidos (~15 min) → alerta excepción
 # clave: (chat_id, ticker, dir)  → checks consecutivos en zona 60-umbral
 _persistencia_senales: dict = {}
 _watch_senales_enviados: dict = {}   # dedup 2h para alertas de excepción por señal
@@ -246,12 +246,12 @@ def _en_horario_trading() -> bool:
     return True
 
 def _en_horario_alertas() -> bool:
-    """Alertas automáticas: 6:30–17:00 CDMX, lunes a viernes."""
+    """Alertas automáticas: 6:00–17:00 CDMX, lunes a viernes."""
     if not _en_horario_trading():
         return False
     ahora = datetime.now(TZ_MX)
     hora_dec = ahora.hour + ahora.minute / 60
-    return 6.5 <= hora_dec < 17
+    return 6 <= hora_dec < 17
 
 def _get_user_by_chat(chat_id: str):
     """Obtiene usuario vinculado a este chat_id."""
@@ -1833,11 +1833,11 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
 
                     if conf < umbral:
                         # Zona de persistencia: 60% ≤ conf < umbral configurado
-                        # Si se mantiene sostenido 3 checks (~15 min) → alerta de excepción
+                        # Si se mantiene sostenido 5 checks (~15 min a 180s/check) → alerta de excepción
                         clave_p = (chat_id, ticker, dir_)
                         _persistencia_senales[clave_p] = _persistencia_senales.get(clave_p, 0) + 1
                         ahora_ts = datetime.now(TZ_MX).timestamp()
-                        if (_persistencia_senales[clave_p] >= 3 and
+                        if (_persistencia_senales[clave_p] >= 5 and
                                 smc.get("señal_valida", False) and
                                 ahora_ts - _watch_senales_enviados.get(clave_p, 0) > 7200):
                             _persistencia_senales[clave_p] = 0
@@ -1965,9 +1965,9 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                 hora_mx  = datetime.now(TZ_MX).hour
                 # Solo enviar en horario activo: 5am–5pm CDMX (fuera de sesión asiática)
                 en_horario_activo = 5 <= hora_mx < 17
-                # Enviar después de 12 checks (~60 min) sin señal y sin haberlo avisado en 2h
+                # Enviar después de 20 checks (~60 min a 180s/check) sin señal y sin haberlo avisado en 2h
                 if (en_horario_activo and
-                        _checks_sin_senal.get(chat_id, 0) >= 12 and
+                        _checks_sin_senal.get(chat_id, 0) >= 20 and
                         ahora_ts - _ultima_alerta_rango.get(chat_id, 0) > 7200):
                     _checks_sin_senal[chat_id]   = 0
                     _ultima_alerta_rango[chat_id] = ahora_ts
@@ -2095,10 +2095,10 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                             _mtf_persistencia.pop(clave_vig, None)
                             continue
                     if confianza_mtf < 63:
-                        # ── Alerta de vigilancia 60-62%: 3 checks (~45 min) + dedup 2h ──
+                        # ── Alerta de vigilancia 60-62%: 9 checks (~45 min a 300s/check) + dedup 2h ──
                         _mtf_persistencia.pop(clave_acc, None)
                         _mtf_persistencia[clave_vig] = _mtf_persistencia.get(clave_vig, 0) + 1
-                        if _mtf_persistencia[clave_vig] < 3: continue
+                        if _mtf_persistencia[clave_vig] < 9: continue
                         if obtener_trade_activo(chat_id, ticker): continue
                         ahora_ts = datetime.now(TZ_MX).timestamp()
                         if ahora_ts - _watch_enviados.get(clave_acc, 0) < 7200: continue
@@ -2122,10 +2122,10 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                         )
                         await _send(ctx.bot, chat_id, msg_w)
                         continue
-                    # ── Alerta de acción ≥63%: 2 checks consecutivos (~30 min) ──
+                    # ── Alerta de acción ≥63%: 6 checks consecutivos (~30 min a 300s/check) ──
                     _mtf_persistencia.pop(clave_vig, None)
                     _mtf_persistencia[clave_acc] = _mtf_persistencia.get(clave_acc, 0) + 1
-                    if _mtf_persistencia[clave_acc] < 2: continue
+                    if _mtf_persistencia[clave_acc] < 6: continue
                     if (ticker, dir_mtf) in mtf_recientes: continue
                     if obtener_trade_activo(chat_id, ticker): continue
                     _mtf_persistencia.pop(clave_acc, None)
@@ -2147,12 +2147,12 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
 
 
 def _en_sesion_premium() -> bool:
-    """Londres open (07-10 UTC) o NY open (12:30-16 UTC = 6:30-10 AM CDMX)."""
+    """Londres open (07-10 UTC) o NY open (12-16 UTC = 6-10 AM CDMX)."""
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
-    h, m = now.hour, now.minute
+    h = now.hour
     london = 7 <= h < 10
-    ny     = (h == 12 and m >= 30) or (13 <= h < 16)
+    ny     = 12 <= h < 16
     return london or ny
 
 
@@ -2270,7 +2270,7 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
     Detecta señales rápidas usando el par 15m/5m.
     SCALP normal     : 15m + 5m alineados (confianza MTF ≥ 60%)
     SCALP DISCRECIONAL: solo 5m con dirección, 15m neutral (conf 5m ≥ 60%)
-    Corre cada 90 s. Filtro noticias relajado a 10 min. Dedup 30 min por señal.
+    Corre cada 60 s. Filtro noticias relajado a 10 min. Dedup 30 min por señal.
     """
     try:
         if not _en_horario_alertas():
@@ -2798,12 +2798,14 @@ def main():
         jq.run_daily(job_reporte_cierre,   time=dtime(hour=22, minute=0))   # 4PM CDMX (lun-vie)
         jq.run_daily(job_apertura_semana,  time=dtime(hour=22, minute=5))   # Dom 16:05 CDMX
         jq.run_daily(job_cierre_nocturno,  time=dtime(hour=5,  minute=59))  # 11:59 PM CDMX
-        jq.run_repeating(job_monitoreo_senales,        interval=300, first=60)
-        jq.run_repeating(job_monitoreo_mtf,            interval=900, first=120)
+        # Intervalos calibrados para plan Twelve Data Grow 55 (55 créditos/min,
+        # sin límite diario). Consumo sostenido ~10-12/min, pico ~24/min.
+        jq.run_repeating(job_monitoreo_senales,        interval=180, first=60)
+        jq.run_repeating(job_monitoreo_mtf,            interval=300, first=100)
         jq.run_repeating(job_monitoreo_reversal,       interval=60,  first=90)
-        jq.run_repeating(job_monitoreo_scalp,          interval=90,  first=45)
-        jq.run_repeating(job_verificar_alertas_precio, interval=300, first=30)
-        jq.run_repeating(job_alerta_noticias,          interval=300, first=60)
+        jq.run_repeating(job_monitoreo_scalp,          interval=60,  first=45)
+        jq.run_repeating(job_verificar_alertas_precio, interval=120, first=30)
+        jq.run_repeating(job_alerta_noticias,          interval=300, first=75)
         print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Scalp c/90s · Alertas precio c/5m · Noticias c/5m")
     else:
         print("⚠️  Sin jobs. Instala: pip install APScheduler")
