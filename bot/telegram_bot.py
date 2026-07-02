@@ -247,7 +247,7 @@ def _en_horario_trading() -> bool:
     return True
 
 def _en_horario_alertas() -> bool:
-    """Alertas automáticas: desde 6:00 AM CDMX hasta el cierre del mercado.
+    """Alertas automáticas: desde 5:45 AM CDMX hasta el cierre del mercado.
 
     El día de mercado de los 3 activos termina a las 17:00 NY:
       - EURUSD/GBPUSD: rollover de sesión (liquidez muere, spreads se abren)
@@ -257,7 +257,7 @@ def _en_horario_alertas() -> bool:
     if not _en_horario_trading():
         return False
     ahora = datetime.now(TZ_MX)
-    if ahora.hour + ahora.minute / 60 < 6:
+    if ahora.hour + ahora.minute / 60 < 5.75:
         return False
     ny = datetime.now(TZ_NY)
     return ny.hour + ny.minute / 60 < 17
@@ -1866,19 +1866,52 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                                 _sos_noticia = contexto_noticia_ticker(ticker)
                             except Exception:
                                 pass
+                            # Tipo de orden — misma lógica que _formato_senal_completo
+                            _te_sos = smc.get("tipo_entrada", "mercado")
+                            if _te_sos in ("limite_ob", "limite_fvg"):
+                                orden_sos = "Límite"
+                            elif "BOS" in tipo:
+                                orden_sos = "Stop Limit"
+                            else:
+                                orden_sos = "Mercado"
+                            _dsl_sos = abs(precio - sl) if sl else 0
+                            _dtp_sos = abs(tp_ - precio) if tp_ else 0
+                            rr_sos   = round(_dtp_sos / _dsl_sos, 1) if _dsl_sos > 0 else 0
+                            ri_sos   = (calcular_riesgo(precio, sl, tp_, capital, riesgo_pct) or {}) if (precio and sl and tp_) else {}
+                            lote_sos = ri_sos.get("lot_size", 0)
+                            gan_sos  = ri_sos.get("ganancia_pot", 0)
+                            ctx_sos  = smc.get("_contexto_mercado", {})
+                            ctx_l    = (f"{ctx_sos.get('icono','')} _Contexto: {ctx_sos.get('texto','')}_"
+                                        if ctx_sos.get("texto") else "")
+                            lineas_sos = [
+                                f"👁 *SETUP SOSTENIDO — INTRADAY · {tf}*",
+                                "━━━━━━━━━━━━━━━━",
+                                f"📌 *Señal:* {tipo}",
+                                f"👉 *Acción:* {accion} *{ticker}*  |  📋 *Orden:* {orden_sos}",
+                                f"🎯 Confianza: {_conf_bar(conf)} — sostenida ~15 min",
+                                f"💰 *Entrada:* `{_fmt_precio(precio, ticker)}`",
+                                f"✅ *TP:* `{_fmt_precio(tp_, ticker)}`",
+                                f"🛑 *SL:* `{_fmt_precio(sl, ticker)}`",
+                                f"⚖️ *RR:* {rr_sos}:1" if rr_sos > 0 else "",
+                            ]
+                            if lote_sos:
+                                lineas_sos += [
+                                    f"💼 *Gestión ({riesgo_pct}% riesgo):*",
+                                    f"   Lote: {lote_sos:.3f}  ·  Riesgo: ${capital * riesgo_pct / 100:.0f}  ·  Gan. pot.: ${gan_sos:.0f}",
+                                ]
+                            if ctx_l:
+                                lineas_sos.append(ctx_l)
+                            lineas_sos.append(f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._")
+                            lineas_sos.append("⏱ _Objetivo: 2-6 horas_")
+                            if _aviso_noticia:
+                                lineas_sos.append(_aviso_noticia)
+                            if _ds_sos:
+                                lineas_sos.append(f"📡 _{_ds_sos}_")
+                            lineas_sos.append(f"🕐 {_hora_mx()} CDMX")
+                            if _sos_noticia:
+                                lineas_sos.append(_sos_noticia)
                             await _send(ctx.bot, chat_id,
-                                f"👁 *SETUP SOSTENIDO — INTRADAY · {tf}*\n"
-                                f"━━━━━━━━━━━━━━━━\n"
-                                f"{accion} *{ticker}* · {tf}\n"
-                                f"Confianza: {conf:.0f}% — sostenida ~15 min\n"
-                                f"💰 `{_fmt_precio(precio, ticker)}` · TP `{_fmt_precio(tp_, ticker)}` · SL `{_fmt_precio(sl, ticker)}`\n"
-                                + (f"{_sos_noticia}\n" if _sos_noticia else "")
-                                + f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._\n"
-                                + "⏱ _Objetivo: 2-6 horas_\n"
-                                + (f"📡 _{_ds_sos}_\n" if _ds_sos else "")
-                                + (f"{_aviso_noticia}\n" if _aviso_noticia else "")
-                                + f"🕐 {_hora_mx()} CDMX"
-                            )
+                                        "\n".join(l for l in lineas_sos if l))
                         continue
 
                     # Confianza ≥ umbral — flujo normal
@@ -2287,7 +2320,9 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
     Detecta señales rápidas usando el par 15m/5m.
     SCALP normal     : 15m + 5m alineados (confianza MTF ≥ 60%)
     SCALP DISCRECIONAL: solo 5m con dirección, 15m neutral (conf 5m ≥ 60%)
-    Corre cada 60 s. Filtro noticias relajado a 10 min. Dedup 30 min por señal.
+    Corre cada 60 s. Filtro noticias relajado a 10 min. Dedup 15 min por señal
+    (= duración del trade: cerrado un scalp, puede llegar el siguiente).
+    Estrategia PRIORITARIA del usuario — máxima frecuencia y formato completo.
     """
     try:
         if not _en_horario_alertas():
@@ -2315,11 +2350,16 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 activos = activos_default
 
+            user_sc    = obtener_usuario_por_id(cfg.get("user_id"))
+            capital    = float(cfg.get("capital_cuenta") or 0) or float(user_sc.get("capital_inicial", 10000) if user_sc else 10000.0)
+            riesgo_pct = float(cfg.get("riesgo_pct", 2.0))
+
             for ticker in activos:
                 try:
                     mtf       = analisis_mtf(ticker, "15m", "5m")
                     alineado  = mtf.get("alineacion", False)
                     conf_mtf  = mtf.get("confianza_mtf", 0)
+                    smc_15m   = mtf.get("smc_alto") or {}
                     smc_5m    = mtf.get("smc_bajo") or {}
                     entrada_d = mtf.get("entrada_discrecional")
 
@@ -2349,9 +2389,9 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                     if dir_ == "neutral" or not entrada or not sl or not tp:
                         continue
 
-                    # ── Dedup 30 min ──────────────────────────────────────
+                    # ── Dedup 15 min (scalp prioritario — un trade dura eso) ──
                     clave_dd = (chat_id, ticker, dir_)
-                    if ahora_ts - _dedup_scalp.get(clave_dd, 0) < 1800:
+                    if ahora_ts - _dedup_scalp.get(clave_dd, 0) < 900:
                         continue
 
                     # ── Construir mensaje ─────────────────────────────────
@@ -2368,29 +2408,68 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                     dist_tp = abs(tp - entrada)
                     rr      = round(dist_tp / dist_sl, 1) if dist_sl > 0 else 0
 
-                    _, _st_5m = obtener_datos(ticker, "5m")
+                    df_5m, _st_5m = obtener_datos(ticker, "5m")
                     _ds = _fuente_datos(_st_5m)
+
+                    # Desglose de ambos timeframes (mismo formato que MTF)
+                    tipo_15  = smc_15m.get("estructura", {}).get("tipo", "Sin señal")
+                    dir_15   = smc_15m.get("estructura", {}).get("direccion", "neutral")
+                    conf_15  = smc_15m.get("confluencia", {}).get("confianza", 0)
+                    conf_5   = smc_5m.get("confluencia", {}).get("confianza", 0)
+                    tipo_5   = tipo_5m or "Sin señal"
+
+                    # Gestión de riesgo — lote listo para copiar al broker
+                    riesgo_info = calcular_riesgo(entrada, sl, tp, capital, riesgo_pct) or {}
+                    lote        = riesgo_info.get("lot_size", 0)
+                    ganancia    = riesgo_info.get("ganancia_pot", 0)
+
+                    # Contexto de mercado (ATR comprimido, volatilidad, etc.)
+                    ctx_sc  = _calcular_contexto(df_5m) if df_5m is not None else {}
+                    ctx_txt = (f"{ctx_sc.get('icono','')} _Contexto: {ctx_sc.get('texto','')}_"
+                               if ctx_sc.get("texto") else "")
+
+                    # Noticia reciente del ticker
+                    _noticia_sc = ""
+                    try:
+                        _noticia_sc = contexto_noticia_ticker(ticker)
+                    except Exception:
+                        pass
 
                     if modo == "normal":
                         header  = f"⚡ *SCALP · 15m/5m — {ticker}*"
-                        subtipo = f"15m + 5m alineados · {conf_show:.0f}%"
+                        estado  = "📐 Estado: ✅ *15m + 5m ALINEADOS*"
                         warn    = ""
                     else:
                         header  = f"⚡ *SCALP DISCRECIONAL · 5m — {ticker}*"
-                        subtipo = f"Solo 5m · {conf_show:.0f}% · sin confirmación 15m"
+                        estado  = "📐 Estado: ⚠️ *Solo 5m — sin confirmación 15m*"
                         warn    = "⚠️ _Sin confirmación 15m — opera con tamaño muy reducido_"
 
                     lineas = [
                         header,
                         "━━━━━━━━━━━━━━━━",
+                        estado,
+                        f"🎯 Confianza: {_conf_bar(conf_show)}",
+                        "",
+                        "*TF Alto (15m) — Estructura:*",
+                        f"  {_emoji_dir(dir_15)} {tipo_15} ({conf_15:.0f}%)",
+                        "",
+                        "*TF Bajo (5m) — Entrada:*",
+                        f"  {_emoji_dir(dir_)} {tipo_5} ({conf_5:.0f}%)",
+                        "",
                         f"👉 *Acción:* {accion}  |  📋 *Orden:* {orden}",
                         f"💰 *Entrada:* `{fp(entrada)}`",
                         f"✅ *TP:* `{fp(tp)}`",
                         f"🛑 *SL:* `{fp(sl)}`",
                         f"⚖️ *RR:* {rr}:1" if rr > 0 else "",
-                        f"📊 _{subtipo}_",
-                        f"⏱ _Objetivo: {'15-30' if modo == 'normal' else '10-20'} min_",
                     ]
+                    if lote:
+                        lineas += [
+                            f"💼 *Gestión ({riesgo_pct}% riesgo):*",
+                            f"   Lote: {lote:.3f}  ·  Riesgo: ${capital * riesgo_pct / 100:.0f}  ·  Gan. pot.: ${ganancia:.0f}",
+                        ]
+                    if ctx_txt:
+                        lineas.append(ctx_txt)
+                    lineas.append(f"⏱ _Objetivo: {'15-30' if modo == 'normal' else '10-20'} min_")
                     if warn:
                         lineas.append(warn)
                     if _aviso_noticia:
@@ -2399,6 +2478,8 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                         f"📡 _{_ds}_",
                         f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
                     ]
+                    if _noticia_sc:
+                        lineas.append(_noticia_sc)
 
                     msg = "\n".join(l for l in lineas if l)
                     await _send(ctx.bot, chat_id, msg)
@@ -2811,7 +2892,7 @@ def main():
 
     jq = app.job_queue
     if jq is not None:
-        jq.run_daily(job_resumen_diario,   time=dtime(hour=12, minute=0))   # 6AM CDMX — arranque de alertas
+        jq.run_daily(job_resumen_diario,   time=dtime(hour=11, minute=45))  # 5:45AM CDMX — arranque de alertas
         # Reporte de cierre: 2 horarios UTC + guard interno de 17:0x NY (DST-proof)
         jq.run_daily(job_reporte_cierre,   time=dtime(hour=21, minute=2))   # 17:02 NY en verano
         jq.run_daily(job_reporte_cierre,   time=dtime(hour=22, minute=2))   # 17:02 NY en invierno
