@@ -48,6 +48,7 @@ from database.db import (
 import pandas as pd
 
 TZ_MX  = ZoneInfo("America/Mexico_City")
+TZ_NY  = ZoneInfo("America/New_York")   # cierre de mercado FX/oro: 17:00 NY (DST-proof)
 TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "")
 MD     = "Markdown"
 
@@ -246,12 +247,20 @@ def _en_horario_trading() -> bool:
     return True
 
 def _en_horario_alertas() -> bool:
-    """Alertas automáticas: 6:00–17:00 CDMX, lunes a viernes."""
+    """Alertas automáticas: desde 6:00 AM CDMX hasta el cierre del mercado.
+
+    El día de mercado de los 3 activos termina a las 17:00 NY:
+      - EURUSD/GBPUSD: rollover de sesión (liquidez muere, spreads se abren)
+      - XAUUSD: pausa diaria 17:00-18:00 NY
+    17:00 NY = 15:00 CDMX en verano, 16:00 CDMX en invierno (DST automático).
+    """
     if not _en_horario_trading():
         return False
     ahora = datetime.now(TZ_MX)
-    hora_dec = ahora.hour + ahora.minute / 60
-    return 6 <= hora_dec < 17
+    if ahora.hour + ahora.minute / 60 < 6:
+        return False
+    ny = datetime.now(TZ_NY)
+    return ny.hour + ny.minute / 60 < 17
 
 def _get_user_by_chat(chat_id: str):
     """Obtiene usuario vinculado a este chat_id."""
@@ -1645,7 +1654,7 @@ async def job_resumen_diario(ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def _generar_reporte_cierre() -> str:
-    """Reporte de cierre de día — NY close (22:00 UTC / 16:00 CDMX)."""
+    """Reporte de cierre de día — al cierre real del mercado (17:00 NY)."""
     categorias = {"Forex": ["EURUSD=X", "GBPUSD=X"], "Materias": ["GC=F"]}
     ahora      = datetime.now(TZ_MX)
 
@@ -1719,9 +1728,17 @@ async def _generar_reporte_cierre() -> str:
 
 
 async def job_reporte_cierre(ctx: ContextTypes.DEFAULT_TYPE):
-    """Reporte de fin de día al NY close (22:00 UTC = 16:00 CDMX). Solo lunes-viernes."""
+    """Reporte de fin de día EXACTAMENTE al cierre del mercado (17:00 NY).
+
+    Programado a las 21:02 y 22:02 UTC; el guard de hora NY deja pasar solo
+    la corrida que coincide con las 17:0x NY — DST-proof sin depender de pytz.
+    Solo lunes-viernes.
+    """
     try:
         from datetime import timezone as _tz
+        ahora_ny = datetime.now(TZ_NY)
+        if ahora_ny.hour != 17:   # solo la corrida que cae a las 17:0x NY
+            return
         wd = datetime.now(_tz.utc).weekday()
         if wd in (5, 6):   # sábado o domingo — sin reporte
             return
@@ -2794,8 +2811,10 @@ def main():
 
     jq = app.job_queue
     if jq is not None:
-        jq.run_daily(job_resumen_diario,   time=dtime(hour=13, minute=0))   # 7AM CDMX (lun-vie)
-        jq.run_daily(job_reporte_cierre,   time=dtime(hour=22, minute=0))   # 4PM CDMX (lun-vie)
+        jq.run_daily(job_resumen_diario,   time=dtime(hour=12, minute=0))   # 6AM CDMX — arranque de alertas
+        # Reporte de cierre: 2 horarios UTC + guard interno de 17:0x NY (DST-proof)
+        jq.run_daily(job_reporte_cierre,   time=dtime(hour=21, minute=2))   # 17:02 NY en verano
+        jq.run_daily(job_reporte_cierre,   time=dtime(hour=22, minute=2))   # 17:02 NY en invierno
         jq.run_daily(job_apertura_semana,  time=dtime(hour=22, minute=5))   # Dom 16:05 CDMX
         jq.run_daily(job_cierre_nocturno,  time=dtime(hour=5,  minute=59))  # 11:59 PM CDMX
         # Intervalos calibrados para plan Twelve Data Grow 55 (55 créditos/min,
