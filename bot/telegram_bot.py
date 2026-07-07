@@ -259,8 +259,10 @@ def _en_horario_alertas() -> bool:
     ahora = datetime.now(TZ_MX)
     if ahora.hour + ahora.minute / 60 < 5.75:
         return False
+    # Cierre a las 17:00 NY. El piso de 6:00 NY evita que la ventana "reviva"
+    # cuando NY cruza medianoche antes que CDMX (22:00-24:00 CDMX = 00:00-02:00 NY).
     ny = datetime.now(TZ_NY)
-    return ny.hour + ny.minute / 60 < 17
+    return 6 <= ny.hour + ny.minute / 60 < 17
 
 def _get_user_by_chat(chat_id: str):
     """Obtiene usuario vinculado a este chat_id."""
@@ -1881,7 +1883,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                             lote_sos = ri_sos.get("lot_size", 0)
                             gan_sos  = ri_sos.get("ganancia_pot", 0)
                             ctx_sos  = smc.get("_contexto_mercado", {})
-                            ctx_l    = (f"{ctx_sos.get('icono','')} _Contexto: {ctx_sos.get('texto','')}_"
+                            ctx_l    = (f"{ctx_sos.get('icono','')} _{ctx_sos.get('texto','')}_"
                                         if ctx_sos.get("texto") else "")
                             lineas_sos = [
                                 f"👁 *SETUP SOSTENIDO — INTRADAY · {tf}*",
@@ -2425,7 +2427,7 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
 
                     # Contexto de mercado (ATR comprimido, volatilidad, etc.)
                     ctx_sc  = _calcular_contexto(df_5m) if df_5m is not None else {}
-                    ctx_txt = (f"{ctx_sc.get('icono','')} _Contexto: {ctx_sc.get('texto','')}_"
+                    ctx_txt = (f"{ctx_sc.get('icono','')} _{ctx_sc.get('texto','')}_"
                                if ctx_sc.get("texto") else "")
 
                     # Noticia reciente del ticker
