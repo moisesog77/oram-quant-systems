@@ -183,11 +183,14 @@ def _calcular_contexto(df) -> dict:
         return {}
 
 
-def _lineas_precision(entrada: float, sl: float, tp: float, dir_: str, ticker: str) -> list:
+def _lineas_precision(entrada: float, sl: float, tp: float, dir_: str, ticker: str,
+                      rr_min: float = 1.5) -> list:
     """Líneas de precisión operativa para las alertas:
       🎯 Parcial 1R  — cobrar 50% a 1R y mover SL a breakeven
-      🚫 Límite de entrada — precio a partir del cual el RR cae bajo 1.5
+      🚫 Límite de entrada — precio a partir del cual el RR cae bajo rr_min
          (si el precio ya pasó ese nivel, la señal expiró: no perseguir)
+    rr_min: 1.5 para intraday; 1.3 para scalp/vigilancia (mismo umbral que
+    sus filtros — así el límite nunca queda debajo de la entrada oficial).
     """
     try:
         if not (entrada and sl and tp):
@@ -195,8 +198,8 @@ def _lineas_precision(entrada: float, sl: float, tp: float, dir_: str, ticker: s
         dist_sl = abs(entrada - sl)
         if dist_sl <= 0:
             return []
-        # RR(p) >= 1.5  →  p límite = (TP + 1.5·SL) / 2.5  (igual en ambas direcciones)
-        p_limite = (tp + 1.5 * sl) / 2.5
+        # RR(p) >= m  →  p límite = (TP + m·SL) / (1 + m)  (ambas direcciones)
+        p_limite = (tp + rr_min * sl) / (1 + rr_min)
         if dir_ == "LONG":
             parcial = entrada + dist_sl
             return [
@@ -510,6 +513,7 @@ def _formato_reversal(smc_alto: dict, smc_bajo: dict, ticker: str,
         f"🛑 *SL:*     `{_fmt_precio(sl, ticker)}`" if sl else "",
         f"📊 *RR:*     `{rr:.1f}:1`",
     ]
+    lineas += _lineas_precision(entrada, sl, tp, dir_, ticker)
     if extras:
         lineas += [""] + extras
     lineas += [
@@ -1930,7 +1934,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                                 f"🛑 *SL:* `{_fmt_precio(sl, ticker)}`",
                                 f"⚖️ *RR:* {rr_sos}:1" if rr_sos > 0 else "",
                             ]
-                            lineas_sos += _lineas_precision(precio, sl, tp_, dir_, ticker)
+                            lineas_sos += _lineas_precision(precio, sl, tp_, dir_, ticker, rr_min=1.3)
                             if lote_sos:
                                 lineas_sos += [
                                     f"💼 *Gestión ({riesgo_pct}% riesgo):*",
@@ -2503,7 +2507,7 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                         f"🛑 *SL:* `{fp(sl)}`",
                         f"⚖️ *RR:* {rr}:1" if rr > 0 else "",
                     ]
-                    lineas += _lineas_precision(entrada, sl, tp, dir_, ticker)
+                    lineas += _lineas_precision(entrada, sl, tp, dir_, ticker, rr_min=1.3)
                     if lote:
                         lineas += [
                             f"💼 *Gestión ({riesgo_pct}% riesgo):*",
