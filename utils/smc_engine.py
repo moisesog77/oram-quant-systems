@@ -539,58 +539,75 @@ def _calcular_sl_tp_dinamico(
     atr: float,
 ) -> tuple[float, float]:
     """
-    SL/TP basado en estructura real del OB y liquidez, no en ATR genérico.
+    SL/TP anclados a la ESTRUCTURA REAL de las velas (OB + swings de liquidez).
 
     LONG:
-      SL = justo bajo el OB alcista activo (con buffer de 10% del ATR)
-      TP = nivel de resistencia/liquidez más cercano por encima del precio
+      SL = debajo del ancla estructural más profunda entre el piso del OB
+           alcista y el soporte/swing low más cercano bajo el precio, con
+           buffer anti stop-hunt del 25% del ATR. Así un retesteo normal
+           de la zona de ruptura no saca el trade.
+      TP = 15% del ATR ANTES de la primera resistencia real por encima
+           (cobrar antes del muro de liquidez, no apostar a atravesarlo).
 
-    SHORT:
-      SL = justo sobre el OB bajista activo (con buffer de 10% del ATR)
-      TP = nivel de soporte/liquidez más cercano por debajo del precio
+    SHORT: espejo (techo del OB / resistencia más cercana; soporte real abajo).
 
-    Fallback: si no hay OB activo, usa 1.5×ATR / 3×ATR.
+    Fallbacks (solo sin estructura mapeada):
+      - Sin OB ni swing cercano → SL a 1.5×ATR.
+      - Sin resistencia/soporte objetivo → TP geométrico 2R (última opción).
+
+    Nota: el TP en nivel real puede dar RR < 1.5. Eso es información, no
+    error: significa que el muro está cerca y el trade no tiene espacio.
+    Los filtros de RR aguas arriba descartan esas señales.
     """
-    buffer = atr * 0.1   # buffer del 10% del ATR para evitar stop hunts
-
     if direccion == "neutral" or atr == 0:
         return 0.0, 0.0
 
-    dist_sl_min = atr * 0.5  # SL mínimo aceptable
+    buffer_sl   = atr * 0.25   # anti stop-hunt: cubre la mecha de retesteo típica
+    buffer_tp   = atr * 0.15   # cobrar antes de que el precio toque el muro
+    dist_sl_min = atr * 0.5
+    dist_sl_max = atr * 3.0
 
-    if ob_activo is not None:
-        if direccion == "LONG":
-            sl = ob_activo.precio_bot - buffer
-            if precio - sl < dist_sl_min:
-                sl = precio - dist_sl_min
-            # Limitar SL máximo a 3×ATR: si el OB quedó muy lejos del precio
-            # actual, un SL en él produce RR absurdos (ej: 0.1:1). En ese caso
-            # se usa un SL ajustado al rango actual del mercado.
-            if precio - sl > atr * 3.0:
-                sl = precio - atr * 3.0
-            dist_sl = precio - sl
-            ress = sorted([r for r in liquidez.get("resistance_levels", []) if r > precio])
-            tp_candidatos = [r for r in ress if (r - precio) >= dist_sl * 1.5]
-            # Fallback garantiza RR 2:1 (no usa ress[0] que puede ser demasiado cercano)
-            tp = tp_candidatos[0] if tp_candidatos else precio + dist_sl * 2.0
+    sops = sorted([s for s in liquidez.get("support_levels", []) if s < precio], reverse=True)
+    ress = sorted([r for r in liquidez.get("resistance_levels", []) if r > precio])
+
+    if direccion == "LONG":
+        # ── SL: debajo de TODA la estructura cercana ──────────────────────
+        anclas = []
+        if ob_activo is not None:
+            anclas.append(ob_activo.precio_bot)
+        sop_cercano = next((s for s in sops if precio - s <= dist_sl_max), None)
+        if sop_cercano is not None:
+            anclas.append(sop_cercano)
+        sl = (min(anclas) - buffer_sl) if anclas else (precio - atr * 1.5)
+        sl = max(sl, precio - dist_sl_max)   # tope: no más de 3×ATR
+        sl = min(sl, precio - dist_sl_min)   # piso: al menos 0.5×ATR
+        dist_sl = precio - sl
+
+        # ── TP: antes de la primera resistencia real operable ─────────────
+        # (a más de 0.5×ATR — un nivel pegado al precio es la ruptura misma)
+        ress_validas = [r for r in ress if r - precio >= atr * 0.5]
+        if ress_validas:
+            tp = ress_validas[0] - buffer_tp
         else:
-            sl = ob_activo.precio_top + buffer
-            if sl - precio < dist_sl_min:
-                sl = precio + dist_sl_min
-            if sl - precio > atr * 3.0:
-                sl = precio + atr * 3.0
-            dist_sl = sl - precio
-            sops = sorted([s for s in liquidez.get("support_levels", []) if s < precio], reverse=True)
-            tp_candidatos = [s for s in sops if (precio - s) >= dist_sl * 1.5]
-            tp = tp_candidatos[0] if tp_candidatos else precio - dist_sl * 2.0
-    else:
-        # Fallback ATR garantiza RR 2:1
-        if direccion == "LONG":
-            sl = precio - atr * 1.5
-            tp = precio + atr * 3.0
+            tp = precio + dist_sl * 2.0      # sin niveles mapeados: geometría
+
+    else:  # SHORT
+        anclas = []
+        if ob_activo is not None:
+            anclas.append(ob_activo.precio_top)
+        res_cercana = next((r for r in ress if r - precio <= dist_sl_max), None)
+        if res_cercana is not None:
+            anclas.append(res_cercana)
+        sl = (max(anclas) + buffer_sl) if anclas else (precio + atr * 1.5)
+        sl = min(sl, precio + dist_sl_max)
+        sl = max(sl, precio + dist_sl_min)
+        dist_sl = sl - precio
+
+        sops_validos = [s for s in sops if precio - s >= atr * 0.5]
+        if sops_validos:
+            tp = sops_validos[0] + buffer_tp
         else:
-            sl = precio + atr * 1.5
-            tp = precio - atr * 3.0
+            tp = precio - dist_sl * 2.0
 
     return round(sl, 5), round(tp, 5)
 

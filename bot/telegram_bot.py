@@ -183,6 +183,37 @@ def _calcular_contexto(df) -> dict:
         return {}
 
 
+def _lineas_precision(entrada: float, sl: float, tp: float, dir_: str, ticker: str) -> list:
+    """Líneas de precisión operativa para las alertas:
+      🎯 Parcial 1R  — cobrar 50% a 1R y mover SL a breakeven
+      🚫 Límite de entrada — precio a partir del cual el RR cae bajo 1.5
+         (si el precio ya pasó ese nivel, la señal expiró: no perseguir)
+    """
+    try:
+        if not (entrada and sl and tp):
+            return []
+        dist_sl = abs(entrada - sl)
+        if dist_sl <= 0:
+            return []
+        # RR(p) >= 1.5  →  p límite = (TP + 1.5·SL) / 2.5  (igual en ambas direcciones)
+        p_limite = (tp + 1.5 * sl) / 2.5
+        if dir_ == "LONG":
+            parcial = entrada + dist_sl
+            return [
+                f"🎯 *Parcial 1R:* `{_fmt_precio(parcial, ticker)}` _(cobra 50% y SL a breakeven)_",
+                f"🚫 *No entrar arriba de:* `{_fmt_precio(p_limite, ticker)}`",
+            ]
+        if dir_ == "SHORT":
+            parcial = entrada - dist_sl
+            return [
+                f"🎯 *Parcial 1R:* `{_fmt_precio(parcial, ticker)}` _(cobra 50% y SL a breakeven)_",
+                f"🚫 *No entrar abajo de:* `{_fmt_precio(p_limite, ticker)}`",
+            ]
+    except Exception:
+        pass
+    return []
+
+
 def _fuente_datos(status: str) -> str:
     """Etiqueta legible de la fuente de datos según el status de obtener_datos()."""
     s = status or ""
@@ -344,6 +375,7 @@ def _formato_senal_completo(smc: dict, ticker: str, tf: str,
             f"🛑 *SL:* `{fp(sl)}`",
             f"⚖️ *RR:* {rr:.1f}:1" if rr else "",
         ]
+        lineas += _lineas_precision(precio, sl, tp, dir_, ticker)
     if lote:
         lineas += [
             "",
@@ -409,6 +441,7 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None, data_source: str
             f"✅ *TP:* `{_fmt_precio(tp, ticker)}`" if tp else "",
             f"🛑 *SL:* `{_fmt_precio(sl, ticker)}`" if sl else "",
         ]
+        lineas += _lineas_precision(entrada, sl, tp, dir_bajo, ticker)
 
     # Entrada discrecional cuando solo TF bajo tiene señal (≥60%) sin confirmación HTF
     entrada_disc = mtf.get("entrada_discrecional")
@@ -431,8 +464,9 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None, data_source: str
             f"✅ *TP:* `{_fmt_precio(tp_disc, ticker)}`"  if tp_disc else "",
             f"🛑 *SL:* `{_fmt_precio(sl_disc, ticker)}`"  if sl_disc else "",
             f"📊 *RR estimado:* {rr_d}:1"                 if rr_d > 0 else "",
-            f"⚠️ _Sin confirmación {tf_alto} — opera con tamaño reducido_",
         ]
+        lineas += _lineas_precision(entrada_disc, sl_disc, tp_disc, dir_disc, ticker)
+        lineas.append(f"⚠️ _Sin confirmación {tf_alto} — opera con tamaño reducido_")
 
     ctx_txt = ""
     if contexto and contexto.get("texto"):
@@ -1896,6 +1930,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                                 f"🛑 *SL:* `{_fmt_precio(sl, ticker)}`",
                                 f"⚖️ *RR:* {rr_sos}:1" if rr_sos > 0 else "",
                             ]
+                            lineas_sos += _lineas_precision(precio, sl, tp_, dir_, ticker)
                             if lote_sos:
                                 lineas_sos += [
                                     f"💼 *Gestión ({riesgo_pct}% riesgo):*",
@@ -2409,6 +2444,10 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                     dist_sl = abs(entrada - sl)
                     dist_tp = abs(tp - entrada)
                     rr      = round(dist_tp / dist_sl, 1) if dist_sl > 0 else 0
+                    # Con TP anclado a niveles reales, RR bajo = muro de
+                    # liquidez cerca → el scalp no tiene espacio: no enviar
+                    if dist_sl <= 0 or (dist_tp / dist_sl) < 1.3:
+                        continue
 
                     df_5m, _st_5m = obtener_datos(ticker, "5m")
                     _ds = _fuente_datos(_st_5m)
@@ -2464,6 +2503,7 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                         f"🛑 *SL:* `{fp(sl)}`",
                         f"⚖️ *RR:* {rr}:1" if rr > 0 else "",
                     ]
+                    lineas += _lineas_precision(entrada, sl, tp, dir_, ticker)
                     if lote:
                         lineas += [
                             f"💼 *Gestión ({riesgo_pct}% riesgo):*",
