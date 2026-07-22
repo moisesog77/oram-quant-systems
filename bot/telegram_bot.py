@@ -2701,15 +2701,15 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                         f"⚖️ *RR:* {rr}:1",
                     ]
                     lineas += _lineas_precision(entrada, sl, tp, dir_, ticker, rr_min=1.3)
+                    _obj = _objetivo_tiempo(entrada, tp, atr, "5m")
+                    if _obj:
+                        lineas.append(_obj)
                     if lote:
                         lineas += [
                             f"💼 *Gestión ({riesgo_pct}% riesgo):*",
                             f"   Lote: {lote:.3f}  ·  Riesgo: ${capital * riesgo_pct / 100:.0f}  ·  Gan. pot.: ${gan:.0f}",
                         ]
-                    _obj = _objetivo_tiempo(entrada, tp, atr, "5m")
-                    if _obj:
-                        lineas.append(_obj)
-                    # ── Diagnóstico integrado (/porque de fábrica) ────────
+                    # ── Diagnóstico integrado (auto-explicación) ──────────
                     lineas += [
                         "",
                         "🔎 *Por qué se disparó:*",
