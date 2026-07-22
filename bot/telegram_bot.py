@@ -78,6 +78,11 @@ _watch_enviados: dict = {}
 _persistencia_senales: dict = {}
 _watch_senales_enviados: dict = {}   # dedup 2h para alertas de excepción por señal
 _dedup_scalp: dict = {}              # (chat_id, ticker, dir) → timestamp último envío scalp
+_dedup_rebote: dict = {}             # (chat_id, ticker, dir) → timestamp último envío rebote por barrido
+
+# Umbral de confianza para REBOTE POR BARRIDO — gatillo ajustable:
+#   subir = menos señales, más precisas | bajar = más señales, más ruido
+UMBRAL_REBOTE = 60.0
 
 # Alerta de mercado en rango — dedup 2h por chat
 _ultima_alerta_rango: dict = {}
@@ -2578,6 +2583,144 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_scalp: {e}")
 
 
+async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
+    """
+    REBOTE POR BARRIDO — caza el stop-hunt + reversión que el reversal estricto
+    dejaba pasar. Usa la MISMA detección de barrido del motor (_detectar_barrido
+    _liquidez) pero SIN las capas que la estrangulaban (alineación 1h, CHoCH
+    obligatorio, RR≥2). Corre en 5m para confirmar rápido.
+
+    Filtros: barrido detectado + dirección clara + confianza ≥ UMBRAL_REBOTE
+    + RR estructural ≥ 1.3. Dedup 15 min.
+
+    Trade-off aceptado: al no exigir confirmación HTF, algunos barridos serán
+    rupturas reales que siguen (falsos rebotes). El gatillo es UMBRAL_REBOTE.
+    """
+    try:
+        if not _en_horario_alertas():
+            return
+        _aviso_noticia = ""
+        try:
+            hay_ev, ev_info = hay_evento_alto_impacto_pronto(minutos=10)
+            if hay_ev and ev_info:
+                mins   = ev_info.get("minutos_restantes", "~")
+                nombre = ev_info.get("nombre", "Evento alto impacto")
+                _aviso_noticia = f"⚠️ _Noticia en ~{mins} min: {nombre} — ajusta SL o espera post-noticia_"
+        except Exception:
+            pass
+
+        configs         = obtener_todas_configs_bot()
+        activos_default = ["EURUSD=X", "GBPUSD=X", "GC=F"]
+        ahora_ts        = datetime.now(TZ_MX).timestamp()
+
+        for cfg in configs:
+            chat_id = cfg.get("telegram_chat_id", "")
+            if not chat_id or not cfg.get("alertas_activas"):
+                continue
+            try:
+                activos = json.loads(cfg.get("activos_monitor", "[]")) or activos_default
+            except Exception:
+                activos = activos_default
+
+            user_rb    = obtener_usuario_por_id(cfg.get("user_id"))
+            capital    = float(cfg.get("capital_cuenta") or 0) or float(user_rb.get("capital_inicial", 10000) if user_rb else 10000.0)
+            riesgo_pct = float(cfg.get("riesgo_pct", 2.0))
+
+            for ticker in activos:
+                try:
+                    smc, _st = _analizar_activo(ticker, "5m")
+                    if not smc or "error" in smc:
+                        continue
+
+                    # ── El corazón de la señal: el barrido ya ocurrió ─────
+                    if not smc.get("barrido_liquidez", False):
+                        continue
+                    dir_ = smc.get("estructura", {}).get("direccion", "neutral")
+                    if dir_ == "neutral":
+                        continue
+                    conf = smc.get("confluencia", {}).get("confianza", 0)
+                    if conf < UMBRAL_REBOTE:
+                        continue
+
+                    entrada = smc.get("precio", 0)
+                    sl      = smc.get("sl_sugerido", 0)
+                    tp      = smc.get("tp_sugerido", 0)
+                    if not (entrada and sl and tp):
+                        continue
+                    dist_sl = abs(entrada - sl)
+                    dist_tp = abs(tp - entrada)
+                    if dist_sl <= 0 or (dist_tp / dist_sl) < 1.3:
+                        continue
+                    rr = round(dist_tp / dist_sl, 1)
+
+                    # ── Dedup 15 min ──────────────────────────────────────
+                    clave_dd = (chat_id, ticker, dir_)
+                    if ahora_ts - _dedup_rebote.get(clave_dd, 0) < 900:
+                        continue
+
+                    fp     = lambda p: _fmt_precio(p, ticker)
+                    tipo   = smc.get("estructura", {}).get("tipo", "")
+                    accion = "🟢 *COMPRAR*" if dir_ == "LONG" else "🔴 *VENDER*"
+                    if "BOS" in tipo:
+                        orden = "Stop Limit"
+                    elif "CHoCH" in tipo:
+                        orden = "Límite"
+                    else:
+                        orden = "Mercado"
+                    zona = "mínimo" if dir_ == "LONG" else "máximo"
+
+                    ri   = calcular_riesgo(entrada, sl, tp, capital, riesgo_pct) or {}
+                    lote = ri.get("lot_size", 0)
+                    gan  = ri.get("ganancia_pot", 0)
+                    _ds  = _fuente_datos(_st)
+
+                    lineas = [
+                        f"🔄 *REBOTE POR BARRIDO · 5m — {ticker}*",
+                        "━━━━━━━━━━━━━━━━",
+                        f"💧 *Stop-hunt confirmado:* barrido del {zona} previo con cierre de regreso",
+                        f"📌 *Estructura:* {tipo} ({conf:.0f}%)",
+                        f"👉 *Acción:* {accion}  |  📋 *Orden:* {orden}",
+                        f"💰 *Entrada:* `{fp(entrada)}`",
+                        f"✅ *TP:* `{fp(tp)}`",
+                        f"🛑 *SL:* `{fp(sl)}`",
+                        f"⚖️ *RR:* {rr}:1",
+                    ]
+                    lineas += _lineas_precision(entrada, sl, tp, dir_, ticker, rr_min=1.3)
+                    if lote:
+                        lineas += [
+                            f"💼 *Gestión ({riesgo_pct}% riesgo):*",
+                            f"   Lote: {lote:.3f}  ·  Riesgo: ${capital * riesgo_pct / 100:.0f}  ·  Gan. pot.: ${gan:.0f}",
+                        ]
+                    _obj = _objetivo_tiempo(entrada, tp, smc.get("atr", 0) or 0, "5m")
+                    if _obj:
+                        lineas.append(_obj)
+                    lineas.append("⚠️ _Sin confirmación 1h — verifica el rechazo en chart y opera con tamaño reducido_")
+                    if _aviso_noticia:
+                        lineas.append(_aviso_noticia)
+                    lineas += [
+                        f"📡 _{_ds}_",
+                        f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
+                    ]
+                    try:
+                        _n = contexto_noticia_ticker(ticker)
+                        if _n:
+                            lineas.append(_n)
+                    except Exception:
+                        pass
+
+                    await _send(ctx.bot, chat_id, "\n".join(l for l in lineas if l))
+                    _dedup_rebote[clave_dd] = ahora_ts
+                    _ultimas_senales[chat_id] = {
+                        "ticker": ticker, "direccion": dir_, "entrada": entrada,
+                        "sl": sl, "tp": tp, "tf": "5m", "setup": "Rebote por barrido",
+                    }
+                except Exception as e:
+                    logger.error(f"job_rebote {ticker}: {e}")
+
+    except Exception as e:
+        logger.error(f"job_monitoreo_rebote: {e}")
+
+
 async def job_cierre_nocturno(ctx: ContextTypes.DEFAULT_TYPE):
     """
     11:59 PM CDMX: cierra en el REGISTRO del bot todos los trades activos.
@@ -2980,6 +3123,7 @@ def main():
         jq.run_repeating(job_monitoreo_mtf,            interval=300, first=100)
         jq.run_repeating(job_monitoreo_reversal,       interval=60,  first=90)
         jq.run_repeating(job_monitoreo_scalp,          interval=60,  first=45)
+        jq.run_repeating(job_monitoreo_rebote,         interval=60,  first=55)
         jq.run_repeating(job_verificar_alertas_precio, interval=120, first=30)
         jq.run_repeating(job_alerta_noticias,          interval=300, first=75)
         print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Scalp c/90s · Alertas precio c/5m · Noticias c/5m")
