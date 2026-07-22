@@ -798,28 +798,43 @@ def _detectar_barrido_liquidez(df: pd.DataFrame, direccion: str) -> bool:
     LONG : spike bajo el swing low previo con cierre de regreso arriba.
     SHORT: spike sobre el swing high previo con cierre de regreso abajo.
     """
+    return _detectar_barrido_detalle(df, direccion) is not None
+
+
+def _detectar_barrido_detalle(df: pd.DataFrame, direccion: str):
+    """
+    Como _detectar_barrido_liquidez pero devuelve los NIVELES del barrido para
+    calibrar entrada y SL específicamente para este setup:
+      - nivel_barrido : swing low/high previo que fue cazado → nivel de RETESTEO
+                        (entrada límite óptima: el nivel barrido reconquistado)
+      - mecha         : extremo de la mecha del stop-hunt → invalidación precisa
+                        para el SL (justo debajo/arriba del punto más profundo)
+    Devuelve dict {nivel_barrido, mecha} o None si no hubo barrido.
+    """
     if df is None or len(df) < 20:
-        return False
+        return None
     try:
         recientes = df.iloc[-5:]
         previas   = df.iloc[-25:-5]
         if len(previas) < 5:
-            return False
+            return None
         if direccion == "LONG":
             swing_low = previas["Low"].min()
-            return any(
-                r["Low"] < swing_low and r["Close"] > swing_low
-                for _, r in recientes.iterrows()
-            )
+            pierce = recientes[(recientes["Low"] < swing_low) & (recientes["Close"] > swing_low)]
+            if pierce.empty:
+                return None
+            return {"nivel_barrido": round(float(swing_low), 5),
+                    "mecha":         round(float(pierce["Low"].min()), 5)}
         if direccion == "SHORT":
             swing_high = previas["High"].max()
-            return any(
-                r["High"] > swing_high and r["Close"] < swing_high
-                for _, r in recientes.iterrows()
-            )
-        return False
+            pierce = recientes[(recientes["High"] > swing_high) & (recientes["Close"] < swing_high)]
+            if pierce.empty:
+                return None
+            return {"nivel_barrido": round(float(swing_high), 5),
+                    "mecha":         round(float(pierce["High"].max()), 5)}
+        return None
     except Exception:
-        return False
+        return None
 
 
 def _generar_resumen(estructura: dict, confluencia: dict, contexto: str = "tendencia") -> str:

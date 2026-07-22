@@ -26,7 +26,7 @@ except ImportError:
     TELEGRAM_OK = False
 
 from utils.market_data       import obtener_datos
-from utils.smc_engine        import analisis_completo, calcular_riesgo
+from utils.smc_engine        import analisis_completo, calcular_riesgo, _detectar_barrido_detalle
 from utils.multi_timeframe   import analisis_mtf, MTF_COMBOS
 from utils.backtesting       import ejecutar_backtest
 from utils.economic_calendar import (obtener_eventos_hoy, obtener_proximos_eventos,
@@ -2632,9 +2632,6 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                     if not smc or "error" in smc:
                         continue
 
-                    # ── El corazón de la señal: el barrido ya ocurrió ─────
-                    if not smc.get("barrido_liquidez", False):
-                        continue
                     dir_ = smc.get("estructura", {}).get("direccion", "neutral")
                     if dir_ == "neutral":
                         continue
@@ -2642,11 +2639,35 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                     if conf < UMBRAL_REBOTE:
                         continue
 
-                    entrada = smc.get("precio", 0)
-                    sl      = smc.get("sl_sugerido", 0)
-                    tp      = smc.get("tp_sugerido", 0)
-                    if not (entrada and sl and tp):
+                    # ── Niveles EXACTOS del barrido (calibración específica) ──
+                    df_5m, _ = obtener_datos(ticker, "5m")
+                    barrido = _detectar_barrido_detalle(df_5m, dir_)
+                    if not barrido:
                         continue
+                    nivel_barrido = barrido["nivel_barrido"]   # nivel de retesteo (entrada)
+                    mecha         = barrido["mecha"]           # extremo del stop-hunt (SL)
+                    atr           = smc.get("atr", 0) or 0
+                    tp            = smc.get("tp_sugerido", 0)
+                    precio_actual = smc.get("precio", 0)
+                    if not (nivel_barrido and mecha and tp and atr > 0):
+                        continue
+
+                    # Entrada = retesteo del nivel barrido (orden límite)
+                    entrada = nivel_barrido
+                    # SL = pasando la mecha del stop-hunt, con piso 0.25×ATR y tope 3×ATR
+                    if dir_ == "LONG":
+                        sl_raw = mecha - atr * 0.15
+                        dist   = max(min(entrada - sl_raw, atr * 3.0), atr * 0.25)
+                        sl     = entrada - dist
+                        if tp <= entrada:
+                            continue
+                    else:  # SHORT
+                        sl_raw = mecha + atr * 0.15
+                        dist   = max(min(sl_raw - entrada, atr * 3.0), atr * 0.25)
+                        sl     = entrada + dist
+                        if tp >= entrada:
+                            continue
+
                     dist_sl = abs(entrada - sl)
                     dist_tp = abs(tp - entrada)
                     if dist_sl <= 0 or (dist_tp / dist_sl) < 1.3:
@@ -2658,16 +2679,11 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                     if ahora_ts - _dedup_rebote.get(clave_dd, 0) < 900:
                         continue
 
-                    fp     = lambda p: _fmt_precio(p, ticker)
-                    tipo   = smc.get("estructura", {}).get("tipo", "")
-                    accion = "🟢 *COMPRAR*" if dir_ == "LONG" else "🔴 *VENDER*"
-                    if "BOS" in tipo:
-                        orden = "Stop Limit"
-                    elif "CHoCH" in tipo:
-                        orden = "Límite"
-                    else:
-                        orden = "Mercado"
-                    zona = "mínimo" if dir_ == "LONG" else "máximo"
+                    fp       = lambda p: _fmt_precio(p, ticker)
+                    tipo     = smc.get("estructura", {}).get("tipo", "")
+                    accion   = "🟢 *COMPRAR*" if dir_ == "LONG" else "🔴 *VENDER*"
+                    zona     = "mínimo" if dir_ == "LONG" else "máximo"
+                    factores = smc.get("confluencia", {}).get("factores", [])[:3]
 
                     ri   = calcular_riesgo(entrada, sl, tp, capital, riesgo_pct) or {}
                     lote = ri.get("lot_size", 0)
@@ -2677,12 +2693,11 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                     lineas = [
                         f"🔄 *REBOTE POR BARRIDO · 5m — {ticker}*",
                         "━━━━━━━━━━━━━━━━",
-                        f"💧 *Stop-hunt confirmado:* barrido del {zona} previo con cierre de regreso",
-                        f"📌 *Estructura:* {tipo} ({conf:.0f}%)",
-                        f"👉 *Acción:* {accion}  |  📋 *Orden:* {orden}",
-                        f"💰 *Entrada:* `{fp(entrada)}`",
+                        f"💧 *Stop-hunt confirmado:* barrido del {zona} `{fp(nivel_barrido)}` — mecha a `{fp(mecha)}`",
+                        f"👉 *Acción:* {accion}  |  📋 *Orden:* Límite (retesteo)",
+                        f"💰 *Entrada:* `{fp(entrada)}`  _(precio ahora: {fp(precio_actual)})_",
                         f"✅ *TP:* `{fp(tp)}`",
-                        f"🛑 *SL:* `{fp(sl)}`",
+                        f"🛑 *SL:* `{fp(sl)}`  _(pasando la mecha del barrido)_",
                         f"⚖️ *RR:* {rr}:1",
                     ]
                     lineas += _lineas_precision(entrada, sl, tp, dir_, ticker, rr_min=1.3)
@@ -2691,10 +2706,21 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                             f"💼 *Gestión ({riesgo_pct}% riesgo):*",
                             f"   Lote: {lote:.3f}  ·  Riesgo: ${capital * riesgo_pct / 100:.0f}  ·  Gan. pot.: ${gan:.0f}",
                         ]
-                    _obj = _objetivo_tiempo(entrada, tp, smc.get("atr", 0) or 0, "5m")
+                    _obj = _objetivo_tiempo(entrada, tp, atr, "5m")
                     if _obj:
                         lineas.append(_obj)
-                    lineas.append("⚠️ _Sin confirmación 1h — verifica el rechazo en chart y opera con tamaño reducido_")
+                    # ── Diagnóstico integrado (/porque de fábrica) ────────
+                    lineas += [
+                        "",
+                        "🔎 *Por qué se disparó:*",
+                        f"  ✅ Barrido del {zona} previo con cierre de regreso",
+                        f"  ✅ {tipo} · confianza {conf:.0f}% ≥ {UMBRAL_REBOTE:.0f}%",
+                        f"  ✅ RR {rr} ≥ 1.3 (TP antes del muro real)",
+                        "  ✅ Entrada calibrada al retesteo · SL bajo la mecha",
+                    ]
+                    for f in factores:
+                        lineas.append(f"  • {f}")
+                    lineas.append("⚠️ _Orden límite: si el precio no retrocede al nivel barrido, no hay trade — no persigas. Sin confirmación 1h: valida el rechazo en chart._")
                     if _aviso_noticia:
                         lineas.append(_aviso_noticia)
                     lineas += [
