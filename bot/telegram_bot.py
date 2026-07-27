@@ -475,6 +475,9 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None, data_source: str
             f"🛑 *SL:* `{_fmt_precio(sl, ticker)}`" if sl else "",
         ]
         lineas += _lineas_precision(entrada, sl, tp, dir_bajo, ticker)
+        _obj_ali = _objetivo_tiempo(entrada, tp, smc_bajo.get("atr", 0) or 0, tf_bajo)
+        if _obj_ali:
+            lineas.append(_obj_ali)
 
     # Entrada discrecional cuando solo TF bajo tiene señal (≥60%) sin confirmación HTF
     entrada_disc = mtf.get("entrada_discrecional")
@@ -499,6 +502,9 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None, data_source: str
             f"📊 *RR estimado:* {rr_d}:1"                 if rr_d > 0 else "",
         ]
         lineas += _lineas_precision(entrada_disc, sl_disc, tp_disc, dir_disc, ticker)
+        _obj_disc = _objetivo_tiempo(entrada_disc, tp_disc, smc_bajo.get("atr", 0) or 0, tf_bajo)
+        if _obj_disc:
+            lineas.append(_obj_disc)
         lineas.append(f"⚠️ _Sin confirmación {tf_alto} — opera con tamaño reducido_")
 
     ctx_txt = ""
@@ -2058,10 +2064,14 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     precio = smc.get("precio", 0)
                     sl    = smc.get("sl_sugerido", 0)
                     tp_   = smc.get("tp_sugerido", 0)
-                    lineas.append(
+                    _obj_med = _objetivo_tiempo(precio, tp_, smc.get("atr", 0) or 0, tf)
+                    _linea_m = (
                         f"{_emoji_dir(dir_)} *{ticker}* `{_fmt_precio(precio, ticker)}` — {tipo} ({conf:.0f}%)\n"
                         f"   TP:`{_fmt_precio(tp_, ticker)}` SL:`{_fmt_precio(sl, ticker)}`"
                     )
+                    if _obj_med:
+                        _linea_m += f"\n   {_obj_med}"
+                    lineas.append(_linea_m)
                     _ds_m = smc.get("_data_source", "")
                     if _ds_m: _fuentes_medias.add(_ds_m)
                     marcar_señal_enviada(sig_id)
@@ -2072,7 +2082,6 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         _primera_media = False
                 if _fuentes_medias:
                     lineas.append(f"\n📡 _Fuente: {' | '.join(_fuentes_medias)}_")
-                lineas.append("⏱ _Objetivo: 2-6 horas_")
                 if _aviso_noticia:
                     lineas.append(f"\n{_aviso_noticia}")
                 if len(lineas) > 2:  # solo enviar si hay señales reales (no solo el header)
@@ -2255,9 +2264,8 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     df_bajo_ctx, _st_bajo = obtener_datos(ticker, tf_bajo)
                     ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
                     _ds_mtf = _fuente_datos(_st_bajo)
+                    # Objetivo dinámico ya viene incluido dentro de _formato_mtf
                     _msg_mtf = "🔭 *MTF ALINEADO — INTRADAY · " + tf_alto + "/" + tf_bajo + "*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo, data_source=_ds_mtf)
-                    _obj_m = _objetivo_tiempo(entrada_m, tp_m, (mtf.get("smc_bajo") or {}).get("atr", 0) or 0, tf_bajo)
-                    _msg_mtf += f"\n{_obj_m}" if _obj_m else "\n⏱ _Objetivo: 2-8 horas_"
                     if _aviso_noticia:
                         _msg_mtf += f"\n{_aviso_noticia}"
                     await _send(ctx.bot, chat_id, _msg_mtf)
