@@ -264,7 +264,7 @@ def _analizar_activo(ticker: str, tf: str = "15m"):
         df, status = obtener_datos(ticker, tf)
         if df is None:
             return None, status
-        smc = analisis_completo(df, ticker)
+        smc = analisis_completo(df, ticker, tf=tf)   # tf → activa fusión de muros 15m/1h
         smc["_contexto_mercado"] = _calcular_contexto(df)
         smc["_data_source"] = _fuente_datos(status)
         return smc, status

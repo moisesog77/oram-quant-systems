@@ -531,12 +531,44 @@ def _calcular_confluencias(
 
 
 # ── 8. SL/TP dinámico sobre estructura real ───────────────────────────────────
+# Mapa de timeframes superiores para la fusión de muros de liquidez.
+_MAPA_HTF = {
+    "1m": ["5m", "15m"], "5m": ["15m", "1h"], "15m": ["1h", "4h"],
+    "30m": ["4h", "1d"], "1h": ["4h", "1d"], "4h": ["1d"],
+}
+
+
+def obtener_muros_htf(ticker: str, tf_base: str) -> dict:
+    """
+    Fusión multi-timeframe: junta los muros de liquidez (swing highs/lows) de
+    los 2 timeframes SUPERIORES al de análisis. El TP del 5m ve así los muros
+    reales del 15m y 1h que no caben en su lookback — evita los TP geométricos
+    (RR 2.0 inventado) cuando hay un muro cercano que el 5m no registró.
+    Costo API ~0: esos timeframes ya están en caché (otros jobs los piden).
+    Devuelve {support_levels, resistance_levels} (listas vacías si falla).
+    """
+    from utils.market_data import obtener_datos
+    sops, ress = [], []
+    for tf in _MAPA_HTF.get(tf_base, []):
+        try:
+            df, _ = obtener_datos(ticker, tf)
+            if df is None or len(df) < 30:
+                continue
+            liq = _detectar_liquidez(df)
+            sops += liq.get("support_levels", [])
+            ress += liq.get("resistance_levels", [])
+        except Exception:
+            continue
+    return {"support_levels": sops, "resistance_levels": ress}
+
+
 def _calcular_sl_tp_dinamico(
     precio: float,
     direccion: str,
     ob_activo,
     liquidez: dict,
     atr: float,
+    muros_htf: dict = None,
 ) -> tuple[float, float]:
     """
     SL/TP anclados a la ESTRUCTURA REAL de las velas (OB + swings de liquidez).
@@ -569,6 +601,11 @@ def _calcular_sl_tp_dinamico(
 
     sops = sorted([s for s in liquidez.get("support_levels", []) if s < precio], reverse=True)
     ress = sorted([r for r in liquidez.get("resistance_levels", []) if r > precio])
+
+    # ── Fusión multi-timeframe: sumar muros de 15m/1h al mapa del TF base ──
+    if muros_htf:
+        sops = sorted(set(sops) | {s for s in muros_htf.get("support_levels", []) if s < precio}, reverse=True)
+        ress = sorted(set(ress) | {r for r in muros_htf.get("resistance_levels", []) if r > precio})
 
     if direccion == "LONG":
         # ── SL: debajo de TODA la estructura cercana ──────────────────────
@@ -671,7 +708,7 @@ def calcular_riesgo(
 
 
 # ── 10. Análisis completo ─────────────────────────────────────────────────────
-def analisis_completo(df: pd.DataFrame, ticker: str) -> dict:
+def analisis_completo(df: pd.DataFrame, ticker: str, tf: str = None) -> dict:
     """
     Punto de entrada principal del motor SMC v2.
 
@@ -719,8 +756,11 @@ def analisis_completo(df: pd.DataFrame, ticker: str) -> dict:
     ob_activo = confluencia.get("ob_activo")
     direccion = estructura.get("direccion", "neutral")
 
+    # Fusión de muros 15m/1h — solo si hay dirección y se pasó el TF (evita
+    # fetch innecesario en escaneos neutrales).
+    muros_htf = obtener_muros_htf(ticker, tf) if (tf and direccion != "neutral") else None
     sl_sug, tp_sug = _calcular_sl_tp_dinamico(
-        precio, direccion, ob_activo, liquidez, atr
+        precio, direccion, ob_activo, liquidez, atr, muros_htf=muros_htf
     )
 
     # ── Tipo de entrada: mercado vs orden límite en OB/FVG ────────────────────

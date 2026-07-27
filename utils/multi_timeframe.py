@@ -84,10 +84,11 @@ def analisis_mtf(ticker: str, tf_alto: str, tf_bajo: str) -> dict:
             f"Confianza MTF combinada: {confianza_mtf:.0f}%"
         )
 
-        from utils.smc_engine import _calcular_sl_tp_dinamico
+        from utils.smc_engine import _calcular_sl_tp_dinamico, obtener_muros_htf
         ob_activo = smc_bajo.get("confluencia", {}).get("ob_activo")
         liquidez  = smc_bajo.get("liquidez", {})
-        sl_din, tp_din = _calcular_sl_tp_dinamico(precio, dir_alto, ob_activo, liquidez, atr_bajo)
+        muros_htf = obtener_muros_htf(ticker, tf_bajo)
+        sl_din, tp_din = _calcular_sl_tp_dinamico(precio, dir_alto, ob_activo, liquidez, atr_bajo, muros_htf=muros_htf)
         resultado["sl_sugerido"]      = sl_din
         resultado["tp_sugerido"]      = tp_din
         resultado["entrada_sugerida"] = round(precio, 5)
@@ -109,10 +110,11 @@ def analisis_mtf(ticker: str, tf_alto: str, tf_bajo: str) -> dict:
         resultado["confianza_mtf"] = round(conf_bajo * 0.3, 1)
         # Niveles discrecionales: señal solo en TF bajo (sin confirmación HTF)
         if conf_bajo >= 60:
-            from utils.smc_engine import _calcular_sl_tp_dinamico
+            from utils.smc_engine import _calcular_sl_tp_dinamico, obtener_muros_htf
             ob_disc   = smc_bajo.get("confluencia", {}).get("ob_activo")
             liq_disc  = smc_bajo.get("liquidez", {})
-            sl_d, tp_d = _calcular_sl_tp_dinamico(precio, dir_bajo, ob_disc, liq_disc, atr_bajo)
+            muros_htf = obtener_muros_htf(ticker, tf_bajo)
+            sl_d, tp_d = _calcular_sl_tp_dinamico(precio, dir_bajo, ob_disc, liq_disc, atr_bajo, muros_htf=muros_htf)
             resultado["entrada_discrecional"] = round(precio, 5)
             resultado["sl_discrecional"]      = sl_d
             resultado["tp_discrecional"]      = tp_d
