@@ -1930,8 +1930,14 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         clave_p = (chat_id, ticker, dir_)
                         _persistencia_senales[clave_p] = _persistencia_senales.get(clave_p, 0) + 1
                         ahora_ts = datetime.now(TZ_MX).timestamp()
+                        # Filtro RR (faltaba aquí): con TP estructural, RR bajo = muro
+                        # cerca = sin espacio. No enviar sostenidos sin recorrido real.
+                        _dsl_p = abs(precio - sl) if sl else 0
+                        _dtp_p = abs(tp_ - precio) if tp_ else 0
+                        _rr_ok = _dsl_p > 0 and (_dtp_p / _dsl_p) >= 1.3
                         if (_persistencia_senales[clave_p] >= 5 and
                                 smc.get("señal_valida", False) and
+                                _rr_ok and
                                 ahora_ts - _watch_senales_enviados.get(clave_p, 0) > 7200):
                             _persistencia_senales[clave_p] = 0
                             _watch_senales_enviados[clave_p] = ahora_ts
