@@ -79,6 +79,7 @@ _persistencia_senales: dict = {}
 _watch_senales_enviados: dict = {}   # dedup 2h para alertas de excepción por señal
 _dedup_scalp: dict = {}              # (chat_id, ticker, dir) → timestamp último envío scalp
 _dedup_rebote: dict = {}             # (chat_id, ticker, dir) → timestamp último envío rebote por barrido
+_dedup_tendencia: dict = {}          # (chat_id, ticker, dir) → timestamp último envío tendencia (EXPERIMENTAL)
 
 # Umbral de confianza para REBOTE POR BARRIDO — gatillo ajustable:
 #   subir = menos señales, más precisas | bajar = más señales, más ruido
@@ -245,6 +246,50 @@ def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str) -> str:
         return f"⏱ _Objetivo: ~{_fmt(lo)} – {_fmt(hi)}_"
     except Exception:
         return ""
+
+
+def _detectar_tendencia(df1h, df15):
+    """Capa de TENDENCIA (complemento al SMC) — caza grinds CON pullback que el
+    motor SMC no ve. Condiciones:
+      1. EMA50 de 1h con pendiente ≥ 0.8 ATR sobre 6 velas (tendencia real, no chop)
+      2. Precio del lado correcto de la EMA 1h
+      3. Retroceso: precio a ≤ 0.7 ATR de la EMA 15m (entrada en pullback, no extendido)
+      4. Vela 15m que reanuda en la dirección
+    Devuelve dict o None. NO caza pushes verticales sin pullback (a propósito)."""
+    try:
+        if df1h is None or len(df1h) < 55 or df15 is None or len(df15) < 25:
+            return None
+        ema1h = df1h["Close"].ewm(span=50).mean()
+        atr1h = (df1h["High"] - df1h["Low"]).rolling(14).mean().iloc[-1]
+        if atr1h <= 0:
+            return None
+        p  = float(df15["Close"].iloc[-1]); en = ema1h.iloc[-1]; ep = ema1h.iloc[-7]
+        slope = (en - ep) / atr1h
+        if p > en and slope >= 0.8:
+            d = "LONG"
+        elif p < en and slope <= -0.8:
+            d = "SHORT"
+        else:
+            return None
+        ema15 = df15["Close"].ewm(span=20).mean().iloc[-1]
+        atr15 = (df15["High"] - df15["Low"]).rolling(14).mean().iloc[-1]
+        if atr15 <= 0 or abs(p - ema15) > atr15 * 0.7:
+            return None
+        last = df15.iloc[-1]
+        if d == "LONG" and last["Close"] <= last["Open"]:
+            return None
+        if d == "SHORT" and last["Close"] >= last["Open"]:
+            return None
+        sw   = float(df15["Low"].iloc[-6:].min()) if d == "LONG" else float(df15["High"].iloc[-6:].max())
+        sl   = sw - atr15 * 0.3 if d == "LONG" else sw + atr15 * 0.3
+        dist = abs(p - sl)
+        if dist <= 0:
+            return None
+        tp = p + dist * 2 if d == "LONG" else p - dist * 2
+        return {"dir": d, "entrada": round(p, 5), "sl": round(sl, 5),
+                "tp": round(tp, 5), "slope": round(slope, 1), "atr15": atr15}
+    except Exception:
+        return None
 
 
 def _fuente_datos(status: str) -> str:
@@ -2761,6 +2806,75 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_rebote: {e}")
 
 
+async def job_monitoreo_tendencia(ctx: ContextTypes.DEFAULT_TYPE):
+    """📈 TENDENCIA — EXPERIMENTAL. Complementa al SMC en días de grind con
+    pullback. En validación (2 semanas paper): los mensajes dicen NO OPERAR AÚN.
+    Corre cada 2 min. Dedup 30 min."""
+    try:
+        if not _en_horario_alertas():
+            return
+        configs         = obtener_todas_configs_bot()
+        activos_default = ["EURUSD=X", "GBPUSD=X", "GC=F"]
+        ahora_ts        = datetime.now(TZ_MX).timestamp()
+        for cfg in configs:
+            chat_id = cfg.get("telegram_chat_id", "")
+            if not chat_id or not cfg.get("alertas_activas"):
+                continue
+            try:
+                activos = json.loads(cfg.get("activos_monitor", "[]")) or activos_default
+            except Exception:
+                activos = activos_default
+            user_t     = obtener_usuario_por_id(cfg.get("user_id"))
+            capital    = float(cfg.get("capital_cuenta") or 0) or float(user_t.get("capital_inicial", 10000) if user_t else 10000.0)
+            riesgo_pct = float(cfg.get("riesgo_pct", 2.0))
+            for ticker in activos:
+                try:
+                    df1h, _     = obtener_datos(ticker, "1h")
+                    df15, st15  = obtener_datos(ticker, "15m")
+                    r = _detectar_tendencia(df1h, df15)
+                    if not r:
+                        continue
+                    dir_ = r["dir"]; entrada = r["entrada"]; sl = r["sl"]; tp = r["tp"]
+                    dist_sl = abs(entrada - sl); dist_tp = abs(tp - entrada)
+                    if dist_sl <= 0 or (dist_tp / dist_sl) < 1.5:
+                        continue
+                    rr = round(dist_tp / dist_sl, 1)
+                    clave = (chat_id, ticker, dir_)
+                    if ahora_ts - _dedup_tendencia.get(clave, 0) < 1800:
+                        continue
+                    fp     = lambda x: _fmt_precio(x, ticker)
+                    accion = "🟢 *COMPRAR*" if dir_ == "LONG" else "🔴 *VENDER*"
+                    ri     = calcular_riesgo(entrada, sl, tp, capital, riesgo_pct) or {}
+                    lote   = ri.get("lot_size", 0)
+                    lineas = [
+                        f"📈 *TENDENCIA · 1h/15m — {ticker}*  ⚗️ _EXPERIMENTAL_",
+                        "━━━━━━━━━━━━━━━━",
+                        f"🧭 Tendencia 1h confirmada (pendiente {r['slope']} ATR) + retroceso a EMA",
+                        f"👉 *Acción:* {accion}  |  📋 *Orden:* Límite (retroceso)",
+                        f"💰 *Entrada:* `{fp(entrada)}`",
+                        f"✅ *TP:* `{fp(tp)}`",
+                        f"🛑 *SL:* `{fp(sl)}`",
+                        f"⚖️ *RR:* {rr}:1",
+                    ]
+                    lineas += _lineas_precision(entrada, sl, tp, dir_, ticker, rr_min=1.5)
+                    _obj = _objetivo_tiempo(entrada, tp, r.get("atr15", 0) or 0, "15m")
+                    if _obj:
+                        lineas.append(_obj)
+                    if lote:
+                        lineas.append(f"💼 *Gestión ({riesgo_pct}%):* Lote {lote:.3f} · Riesgo ${capital * riesgo_pct / 100:.0f}")
+                    lineas += [
+                        "🚫 *EN PRUEBA — solo registro, NO operar aún* (validación en papel)",
+                        f"📡 _{_fuente_datos(st15)}_",
+                        f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
+                    ]
+                    await _send(ctx.bot, chat_id, "\n".join(l for l in lineas if l))
+                    _dedup_tendencia[clave] = ahora_ts
+                except Exception as e:
+                    logger.error(f"job_tendencia {ticker}: {e}")
+    except Exception as e:
+        logger.error(f"job_monitoreo_tendencia: {e}")
+
+
 async def job_cierre_nocturno(ctx: ContextTypes.DEFAULT_TYPE):
     """
     11:59 PM CDMX: cierra en el REGISTRO del bot todos los trades activos.
@@ -3164,6 +3278,7 @@ def main():
         jq.run_repeating(job_monitoreo_reversal,       interval=60,  first=90)
         jq.run_repeating(job_monitoreo_scalp,          interval=60,  first=45)
         jq.run_repeating(job_monitoreo_rebote,         interval=60,  first=55)
+        jq.run_repeating(job_monitoreo_tendencia,      interval=120, first=110)  # EXPERIMENTAL (paper)
         jq.run_repeating(job_verificar_alertas_precio, interval=120, first=30)
         jq.run_repeating(job_alerta_noticias,          interval=300, first=75)
         print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Scalp c/90s · Alertas precio c/5m · Noticias c/5m")
