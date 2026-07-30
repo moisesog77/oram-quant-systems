@@ -224,26 +224,22 @@ def _lineas_precision(entrada: float, sl: float, tp: float, dir_: str, ticker: s
 
 
 def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str) -> str:
-    """Objetivo de tiempo DINÁMICO: distancia al TP / velocidad real (ATR por vela).
-    Rango [1x, 2.5x] porque el precio no avanza 1 ATR neto por vela.
-    Reemplaza los rangos fijos ('15-30 min') que no escalaban con el TP —
-    un TP a 8 ATRs de distancia toma horas aunque el timeframe sea 5m."""
+    """Objetivo de tiempo DINÁMICO como HORA DE RELOJ (no duración).
+    Distancia al TP / velocidad real (ATR por vela), rango [1x, 2.5x], sumado
+    a la hora actual. Ej: '⏱ Objetivo: entre 10:00 y 10:50 AM CDMX'.
+    Escala con el TP: un TP a 8 ATRs da un rango de horas, no de minutos."""
     try:
         if not (entrada and tp and atr) or atr <= 0:
             return ""
+        from datetime import timedelta
         tf_min = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240}.get(tf, 15)
         velas  = abs(tp - entrada) / atr
         lo = max(int(round(velas * tf_min)), tf_min)
         hi = max(int(round(velas * tf_min * 2.5)), lo + tf_min)
-
-        def _fmt(m: int) -> str:
-            if m < 100:
-                m5 = int(round(m / 5.0) * 5)
-                return f"{m5 or 5} min"
-            h = m / 60.0
-            return (f"{h:.1f} h").replace(".0 h", " h")
-
-        return f"⏱ _Objetivo: ~{_fmt(lo)} – {_fmt(hi)}_"
+        ahora = datetime.now(TZ_MX)
+        t_lo  = (ahora + timedelta(minutes=lo)).strftime("%I:%M")
+        t_hi  = (ahora + timedelta(minutes=hi)).strftime("%I:%M %p")
+        return f"⏱ _Objetivo: entre {t_lo} y {t_hi} CDMX_"
     except Exception:
         return ""
 
