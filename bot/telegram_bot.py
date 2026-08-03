@@ -1580,6 +1580,8 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"✅ TP: `{_fmt_precio(senal['tp'], ticker)}`\n"
         f"🛑 SL: `{_fmt_precio(senal['sl'], ticker)}`\n\n"
         f"🔭 Monitoreando TP/SL automáticamente.\n"
+        f"📊 *Seguimiento cada 10 min activado* — te avisaré tu P/L, distancia\n"
+        f"al parcial/TP/SL y cuándo cobrar y mover el SL a breakeven.\n"
         f"Señales de *{ticker}* pausadas hasta que cierre.\n"
         f"Usa /cerrar {ticker.replace('=X','')} para salida manual."
     )
@@ -2871,6 +2873,80 @@ async def job_monitoreo_tendencia(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_tendencia: {e}")
 
 
+def _pips(diff: float, ticker: str) -> float:
+    """Convierte una diferencia de precio a pips (forex) o puntos (oro)."""
+    t = ticker.upper()
+    if "JPY" in t:
+        return diff * 100
+    if "GC" in t or "XAU" in t:
+        return diff        # oro: puntos
+    return diff * 10000
+
+
+async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
+    """CAPA 1 — Seguimiento de trades tomados (vía /tomar). Cada 10 min manda
+    estatus de cada trade activo: P/L en pips, distancia a parcial/TP/SL, y el
+    recordatorio del parcial+breakeven en el momento exacto. Datos en vivo."""
+    try:
+        trades = obtener_todos_trades_activos()
+        if not trades:
+            return
+        for t in trades:
+            try:
+                chat_id = t.get("chat_id", "")
+                ticker  = t.get("ticker", "")
+                dir_    = t.get("direccion", "")
+                entrada = float(t.get("entrada", 0) or 0)
+                sl      = float(t.get("sl", 0) or 0)
+                tp      = float(t.get("tp", 0) or 0)
+                if not (chat_id and ticker and entrada and sl and tp and dir_ in ("LONG", "SHORT")):
+                    continue
+                df, _ = obtener_datos(ticker, "5m")
+                if df is None or len(df) == 0:
+                    continue
+                precio = float(df["Close"].iloc[-1])
+                u  = "pts" if ("GC" in ticker.upper() or "XAU" in ticker.upper()) else "pips"
+                fp = lambda x: _fmt_precio(x, ticker)
+
+                pl_diff = (precio - entrada) if dir_ == "LONG" else (entrada - precio)
+                pl      = _pips(pl_diff, ticker)
+                dist_sl = abs(entrada - sl)
+                parcial = entrada + dist_sl if dir_ == "LONG" else entrada - dist_sl
+
+                paso_tp      = (dir_ == "LONG" and precio >= tp) or (dir_ == "SHORT" and precio <= tp)
+                paso_sl      = (dir_ == "LONG" and precio <= sl) or (dir_ == "SHORT" and precio >= sl)
+                paso_parcial = (dir_ == "LONG" and precio >= parcial) or (dir_ == "SHORT" and precio <= parcial)
+
+                if paso_tp:
+                    estatus = "✅ *¡TP ALCANZADO!* Cobra y cierra en tu broker. Luego `/cerrar` aquí."
+                elif paso_sl:
+                    estatus = "🛑 *SL TOCADO* — el trade cerró en pérdida, según el plan. Cierra y `/cerrar`."
+                elif paso_parcial:
+                    estatus = "🎯 *¡PARCIAL 1R alcanzado!* Cobra 50% y mueve el SL a *breakeven*. Desde aquí ya no puedes perder — deja correr el resto al TP."
+                elif pl >= 0:
+                    estatus = "🟢 Vas a favor, avanzando dentro de lo normal. Mantén el plan — no cortes por impaciencia."
+                else:
+                    estatus = f"🔻 En contra pero dentro del riesgo (SL a {_pips(abs(sl - precio), ticker):.0f} {u}). Respeta el stop, no lo muevas."
+
+                lineas = [
+                    f"📊 *SEGUIMIENTO — {ticker} {dir_}* (#{t.get('id','')})",
+                    "━━━━━━━━━━━━━━━━",
+                    f"💰 Entrada `{fp(entrada)}`  ·  Precio `{fp(precio)}`",
+                    f"📈 Vas: *{pl:+.1f} {u}*",
+                    f"🎯 Parcial 1R `{fp(parcial)}` · " + ("✅ pasado" if paso_parcial else f"faltan {_pips(abs(parcial - precio), ticker):.0f} {u}"),
+                    f"✅ TP `{fp(tp)}` · faltan {_pips(abs(tp - precio), ticker):.0f} {u}",
+                    f"🛑 SL `{fp(sl)}` · a {_pips(abs(sl - precio), ticker):.0f} {u}",
+                    "",
+                    f"🧭 {estatus}",
+                    f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
+                ]
+                await _send(ctx.bot, chat_id, "\n".join(lineas))
+            except Exception as e:
+                logger.error(f"seguimiento_trade {t.get('ticker','?')}: {e}")
+    except Exception as e:
+        logger.error(f"job_seguimiento_trades: {e}")
+
+
 async def job_cierre_nocturno(ctx: ContextTypes.DEFAULT_TYPE):
     """
     11:59 PM CDMX: cierra en el REGISTRO del bot todos los trades activos.
@@ -3275,6 +3351,7 @@ def main():
         jq.run_repeating(job_monitoreo_scalp,          interval=60,  first=45)
         jq.run_repeating(job_monitoreo_rebote,         interval=60,  first=55)
         jq.run_repeating(job_monitoreo_tendencia,      interval=120, first=110)  # EXPERIMENTAL (paper)
+        jq.run_repeating(job_seguimiento_trades,       interval=600, first=150)  # Capa 1: seguimiento c/10 min
         jq.run_repeating(job_verificar_alertas_precio, interval=120, first=30)
         jq.run_repeating(job_alerta_noticias,          interval=300, first=75)
         print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Scalp c/90s · Alertas precio c/5m · Noticias c/5m")
