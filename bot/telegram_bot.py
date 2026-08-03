@@ -43,6 +43,7 @@ from database.db import (
     registrar_trade_confirmado, obtener_trade_activo,
     obtener_trades_activos_chat, obtener_todos_trades_activos,
     cerrar_trade_confirmado, insertar_trade,
+    guardar_alerta_id, obtener_alerta_id, limpiar_alertas_id, contar_alertas_id,
 )
 
 import pandas as pd
@@ -1556,6 +1557,15 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     code = args[0].upper().strip().lstrip("#")
     senal = _alertas_dia.get(code)
     if not senal:
+        # Fallback a la DB (sobrevive reinicios del bot)
+        row = obtener_alerta_id(code)
+        if row:
+            senal = {
+                "ticker": row.get("ticker", ""), "direccion": row.get("direccion", ""),
+                "entrada": row.get("entrada", 0), "sl": row.get("sl", 0),
+                "tp": row.get("tp", 0), "tf": row.get("tf", "15m"),
+            }
+    if not senal:
         await _reply(update,
             f"⚠️ No encuentro la alerta *{code}*.\n"
             "Puede ser un ID incorrecto, o que ya se reinició (11 PM).\n"
@@ -2888,6 +2898,14 @@ async def _send_alerta(bot, chat_id: str, msg: str, senal: dict) -> str:
     _alerta_seq[0] += 1
     code = f"A{_alerta_seq[0]}"
     _alertas_dia[code] = dict(senal)
+    # Persistir en DB para que /tomar lo encuentre aunque el bot se reinicie
+    try:
+        guardar_alerta_id(code, str(chat_id), senal.get("ticker", ""),
+                          senal.get("direccion", ""), float(senal.get("entrada", 0) or 0),
+                          float(senal.get("sl", 0) or 0), float(senal.get("tp", 0) or 0),
+                          senal.get("tf", "15m"))
+    except Exception as e:
+        logger.error(f"guardar_alerta_id {code}: {e}")
     msg = msg + f"\n🆔 *ID:* `{code}`  ·  si la operas: `/tomar {code}`"
     await _send(bot, chat_id, msg)
     return code
@@ -2975,9 +2993,13 @@ async def job_cierre_nocturno(ctx: ContextTypes.DEFAULT_TYPE):
     siguiente. Envía aviso para cerrar manualmente en TradingView/IC Markets.
     """
     try:
-        # ── Reinicio de IDs de alerta del día ─────────────────────────────
+        # ── Reinicio de IDs de alerta del día (memoria + DB) ──────────────
         _alertas_dia.clear()
         _alerta_seq[0] = 0
+        try:
+            limpiar_alertas_id()
+        except Exception as e:
+            logger.error(f"limpiar_alertas_id: {e}")
 
         trades = obtener_todos_trades_activos()
         if not trades:
@@ -3375,6 +3397,11 @@ def main():
         jq.run_repeating(job_monitoreo_scalp,          interval=60,  first=45)
         jq.run_repeating(job_monitoreo_rebote,         interval=60,  first=55)
         jq.run_repeating(job_monitoreo_tendencia,      interval=120, first=110)  # EXPERIMENTAL (paper)
+        # Continuar el contador de IDs desde la DB (evita reusar códigos tras reinicio)
+        try:
+            _alerta_seq[0] = contar_alertas_id()
+        except Exception:
+            pass
         # Seguimiento alineado a las marcas de reloj :00,:10,:20... (no relativo al arranque)
         _now_seg = datetime.now(TZ_MX)
         _first_seg = 600 - ((_now_seg.minute % 10) * 60 + _now_seg.second)

@@ -292,6 +292,17 @@ CREATE TABLE IF NOT EXISTS confirmed_trades (
     closed_at TEXT DEFAULT NULL,
     resultado TEXT DEFAULT NULL
 );
+CREATE TABLE IF NOT EXISTS alertas_id (
+    code TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    direccion TEXT NOT NULL,
+    entrada REAL NOT NULL,
+    sl REAL NOT NULL,
+    tp REAL NOT NULL,
+    tf TEXT DEFAULT '15m',
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 # SQL para PostgreSQL — usa SERIAL y NOW()
@@ -403,6 +414,17 @@ _PG_TABLES = [
         created_at TEXT DEFAULT (NOW()::text),
         closed_at TEXT DEFAULT NULL,
         resultado TEXT DEFAULT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS alertas_id (
+        code TEXT PRIMARY KEY,
+        chat_id TEXT NOT NULL,
+        ticker TEXT NOT NULL,
+        direccion TEXT NOT NULL,
+        entrada REAL NOT NULL,
+        sl REAL NOT NULL,
+        tp REAL NOT NULL,
+        tf TEXT DEFAULT '15m',
+        created_at TEXT DEFAULT (NOW()::text)
     )""",
 ]
 
@@ -886,6 +908,40 @@ def registrar_trade_confirmado(chat_id: str, ticker: str, timeframe: str,
             (chat_id, ticker, timeframe, direccion, entrada, sl, tp, confianza)
         )
         return _lastrowid(cur, "confirmed_trades", conn)
+
+
+def guardar_alerta_id(code: str, chat_id: str, ticker: str, direccion: str,
+                       entrada: float, sl: float, tp: float, tf: str):
+    """Persiste el ID corto de una alerta para que /tomar lo encuentre aunque
+    el bot se reinicie. Los IDs se limpian cada noche (limpiar_alertas_id)."""
+    with get_conn() as conn:
+        _exec(conn, "DELETE FROM alertas_id WHERE code=?", (code,))
+        _exec(conn,
+            f"INSERT INTO alertas_id (code,chat_id,ticker,direccion,entrada,sl,tp,tf) VALUES ({_ph(8)})",
+            (code, chat_id, ticker, direccion, entrada, sl, tp, tf))
+
+
+def obtener_alerta_id(code: str):
+    """Retorna la señal guardada bajo ese ID corto de alerta, o None."""
+    with get_conn() as conn:
+        return _fetchone(_exec(conn, "SELECT * FROM alertas_id WHERE code=?", (code,)))
+
+
+def limpiar_alertas_id():
+    """Borra todos los IDs de alerta del día (reinicio nocturno)."""
+    with get_conn() as conn:
+        _exec(conn, "DELETE FROM alertas_id")
+
+
+def contar_alertas_id() -> int:
+    """Cuenta los IDs de alerta vigentes — para seedear el contador tras reinicio
+    y no reusar códigos ya asignados."""
+    try:
+        with get_conn() as conn:
+            row = _fetchone(_exec(conn, "SELECT COUNT(*) AS n FROM alertas_id"))
+            return int(row.get("n", 0)) if row else 0
+    except Exception:
+        return 0
 
 
 def obtener_trade_activo(chat_id: str, ticker: str):
