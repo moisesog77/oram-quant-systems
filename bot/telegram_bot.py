@@ -81,6 +81,10 @@ _dedup_scalp: dict = {}              # (chat_id, ticker, dir) → timestamp últ
 _dedup_rebote: dict = {}             # (chat_id, ticker, dir) → timestamp último envío rebote por barrido
 _dedup_tendencia: dict = {}          # (chat_id, ticker, dir) → timestamp último envío tendencia (EXPERIMENTAL)
 
+# ── IDs cortos de alerta (reset cada noche 11 PM en job_cierre_nocturno) ───────
+_alertas_dia: dict = {}              # code (str, ej "A7") → senal dict {ticker,dir,entrada,sl,tp,tf}
+_alerta_seq: list = [0]              # contador incremental del día (lista para mutar desde closure)
+
 # Umbral de confianza para REBOTE POR BARRIDO — gatillo ajustable:
 #   subir = menos señales, más precisas | bajar = más señales, más ruido
 UMBRAL_REBOTE = 60.0
@@ -1536,26 +1540,26 @@ async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Confirma que el usuario tomó la última señal enviada (o la de un ticker específico)."""
+    """Confirma que tomaste una alerta. Requiere el ID que trae cada alerta: /tomar A7"""
     chat_id = str(update.effective_chat.id)
     args = ctx.args or []
 
-    if args:
-        ticker_input = args[0].upper().replace("/", "")
-        # Normalizar: EURUSD → EURUSD=X, BTCUSD → BTC-USD, etc.
-        _map = {"EURUSD":"EURUSD=X","GBPUSD":"GBPUSD=X","USDJPY":"USDJPY=X",
-                "USDCHF":"USDCHF=X","AUDUSD":"AUDUSD=X","USDCAD":"USDCAD=X",
-                "NZDUSD":"NZDUSD=X","BTCUSD":"BTC-USD","ETHUSD":"ETH-USD",
-                "XAUUSD":"GC=F","GOLD":"GC=F"}
-        ticker = _map.get(ticker_input, ticker_input + "=X" if "=" not in ticker_input and "-" not in ticker_input else ticker_input)
-        senal = _ultimas_senales.get((chat_id, ticker))
-    else:
-        senal = _ultimas_senales.get(chat_id)
+    if not args:
+        await _reply(update,
+            "⚠️ *Falta el ID de la alerta.*\n"
+            "Cada alerta trae un ID corto (ej. `A7`). Tómala así:\n"
+            "`/tomar A7`\n\n"
+            "_Los IDs se reinician cada noche a las 11 PM CDMX._"
+        )
+        return
 
+    code = args[0].upper().strip().lstrip("#")
+    senal = _alertas_dia.get(code)
     if not senal:
         await _reply(update,
-            "⚠️ No hay señal reciente registrada.\n"
-            "Espera la próxima alerta del bot y luego usa /tomar."
+            f"⚠️ No encuentro la alerta *{code}*.\n"
+            "Puede ser un ID incorrecto, o que ya se reinició (11 PM).\n"
+            "Revisa el ID en el mensaje de la alerta e intenta de nuevo."
         )
         return
 
@@ -1573,7 +1577,7 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
     emoji = _emoji_dir(senal["direccion"])
     await _reply(update,
-        f"✅ *TRADE CONFIRMADO* (ID #{trade_id})\n"
+        f"✅ *TRADE CONFIRMADO* (alerta {code} · trade #{trade_id})\n"
         f"━━━━━━━━━━━━━━━━\n"
         f"{emoji} *{ticker}* · {senal.get('tf','?')}\n"
         f"💰 Entrada: `{_fmt_precio(senal['entrada'], ticker)}`\n"
@@ -2037,8 +2041,9 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                             lineas_sos.append(f"🕐 {_hora_mx()} CDMX")
                             if _sos_noticia:
                                 lineas_sos.append(_sos_noticia)
-                            await _send(ctx.bot, chat_id,
-                                        "\n".join(l for l in lineas_sos if l))
+                            await _send_alerta(ctx.bot, chat_id,
+                                        "\n".join(l for l in lineas_sos if l),
+                                        {"ticker": ticker, "direccion": dir_, "entrada": precio, "sl": sl, "tp": tp_, "tf": tf})
                         continue
 
                     # Confianza ≥ umbral — flujo normal
@@ -2317,8 +2322,8 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     _msg_mtf = "🔭 *MTF ALINEADO — INTRADAY · " + tf_alto + "/" + tf_bajo + "*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo, data_source=_ds_mtf)
                     if _aviso_noticia:
                         _msg_mtf += f"\n{_aviso_noticia}"
-                    await _send(ctx.bot, chat_id, _msg_mtf)
                     _senal_mtf = {"ticker": ticker, "tf": tf_bajo, "direccion": dir_mtf, "entrada": entrada_m, "sl": sl_m, "tp": tp_m, "confianza": confianza_mtf}
+                    await _send_alerta(ctx.bot, chat_id, _msg_mtf, _senal_mtf)
                     _ultimas_senales[(chat_id, ticker)] = _senal_mtf
                     _ultimas_senales[chat_id] = _senal_mtf
                 except Exception as e:
@@ -2437,7 +2442,8 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
                     msg += f"\n{_obj_r}" if _obj_r else "\n⏱ _Objetivo: 4-12 horas_"
                     if _noticia_proxima:
                         msg += f"\n{_noticia_proxima}"
-                    await _send(ctx.bot, chat_id, msg)
+                    await _send_alerta(ctx.bot, chat_id, msg,
+                        {"ticker": ticker, "direccion": dir_bajo, "entrada": entrada, "sl": sl, "tp": tp, "tf": tf_bajo})
                     marcar_señal_enviada(sig_id)
 
                 except Exception as e:
@@ -2620,7 +2626,8 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                         lineas.append(_noticia_sc)
 
                     msg = "\n".join(l for l in lineas if l)
-                    await _send(ctx.bot, chat_id, msg)
+                    await _send_alerta(ctx.bot, chat_id, msg,
+                        {"ticker": ticker, "direccion": dir_, "entrada": entrada, "sl": sl, "tp": tp, "tf": "5m"})
 
                     _dedup_scalp[clave_dd] = ahora_ts
                     _ultimas_senales[chat_id] = {
@@ -2791,7 +2798,8 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                     except Exception:
                         pass
 
-                    await _send(ctx.bot, chat_id, "\n".join(l for l in lineas if l))
+                    await _send_alerta(ctx.bot, chat_id, "\n".join(l for l in lineas if l),
+                        {"ticker": ticker, "direccion": dir_, "entrada": entrada, "sl": sl, "tp": tp, "tf": "5m"})
                     _dedup_rebote[clave_dd] = ahora_ts
                     _ultimas_senales[chat_id] = {
                         "ticker": ticker, "direccion": dir_, "entrada": entrada,
@@ -2873,6 +2881,18 @@ async def job_monitoreo_tendencia(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_tendencia: {e}")
 
 
+async def _send_alerta(bot, chat_id: str, msg: str, senal: dict) -> str:
+    """Envía una alerta operable con un ID corto para /tomar. Asigna el ID,
+    lo agrega al mensaje, guarda la señal en _alertas_dia y envía.
+    senal: {ticker, direccion, entrada, sl, tp, tf}. Retorna el code."""
+    _alerta_seq[0] += 1
+    code = f"A{_alerta_seq[0]}"
+    _alertas_dia[code] = dict(senal)
+    msg = msg + f"\n🆔 *ID:* `{code}`  ·  si la operas: `/tomar {code}`"
+    await _send(bot, chat_id, msg)
+    return code
+
+
 def _pips(diff: float, ticker: str) -> float:
     """Convierte una diferencia de precio a pips (forex) o puntos (oro)."""
     t = ticker.upper()
@@ -2949,12 +2969,16 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
 
 async def job_cierre_nocturno(ctx: ContextTypes.DEFAULT_TYPE):
     """
-    11:59 PM CDMX: cierra en el REGISTRO del bot todos los trades activos.
-    No toca posiciones reales en el broker — solo limpia el registro interno
-    para que no bloqueen señales al día siguiente.
-    Envía aviso al usuario para que cierre manualmente en TradingView/IC Markets.
+    11:00 PM CDMX: (1) reinicia los IDs cortos de alerta del día, (2) cierra en
+    el REGISTRO del bot todos los trades activos. No toca posiciones reales en
+    el broker — solo limpia el registro interno para evitar problemas al día
+    siguiente. Envía aviso para cerrar manualmente en TradingView/IC Markets.
     """
     try:
+        # ── Reinicio de IDs de alerta del día ─────────────────────────────
+        _alertas_dia.clear()
+        _alerta_seq[0] = 0
+
         trades = obtener_todos_trades_activos()
         if not trades:
             return
@@ -3342,7 +3366,7 @@ def main():
         jq.run_daily(job_reporte_cierre,   time=dtime(hour=21, minute=2))   # 17:02 NY en verano
         jq.run_daily(job_reporte_cierre,   time=dtime(hour=22, minute=2))   # 17:02 NY en invierno
         jq.run_daily(job_apertura_semana,  time=dtime(hour=22, minute=5))   # Dom 16:05 CDMX
-        jq.run_daily(job_cierre_nocturno,  time=dtime(hour=5,  minute=59))  # 11:59 PM CDMX
+        jq.run_daily(job_cierre_nocturno,  time=dtime(hour=5,  minute=0))   # 11:00 PM CDMX (reset IDs + cierre)
         # Intervalos calibrados para plan Twelve Data Grow 55 (55 créditos/min,
         # sin límite diario). Consumo sostenido ~10-12/min, pico ~24/min.
         jq.run_repeating(job_monitoreo_senales,        interval=180, first=60)
