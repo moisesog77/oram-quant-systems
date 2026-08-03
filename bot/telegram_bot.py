@@ -3375,7 +3375,12 @@ def main():
         jq.run_repeating(job_monitoreo_scalp,          interval=60,  first=45)
         jq.run_repeating(job_monitoreo_rebote,         interval=60,  first=55)
         jq.run_repeating(job_monitoreo_tendencia,      interval=120, first=110)  # EXPERIMENTAL (paper)
-        jq.run_repeating(job_seguimiento_trades,       interval=600, first=150)  # Capa 1: seguimiento c/10 min
+        # Seguimiento alineado a las marcas de reloj :00,:10,:20... (no relativo al arranque)
+        _now_seg = datetime.now(TZ_MX)
+        _first_seg = 600 - ((_now_seg.minute % 10) * 60 + _now_seg.second)
+        if _first_seg <= 10:
+            _first_seg += 600
+        jq.run_repeating(job_seguimiento_trades,       interval=600, first=_first_seg)  # Capa 1: seguimiento en marcas de 10 min
         jq.run_repeating(job_verificar_alertas_precio, interval=120, first=30)
         jq.run_repeating(job_alerta_noticias,          interval=300, first=75)
         print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Scalp c/90s · Alertas precio c/5m · Noticias c/5m")
