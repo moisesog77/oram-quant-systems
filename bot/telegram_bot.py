@@ -1657,7 +1657,7 @@ async def cmd_cerrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"*{trade['ticker']}* · {trade['direccion']}\n"
         f"Entrada: `{_fmt_precio(trade['entrada'], trade['ticker'])}`\n"
         + (f"Precio cierre: `{_fmt_precio(precio_actual, trade['ticker'])}`" if precio_actual else "") + pips_txt + "\n\n"
-        f"✅ Señales de *{trade['ticker']}* reactivadas."
+        f"✅ Seguimiento detenido — el trade salió del registro."
     )
 
 
@@ -2988,6 +2988,7 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                     f"🛑 SL `{fp(sl)}` · a {_pips(abs(sl - precio), ticker):.0f} {u}",
                     "",
                     f"🧭 {estatus}",
+                    f"🔒 Para cerrar este trade: `/cerrar {ticker.replace('=X','')}`",
                     f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
                 ]
                 await _send(ctx.bot, chat_id, "\n".join(lineas))
