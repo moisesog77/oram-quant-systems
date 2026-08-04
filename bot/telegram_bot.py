@@ -1555,50 +1555,62 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     code = args[0].upper().strip().lstrip("#")
-    senal = _alertas_dia.get(code)
-    if not senal:
-        # Fallback a la DB (sobrevive reinicios del bot)
-        row = obtener_alerta_id(code)
-        if row:
-            senal = {
-                "ticker": row.get("ticker", ""), "direccion": row.get("direccion", ""),
-                "entrada": row.get("entrada", 0), "sl": row.get("sl", 0),
-                "tp": row.get("tp", 0), "tf": row.get("tf", "15m"),
-            }
-    if not senal:
-        await _reply(update,
-            f"⚠️ No encuentro la alerta *{code}*.\n"
-            "Puede ser un ID incorrecto, o que ya se reinició (11 PM).\n"
-            "Revisa el ID en el mensaje de la alerta e intenta de nuevo."
-        )
-        return
+    try:
+        senal = _alertas_dia.get(code)
+        if not senal:
+            # Fallback a la DB (sobrevive reinicios del bot)
+            try:
+                row = obtener_alerta_id(code)
+            except Exception as e:
+                logger.error(f"obtener_alerta_id {code}: {e}")
+                row = None
+            if row:
+                senal = {
+                    "ticker": row.get("ticker", ""), "direccion": row.get("direccion", ""),
+                    "entrada": row.get("entrada", 0), "sl": row.get("sl", 0),
+                    "tp": row.get("tp", 0), "tf": row.get("tf", "15m"),
+                }
+        if not senal:
+            await _reply(update,
+                f"⚠️ No encuentro la alerta *{code}*.\n"
+                "Puede ser un ID incorrecto, o que ya se reinició (11 PM).\n"
+                "Revisa el ID en el mensaje de la alerta e intenta de nuevo."
+            )
+            return
 
-    ticker = senal["ticker"]
-    if obtener_trade_activo(chat_id, ticker):
-        await _reply(update,
-            f"⚠️ Ya tienes un trade activo en *{ticker}*.\n"
-            f"Usa /cerrar {ticker.replace('=X','')} para cerrarlo primero."
-        )
-        return
+        ticker = senal["ticker"]
+        if obtener_trade_activo(chat_id, ticker):
+            await _reply(update,
+                f"⚠️ Ya tienes un trade activo en *{ticker}*.\n"
+                f"Usa /cerrar {ticker.replace('=X','')} para cerrarlo primero."
+            )
+            return
 
-    trade_id = registrar_trade_confirmado(
-        chat_id, ticker, senal.get("tf","15m"), senal["direccion"],
-        senal["entrada"], senal["sl"], senal["tp"], senal.get("confianza", 0)
-    )
-    emoji = _emoji_dir(senal["direccion"])
-    await _reply(update,
-        f"✅ *TRADE CONFIRMADO* (alerta {code} · trade #{trade_id})\n"
-        f"━━━━━━━━━━━━━━━━\n"
-        f"{emoji} *{ticker}* · {senal.get('tf','?')}\n"
-        f"💰 Entrada: `{_fmt_precio(senal['entrada'], ticker)}`\n"
-        f"✅ TP: `{_fmt_precio(senal['tp'], ticker)}`\n"
-        f"🛑 SL: `{_fmt_precio(senal['sl'], ticker)}`\n\n"
-        f"🔭 Monitoreando TP/SL automáticamente.\n"
-        f"📊 *Seguimiento cada 10 min activado* — te avisaré tu P/L, distancia\n"
-        f"al parcial/TP/SL y cuándo cobrar y mover el SL a breakeven.\n"
-        f"Señales de *{ticker}* pausadas hasta que cierre.\n"
-        f"Usa /cerrar {ticker.replace('=X','')} para salida manual."
-    )
+        trade_id = registrar_trade_confirmado(
+            chat_id, ticker, senal.get("tf","15m"), senal["direccion"],
+            float(senal["entrada"]), float(senal["sl"]), float(senal["tp"]),
+            float(senal.get("confianza", 0) or 0)
+        )
+        emoji = _emoji_dir(senal["direccion"])
+        await _reply(update,
+            f"✅ *TRADE CONFIRMADO* (alerta {code} · trade #{trade_id})\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"{emoji} *{ticker}* · {senal.get('tf','?')}\n"
+            f"💰 Entrada: `{_fmt_precio(senal['entrada'], ticker)}`\n"
+            f"✅ TP: `{_fmt_precio(senal['tp'], ticker)}`\n"
+            f"🛑 SL: `{_fmt_precio(senal['sl'], ticker)}`\n\n"
+            f"🔭 Monitoreando TP/SL automáticamente.\n"
+            f"📊 *Seguimiento cada 10 min activado* — te avisaré tu P/L, distancia\n"
+            f"al parcial/TP/SL y cuándo cobrar y mover el SL a breakeven.\n"
+            f"Señales de *{ticker}* pausadas hasta que cierre.\n"
+            f"Usa /cerrar {ticker.replace('=X','')} para salida manual."
+        )
+    except Exception as e:
+        logger.error(f"cmd_tomar {code}: {e}")
+        await _reply(update,
+            f"❌ Hubo un error al tomar la alerta *{code}*: `{str(e)[:120]}`\n"
+            "Intenta de nuevo. Si persiste, avísame el error."
+        )
 
 
 async def cmd_cerrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
