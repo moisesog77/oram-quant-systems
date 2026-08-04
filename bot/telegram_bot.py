@@ -2743,13 +2743,13 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                     # SL = pasando la mecha del stop-hunt, con piso 0.25×ATR y tope 3×ATR
                     if dir_ == "LONG":
                         sl_raw = mecha - atr * 0.15
-                        dist   = max(min(entrada - sl_raw, atr * 3.0), atr * 0.25)
+                        dist   = max(min(entrada - sl_raw, atr * 3.0), atr * 0.5)
                         sl     = entrada - dist
                         if tp <= entrada:
                             continue
                     else:  # SHORT
                         sl_raw = mecha + atr * 0.15
-                        dist   = max(min(sl_raw - entrada, atr * 3.0), atr * 0.25)
+                        dist   = max(min(sl_raw - entrada, atr * 3.0), atr * 0.5)
                         sl     = entrada + dist
                         if tp >= entrada:
                             continue
