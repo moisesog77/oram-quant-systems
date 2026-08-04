@@ -2955,6 +2955,10 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                 if df is None or len(df) == 0:
                     continue
                 precio = float(df["Close"].iloc[-1])
+                try:
+                    atr_seg = float((df["High"] - df["Low"]).rolling(14).mean().iloc[-1])
+                except Exception:
+                    atr_seg = 0
                 u  = "pts" if ("GC" in ticker.upper() or "XAU" in ticker.upper()) else "pips"
                 fp = lambda x: _fmt_precio(x, ticker)
 
@@ -2978,6 +2982,14 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                 else:
                     estatus = f"🔻 En contra pero dentro del riesgo (SL a {_pips(abs(sl - precio), ticker):.0f} {u}). Respeta el stop, no lo muevas."
 
+                # Objetivo dinámico recalculado: desde el precio ACTUAL al TP,
+                # con el ATR actual → responsivo al mercado en tiempo real
+                _obj_seg = ""
+                if not (paso_tp or paso_sl):
+                    _o = _objetivo_tiempo(precio, tp, atr_seg, "5m")
+                    if _o:
+                        _obj_seg = _o.replace("Objetivo:", "TP probable:")
+
                 lineas = [
                     f"📊 *SEGUIMIENTO — {ticker} {dir_}* (#{t.get('id','')})",
                     "━━━━━━━━━━━━━━━━",
@@ -2986,12 +2998,13 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                     f"🎯 Parcial 1R `{fp(parcial)}` · " + ("✅ pasado" if paso_parcial else f"faltan {_pips(abs(parcial - precio), ticker):.0f} {u}"),
                     f"✅ TP `{fp(tp)}` · faltan {_pips(abs(tp - precio), ticker):.0f} {u}",
                     f"🛑 SL `{fp(sl)}` · a {_pips(abs(sl - precio), ticker):.0f} {u}",
+                    _obj_seg,
                     "",
                     f"🧭 {estatus}",
                     f"🔒 Para cerrar este trade: `/cerrar {ticker.replace('=X','')}`",
                     f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
                 ]
-                await _send(ctx.bot, chat_id, "\n".join(lineas))
+                await _send(ctx.bot, chat_id, "\n".join(l for l in lineas if l))
             except Exception as e:
                 logger.error(f"seguimiento_trade {t.get('ticker','?')}: {e}")
     except Exception as e:
