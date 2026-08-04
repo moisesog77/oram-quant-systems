@@ -1602,7 +1602,7 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"🔭 Monitoreando TP/SL automáticamente.\n"
             f"📊 *Seguimiento cada 10 min activado* — te avisaré tu P/L, distancia\n"
             f"al parcial/TP/SL y cuándo cobrar y mover el SL a breakeven.\n"
-            f"Señales de *{ticker}* pausadas hasta que cierre.\n"
+            f"🔔 Las señales de *{ticker}* siguen llegando por si aparece otra oportunidad.\n"
             f"Usa /cerrar {ticker.replace('=X','')} para salida manual."
         )
     except Exception as e:
@@ -2091,7 +2091,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
             for ticker, smc, conf, sig_id in sorted(altas, key=lambda x: -x[2]):
                 try:
                     # Saltar si ya hay trade confirmado activo para este ticker
-                    if obtener_trade_activo(chat_id, ticker): continue
+                    # (señales NO se pausan al tener trade activo — preferencia del usuario)
                     dir_  = smc.get("estructura", {}).get("direccion", "")
                     tipo  = smc.get("estructura", {}).get("tipo", "SMC Signal")
                     msg   = "🚨 *SEÑAL ALTA PRIORIDAD — INTRADAY · " + tf + "*\n" + _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct)
@@ -2134,7 +2134,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                 _primera_media = True
                 _fuentes_medias = set()
                 for ticker, smc, conf, sig_id in sorted(medias, key=lambda x: -x[2]):
-                    if obtener_trade_activo(chat_id, ticker): continue
+                    # (señales NO se pausan al tener trade activo — preferencia del usuario)
                     dir_  = smc.get("estructura", {}).get("direccion", "neutral")
                     tipo  = smc.get("estructura", {}).get("tipo", "?")
                     precio = smc.get("precio", 0)
@@ -2307,7 +2307,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                         _mtf_persistencia.pop(clave_acc, None)
                         _mtf_persistencia[clave_vig] = _mtf_persistencia.get(clave_vig, 0) + 1
                         if _mtf_persistencia[clave_vig] < 9: continue
-                        if obtener_trade_activo(chat_id, ticker): continue
+                        # (señales NO se pausan al tener trade activo — preferencia del usuario)
                         ahora_ts = datetime.now(TZ_MX).timestamp()
                         if ahora_ts - _watch_enviados.get(clave_acc, 0) < 7200: continue
                         _mtf_persistencia.pop(clave_vig, None)
@@ -2335,7 +2335,7 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     _mtf_persistencia[clave_acc] = _mtf_persistencia.get(clave_acc, 0) + 1
                     if _mtf_persistencia[clave_acc] < 6: continue
                     if (ticker, dir_mtf) in mtf_recientes: continue
-                    if obtener_trade_activo(chat_id, ticker): continue
+                    # (señales NO se pausan al tener trade activo — preferencia del usuario)
                     _mtf_persistencia.pop(clave_acc, None)
                     df_bajo_ctx, _st_bajo = obtener_datos(ticker, tf_bajo)
                     ctx_bajo = _calcular_contexto(df_bajo_ctx) if df_bajo_ctx is not None else {}
