@@ -562,6 +562,27 @@ def obtener_muros_htf(ticker: str, tf_base: str) -> dict:
     return {"support_levels": sops, "resistance_levels": ress}
 
 
+def sl_minimo_absoluto(ticker: str, precio: float = 0) -> float:
+    """Distancia mínima de SL en unidades de PRECIO, independiente del ATR.
+
+    Motivo (caso real GBPUSD 18-ago-2026): con ATR comprimido el piso relativo
+    (0.5×ATR) permitió un SL de 1.5 pips. Problemas: el spread se come casi todo
+    el stop, y el lote calculado para arriesgar 2% se dispara (0.138 lotes), así
+    que cualquier deslizamiento multiplica la pérdida real muy por encima del
+    riesgo planeado. Un SL que no sobrevive al spread no es un SL.
+    """
+    t = (ticker or "").upper()
+    if "BTC" in t or "ETH" in t:
+        return precio * 0.0015 if precio else 0.0      # ~0.15% en cripto
+    if "GC" in t or "XAU" in t or "SI=" in t or "XAG" in t:
+        return 2.0                                      # oro/plata: 2.0 puntos
+    if "JPY" in t:
+        return 0.05                                     # pares JPY: 5 pips
+    if "=X" in t or len(t) == 6:
+        return 0.0005                                   # forex mayor: 5 pips
+    return 0.0
+
+
 def _calcular_sl_tp_dinamico(
     precio: float,
     direccion: str,
@@ -569,6 +590,7 @@ def _calcular_sl_tp_dinamico(
     liquidez: dict,
     atr: float,
     muros_htf: dict = None,
+    ticker: str = "",
 ) -> tuple[float, float]:
     """
     SL/TP anclados a la ESTRUCTURA REAL de las velas (OB + swings de liquidez).
@@ -596,8 +618,10 @@ def _calcular_sl_tp_dinamico(
 
     buffer_sl   = atr * 0.25   # anti stop-hunt: cubre la mecha de retesteo típica
     buffer_tp   = atr * 0.15   # cobrar antes de que el precio toque el muro
-    dist_sl_min = atr * 0.5
-    dist_sl_max = atr * 3.0
+    # Piso del SL: el mayor entre el relativo (0.5×ATR) y el absoluto por activo
+    # (evita SLs que el spread se come y que inflan el lote calculado).
+    dist_sl_min = max(atr * 0.5, sl_minimo_absoluto(ticker, precio))
+    dist_sl_max = max(atr * 3.0, dist_sl_min)
 
     sops = sorted([s for s in liquidez.get("support_levels", []) if s < precio], reverse=True)
     ress = sorted([r for r in liquidez.get("resistance_levels", []) if r > precio])
@@ -760,7 +784,7 @@ def analisis_completo(df: pd.DataFrame, ticker: str, tf: str = None) -> dict:
     # fetch innecesario en escaneos neutrales).
     muros_htf = obtener_muros_htf(ticker, tf) if (tf and direccion != "neutral") else None
     sl_sug, tp_sug = _calcular_sl_tp_dinamico(
-        precio, direccion, ob_activo, liquidez, atr, muros_htf=muros_htf
+        precio, direccion, ob_activo, liquidez, atr, muros_htf=muros_htf, ticker=ticker
     )
 
     # ── Tipo de entrada: mercado vs orden límite en OB/FVG ────────────────────

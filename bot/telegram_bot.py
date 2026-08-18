@@ -26,7 +26,8 @@ except ImportError:
     TELEGRAM_OK = False
 
 from utils.market_data       import obtener_datos
-from utils.smc_engine        import analisis_completo, calcular_riesgo, _detectar_barrido_detalle
+from utils.smc_engine        import (analisis_completo, calcular_riesgo,
+                                      _detectar_barrido_detalle, sl_minimo_absoluto)
 from utils.multi_timeframe   import analisis_mtf, MTF_COMBOS
 from utils.backtesting       import ejecutar_backtest
 from utils.economic_calendar import (obtener_eventos_hoy, obtener_proximos_eventos,
@@ -1579,12 +1580,27 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
 
         ticker = senal["ticker"]
-        if obtener_trade_activo(chat_id, ticker):
-            await _reply(update,
-                f"⚠️ Ya tienes un trade activo en *{ticker}*.\n"
-                f"Usa /cerrar {ticker.replace('=X','')} para cerrarlo primero."
-            )
-            return
+        # NO se bloquea por trade activo: el bloqueo empujaba a cerrar ganadores
+        # para poder tomar una señal nueva (caso real 18-ago). Se avisa con el
+        # estado del trade previo y el usuario decide.
+        _previo = obtener_trade_activo(chat_id, ticker)
+        _aviso_previo = ""
+        if _previo:
+            try:
+                _dfp, _ = obtener_datos(ticker, "5m")
+                _pp   = float(_dfp["Close"].iloc[-1]) if _dfp is not None and len(_dfp) else 0.0
+                _entp = float(_previo.get("entrada", 0) or 0)
+                _dirp = _previo.get("direccion", "")
+                _plp  = _pips((_pp - _entp) if _dirp == "LONG" else (_entp - _pp), ticker) if (_pp and _entp) else 0.0
+                _up   = "pts" if ("GC" in ticker.upper() or "XAU" in ticker.upper()) else "pips"
+                _aviso_previo = (
+                    f"\n\n⚠️ *Ya tenías el trade #{_previo.get('id')} abierto en este activo* "
+                    f"({_dirp}, va {_plp:+.1f} {_up}).\n"
+                    f"Ahora hay *2 posiciones en {ticker}* — riesgo duplicado en la misma apuesta.\n"
+                    f"Si quieres cerrar una: `/cerrar {_previo.get('id')}`"
+                )
+            except Exception:
+                _aviso_previo = f"\n\n⚠️ Ya tenías el trade #{_previo.get('id')} abierto en {ticker} — ahora hay 2."
 
         trade_id = registrar_trade_confirmado(
             chat_id, ticker, senal.get("tf","15m"), senal["direccion"],
@@ -1603,7 +1619,8 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"📊 *Seguimiento cada 10 min activado* — te avisaré tu P/L, distancia\n"
             f"al parcial/TP/SL y cuándo cobrar y mover el SL a breakeven.\n"
             f"🔔 Las señales de *{ticker}* siguen llegando por si aparece otra oportunidad.\n"
-            f"Usa /cerrar {ticker.replace('=X','')} para salida manual."
+            f"Usa `/cerrar {trade_id}` para salida manual."
+            + _aviso_previo
         )
     except Exception as e:
         logger.error(f"cmd_tomar {code}: {e}")
@@ -1619,17 +1636,31 @@ async def cmd_cerrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     args = ctx.args or []
 
     if args:
-        ticker_input = args[0].upper()
-        _map = {"EURUSD":"EURUSD=X","GBPUSD":"GBPUSD=X","USDJPY":"USDJPY=X",
-                "USDCHF":"USDCHF=X","AUDUSD":"AUDUSD=X","USDCAD":"USDCAD=X",
-                "BTCUSD":"BTC-USD","ETHUSD":"ETH-USD","XAUUSD":"GC=F","GOLD":"GC=F"}
-        ticker = _map.get(ticker_input, ticker_input + "=X" if "=" not in ticker_input and "-" not in ticker_input else ticker_input)
-        trade = obtener_trade_activo(chat_id, ticker)
+        _a0 = args[0].strip().lstrip("#")
+        if _a0.isdigit():
+            # Cierre por número de trade — necesario cuando hay 2 del mismo activo
+            trade = next((t for t in obtener_trades_activos_chat(chat_id)
+                          if str(t.get("id")) == _a0), None)
+            if not trade:
+                await _reply(update, f"⚠️ No encuentro un trade activo *#{_a0}*.\nUsa /activos para ver los tuyos.")
+                return
+        else:
+            ticker_input = _a0.upper()
+            _map = {"EURUSD":"EURUSD=X","GBPUSD":"GBPUSD=X","USDJPY":"USDJPY=X",
+                    "USDCHF":"USDCHF=X","AUDUSD":"AUDUSD=X","USDCAD":"USDCAD=X",
+                    "BTCUSD":"BTC-USD","ETHUSD":"ETH-USD","XAUUSD":"GC=F","GOLD":"GC=F"}
+            ticker = _map.get(ticker_input, ticker_input + "=X" if "=" not in ticker_input and "-" not in ticker_input else ticker_input)
+            _mismos = [t for t in obtener_trades_activos_chat(chat_id) if t.get("ticker") == ticker]
+            if len(_mismos) > 1:
+                _l = "\n".join(f"  • `#{t['id']}` {t['direccion']} @ {_fmt_precio(t['entrada'], ticker)}" for t in _mismos)
+                await _reply(update, f"Tienes *{len(_mismos)} trades* en {ticker}:\n{_l}\n\nEspecifica cuál: `/cerrar {_mismos[0]['id']}`")
+                return
+            trade = _mismos[0] if _mismos else None
     else:
         trades = obtener_trades_activos_chat(chat_id)
         if len(trades) > 1:
-            lista = "\n".join(f"  • {t['ticker'].replace('=X','')} ({t['direccion']})" for t in trades)
-            await _reply(update, f"Tienes varios trades activos:\n{lista}\n\nEspecifica: /cerrar EURUSD")
+            lista = "\n".join(f"  • `#{t['id']}` {t['ticker'].replace('=X','')} ({t['direccion']})" for t in trades)
+            await _reply(update, f"Tienes varios trades activos:\n{lista}\n\nEspecifica: `/cerrar {trades[0]['id']}`")
             return
         trade = trades[0] if trades else None
 
@@ -2770,16 +2801,20 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
 
                     # Entrada = retesteo del nivel barrido (orden límite)
                     entrada = nivel_barrido
-                    # SL = pasando la mecha del stop-hunt, con piso 0.25×ATR y tope 3×ATR
+                    # SL = pasando la mecha del stop-hunt. Piso: el mayor entre
+                    # 0.5×ATR y el mínimo absoluto del activo (un SL que el
+                    # spread se come no es un SL, y además infla el lote).
+                    _piso_sl = max(atr * 0.5, sl_minimo_absoluto(ticker, entrada))
+                    _techo_sl = max(atr * 3.0, _piso_sl)
                     if dir_ == "LONG":
                         sl_raw = mecha - atr * 0.15
-                        dist   = max(min(entrada - sl_raw, atr * 3.0), atr * 0.5)
+                        dist   = max(min(entrada - sl_raw, _techo_sl), _piso_sl)
                         sl     = entrada - dist
                         if tp <= entrada:
                             continue
                     else:  # SHORT
                         sl_raw = mecha + atr * 0.15
-                        dist   = max(min(sl_raw - entrada, atr * 3.0), atr * 0.5)
+                        dist   = max(min(sl_raw - entrada, _techo_sl), _piso_sl)
                         sl     = entrada + dist
                         if tp >= entrada:
                             continue
@@ -3031,7 +3066,7 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                     _obj_seg,
                     "",
                     f"🧭 {estatus}",
-                    f"🔒 Para cerrar este trade: `/cerrar {ticker.replace('=X','')}`",
+                    f"🔒 Para cerrar este trade: `/cerrar {t.get('id','')}`",
                     f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
                 ]
                 await _send(ctx.bot, chat_id, "\n".join(l for l in lineas if l))

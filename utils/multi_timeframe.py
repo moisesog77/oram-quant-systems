@@ -88,7 +88,7 @@ def analisis_mtf(ticker: str, tf_alto: str, tf_bajo: str) -> dict:
         ob_activo = smc_bajo.get("confluencia", {}).get("ob_activo")
         liquidez  = smc_bajo.get("liquidez", {})
         muros_htf = obtener_muros_htf(ticker, tf_bajo)
-        sl_din, tp_din = _calcular_sl_tp_dinamico(precio, dir_alto, ob_activo, liquidez, atr_bajo, muros_htf=muros_htf)
+        sl_din, tp_din = _calcular_sl_tp_dinamico(precio, dir_alto, ob_activo, liquidez, atr_bajo, muros_htf=muros_htf, ticker=ticker)
         resultado["sl_sugerido"]      = sl_din
         resultado["tp_sugerido"]      = tp_din
         resultado["entrada_sugerida"] = round(precio, 5)
@@ -114,7 +114,7 @@ def analisis_mtf(ticker: str, tf_alto: str, tf_bajo: str) -> dict:
             ob_disc   = smc_bajo.get("confluencia", {}).get("ob_activo")
             liq_disc  = smc_bajo.get("liquidez", {})
             muros_htf = obtener_muros_htf(ticker, tf_bajo)
-            sl_d, tp_d = _calcular_sl_tp_dinamico(precio, dir_bajo, ob_disc, liq_disc, atr_bajo, muros_htf=muros_htf)
+            sl_d, tp_d = _calcular_sl_tp_dinamico(precio, dir_bajo, ob_disc, liq_disc, atr_bajo, muros_htf=muros_htf, ticker=ticker)
             resultado["entrada_discrecional"] = round(precio, 5)
             resultado["sl_discrecional"]      = sl_d
             resultado["tp_discrecional"]      = tp_d
