@@ -2825,6 +2825,18 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                         continue
                     rr = round(dist_tp / dist_sl, 1)
 
+                    # ── No enviar señales que NACEN EXPIRADAS ─────────────
+                    # La entrada del rebote es el nivel barrido (orden límite). Si
+                    # el precio ya se alejó tanto que entrar ahí daría RR < 1.3, la
+                    # señal viola su propia línea "No entrar arriba/abajo de" en el
+                    # momento de enviarse: el movimiento ya ocurrió sin el usuario.
+                    # (18-ago: las 3 alertas de rebote salieron así, con el precio
+                    #  ya 58-77% del camino al TP.)
+                    _lim_ent = (tp + 1.3 * sl) / 2.3
+                    if ((dir_ == "LONG"  and precio_actual > _lim_ent) or
+                        (dir_ == "SHORT" and precio_actual < _lim_ent)):
+                        continue
+
                     # ── Dedup 15 min ──────────────────────────────────────
                     clave_dd = (chat_id, ticker, dir_)
                     if ahora_ts - _dedup_rebote.get(clave_dd, 0) < 900:
