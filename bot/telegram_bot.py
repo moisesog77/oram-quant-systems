@@ -3032,14 +3032,40 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                 dist_sl = abs(entrada - sl)
                 parcial = entrada + dist_sl if dir_ == "LONG" else entrada - dist_sl
 
-                paso_tp      = (dir_ == "LONG" and precio >= tp) or (dir_ == "SHORT" and precio <= tp)
-                paso_sl      = (dir_ == "LONG" and precio <= sl) or (dir_ == "SHORT" and precio >= sl)
-                paso_parcial = (dir_ == "LONG" and precio >= parcial) or (dir_ == "SHORT" and precio <= parcial)
+                # Detección por RANGO, no solo por precio actual: entre chequeos
+                # (10 min) el precio puede tocar SL/TP y regresar. Mirar sólo el
+                # cierre reportaba como vivo un trade ya cerrado en el broker.
+                _hit_sl = _hit_tp = _hit_par = None
+                try:
+                    _ca = t.get("created_at")
+                    _ts = pd.to_datetime(_ca, errors="coerce", utc=True) if _ca else None
+                    _velas = df[df.index >= _ts.tz_convert(TZ_MX)] if (_ts is not None and pd.notna(_ts)) else df.tail(6)
+                    for _vt, _v in _velas.iterrows():
+                        _hi, _lo = float(_v["High"]), float(_v["Low"])
+                        if dir_ == "LONG":
+                            if _hit_par is None and _hi >= parcial: _hit_par = _vt
+                            if _hit_tp is None and _hi >= tp:       _hit_tp  = _vt
+                            if _hit_sl is None and _lo <= sl:       _hit_sl  = _vt
+                        else:
+                            if _hit_par is None and _lo <= parcial: _hit_par = _vt
+                            if _hit_tp is None and _lo <= tp:       _hit_tp  = _vt
+                            if _hit_sl is None and _hi >= sl:       _hit_sl  = _vt
+                        if _hit_tp is not None or _hit_sl is not None:
+                            break
+                except Exception:
+                    pass
+
+                paso_tp      = _hit_tp is not None or (dir_ == "LONG" and precio >= tp) or (dir_ == "SHORT" and precio <= tp)
+                paso_sl      = _hit_sl is not None or (dir_ == "LONG" and precio <= sl) or (dir_ == "SHORT" and precio >= sl)
+                paso_parcial = _hit_par is not None or (dir_ == "LONG" and precio >= parcial) or (dir_ == "SHORT" and precio <= parcial)
 
                 if paso_tp:
-                    estatus = "✅ *¡TP ALCANZADO!* Cobra y cierra en tu broker. Luego `/cerrar` aquí."
+                    _h = f" (a las {_hit_tp.strftime('%H:%M')})" if _hit_tp is not None else ""
+                    estatus = f"✅ *¡TP ALCANZADO!*{_h} Tu broker ya debió cerrarlo. Confirma y usa `/cerrar {t.get('id','')}` aquí."
                 elif paso_sl:
-                    estatus = "🛑 *SL TOCADO* — el trade cerró en pérdida, según el plan. Cierra y `/cerrar`."
+                    _h = f" a las {_hit_sl.strftime('%H:%M')}" if _hit_sl is not None else ""
+                    estatus = (f"🛑 *SL TOCADO*{_h} — tu broker ya debió cerrar esta posición. "
+                               f"Verifícalo y usa `/cerrar {t.get('id','')}` para sacarlo del registro.")
                 elif paso_parcial:
                     estatus = "🎯 *¡PARCIAL 1R alcanzado!* Cobra 50% y mueve el SL a *breakeven*. Desde aquí ya no puedes perder — deja correr el resto al TP."
                 elif pl >= 0:
