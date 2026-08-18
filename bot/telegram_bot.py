@@ -2077,7 +2077,37 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         dist_sl = abs(precio - sl)
                         dist_tp = abs(tp_ - precio)
                         rr = dist_tp / dist_sl if dist_sl > 0 else 0
-                        if rr < 1.5: continue
+                        if rr < 1.5:
+                            # ── 🧪 CONTINUACIÓN EXPERIMENTAL (validación en papel) ──
+                            # Auditoría 17-ago: señales conf>=65 de continuación en
+                            # tendencia mueren aquí porque el TP se capa en el muro y
+                            # el SL ancla a 3 ATR. Backtest (12 casos, 1 semana oro):
+                            # TP-en-muro + SL corto 1 ATR → +0.23R/trade. Muestra chica
+                            # → SOLO papel hasta validar con más datos.
+                            try:
+                                atr_c = smc.get("atr", 0) or 0
+                                if atr_c > 0 and dist_tp / atr_c >= 0.8:
+                                    sl_c = precio - atr_c if dir_ == "LONG" else precio + atr_c
+                                    rr_c = dist_tp / atr_c
+                                    clave_c = (chat_id, ticker, dir_, "cont")
+                                    ahora_c = datetime.now(TZ_MX).timestamp()
+                                    if ahora_c - _watch_senales_enviados.get(clave_c, 0) > 1800:
+                                        _watch_senales_enviados[clave_c] = ahora_c
+                                        acc_c = "🟢 COMPRAR" if dir_ == "LONG" else "🔴 VENDER"
+                                        await _send(ctx.bot, chat_id,
+                                            f"🧪 *CONTINUACIÓN · {ticker}* — ⚗️ _EXPERIMENTAL_\n"
+                                            f"━━━━━━━━━━━━━━━━\n"
+                                            f"Señal {conf:.0f}% de continuación en tendencia, bloqueada por RR "
+                                            f"estructural ({rr:.2f}). Geometría alternativa en validación:\n"
+                                            f"👉 {acc_c} · 💰 `{_fmt_precio(precio, ticker)}`\n"
+                                            f"✅ TP (muro): `{_fmt_precio(tp_, ticker)}`  ·  🛑 SL corto (1 ATR): `{_fmt_precio(sl_c, ticker)}`\n"
+                                            f"⚖️ RR: {rr_c:.1f}:1\n"
+                                            f"🚫 *EN PRUEBA — solo registro, NO operar* (backtest +0.23R, muestra chica)\n"
+                                            f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX"
+                                        )
+                            except Exception as e:
+                                logger.error(f"continuacion exp {ticker}: {e}")
+                            continue
                     # Deduplicación: no re-enviar si misma señal en últimos 18 min
                     if (ticker, dir_) in tickers_ya_enviados: continue
                     sig_id = registrar_señal(ticker, tf, tipo, dir_, conf, precio, sl, tp_)

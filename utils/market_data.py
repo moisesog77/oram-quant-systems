@@ -42,6 +42,29 @@ def _solo_td() -> bool:
 _STALE_MAX_SOLO_TD = 1800
 
 
+def _filtrar_fin_de_semana(df, ticker: str, timeframe: str):
+    """Elimina velas espurias de fin de semana en FX/oro (auditoría 17-ago-2026:
+    Twelve Data entrega velas planas de sábado y domingo diurno, imposibles en
+    el mercado real — contaminan ATR, EMAs y niveles de liquidez, sobre todo
+    los lunes). El mercado FX/oro está cerrado de vie 17:00 NY a dom 17:00 NY.
+    No aplica a cripto (24/7) ni a velas diarias/semanales."""
+    try:
+        t = ticker.upper()
+        if "BTC" in t or "ETH" in t or timeframe in ("1d", "1wk"):
+            return df
+        if df is None or len(df) == 0 or df.index.tz is None:
+            return df
+        idx_ny = df.index.tz_convert("America/New_York")
+        wd = idx_ny.weekday
+        hr = idx_ny.hour
+        cerrado = (wd == 5) | ((wd == 4) & (hr >= 17)) | ((wd == 6) & (hr < 17))
+        if cerrado.any():
+            return df[~cerrado]
+        return df
+    except Exception:
+        return df
+
+
 def _cache_ttl(timeframe: str) -> int:
     """
     TTL dinámico que distribuye las 800 llamadas/día de Twelve Data (plan gratuito)
@@ -432,6 +455,7 @@ def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
     if td_key:
         df_td = _obtener_twelve_data(ticker, timeframe)
         if df_td is not None:
+            df_td = _filtrar_fin_de_semana(df_td, ticker, timeframe)
             valid, msg = _validar_datos(df_td, ticker)
             if valid:
                 df_td = _agregar_indicadores(df_td.copy(), timeframe)
@@ -463,6 +487,7 @@ def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
     if YF_AVAILABLE:
         df_yf = _obtener_yfinance(ticker, timeframe)
         if df_yf is not None:
+            df_yf = _filtrar_fin_de_semana(df_yf, ticker, timeframe)
             valid, msg = _validar_datos(df_yf, ticker)
             if valid:
                 df_yf = _agregar_indicadores(df_yf.copy(), timeframe)
