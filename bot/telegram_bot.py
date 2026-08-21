@@ -1582,6 +1582,15 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
 
         ticker = senal["ticker"]
+        # Guard: sin direccion valida el seguimiento descarta el trade (lo omite
+        # por completo). Mejor rechazar aqui con un mensaje claro.
+        if senal.get("direccion") not in ("LONG", "SHORT"):
+            await _reply(update,
+                f"⚠️ La alerta *{code}* no trae una dirección válida "
+                f"(`{senal.get('direccion', '?')}`), así que no puedo darle seguimiento.\n"
+                "Espera la próxima alerta — esto ya quedó corregido."
+            )
+            return
         # NO se bloquea por trade activo: el bloqueo empujaba a cerrar ganadores
         # para poder tomar una señal nueva (caso real 18-ago). Se avisa con el
         # estado del trade previo y el usuario decide.
@@ -2349,7 +2358,11 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     mtf = analisis_mtf(ticker, tf_alto, tf_bajo)
                     if not mtf.get("alineacion"): continue
                     confianza_mtf = mtf.get("confianza_mtf", 0)
-                    dir_mtf = mtf.get("direccion", "neutral")
+                    # Fallback al TF bajo: versiones previas de analisis_mtf no
+                    # exponían "direccion" y el trade se registraba como neutral
+                    # (el seguimiento descarta los que no son LONG/SHORT).
+                    dir_mtf = mtf.get("direccion") or (mtf.get("smc_bajo") or {}).get(
+                        "estructura", {}).get("direccion", "neutral")
                     clave_acc = (chat_id, ticker, dir_mtf)
                     clave_vig = (chat_id, ticker, dir_mtf, "w")
                     if confianza_mtf < 60:

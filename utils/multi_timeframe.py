@@ -31,6 +31,7 @@ def analisis_mtf(ticker: str, tf_alto: str, tf_bajo: str) -> dict:
         "smc_alto":      None,
         "smc_bajo":      None,
         "alineacion":    False,
+        "direccion":     "neutral",   # LONG/SHORT cuando hay alineación
         "señal_mtf":     "Sin señal",
         "descripcion":   "",
         "confianza_mtf": 0.0,
@@ -72,6 +73,7 @@ def analisis_mtf(ticker: str, tf_alto: str, tf_bajo: str) -> dict:
         elif not valid_alto or not valid_bajo:
             confianza_mtf = confianza_mtf * 0.6
         resultado["confianza_mtf"] = confianza_mtf
+        resultado["direccion"]     = dir_alto   # == dir_bajo (están alineados)
 
         tipo_alto = smc_alto.get("estructura", {}).get("tipo", "")
         tipo_bajo = smc_bajo.get("estructura", {}).get("tipo", "")
