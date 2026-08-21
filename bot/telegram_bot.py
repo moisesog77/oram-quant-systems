@@ -91,6 +91,14 @@ _alerta_seq: list = [0]              # contador incremental del día (lista para
 #   subir = menos señales, más precisas | bajar = más señales, más ruido
 UMBRAL_REBOTE = 60.0
 
+# 🧪 CONTINUACIÓN — DESACTIVADA 21-ago-2026 tras validación en papel.
+# Backtest inicial: +0.23R (12 casos, 1 activo, 1 semana de tendencia alcista).
+# Resultado real out-of-sample (3 activos, 3 días): 2 TP / 10 SL = -0.39R.
+# Las 13 señales fueron LONG y 9 se agruparon el 19-ago (día de reversión):
+# la lógica falla en cascada cuando la tendencia gira. Sobreajuste a la
+# muestra original. Poner en True solo para re-validar con más datos.
+CONTINUACION_ACTIVA = False
+
 # Alerta de mercado en rango — dedup 2h por chat
 _ultima_alerta_rango: dict = {}
 _ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
@@ -2156,7 +2164,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                             # → SOLO papel hasta validar con más datos.
                             try:
                                 atr_c = smc.get("atr", 0) or 0
-                                if atr_c > 0 and dist_tp / atr_c >= 0.8:
+                                if CONTINUACION_ACTIVA and atr_c > 0 and dist_tp / atr_c >= 0.8:
                                     sl_c = precio - atr_c if dir_ == "LONG" else precio + atr_c
                                     rr_c = dist_tp / atr_c
                                     clave_c = (chat_id, ticker, dir_, "cont")
