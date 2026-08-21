@@ -99,6 +99,15 @@ UMBRAL_REBOTE = 60.0
 # muestra original. Poner en True solo para re-validar con más datos.
 CONTINUACION_ACTIVA = False
 
+# 📈 TENDENCIA — DESACTIVADA 21-ago-2026 tras validación en papel.
+# Con pendiente >=0.8 (config real): 41 señales, 12 TP / 27 SL, win rate 31%,
+# expectativa -0.08R. Bajar el umbral a 0.5 daba +0.46R (82 señales, 49%),
+# pero se descartó: las 82 fueron LONG (cero SHORT), sobre 3 días alcistas y
+# a razón de ~27 señales/día — optimizar ese umbral sería el mismo sobreajuste
+# que hundió a CONTINUACION. Re-evaluar solo con 3-4 semanas que incluyan
+# tendencias bajistas y mercados laterales.
+TENDENCIA_ACTIVA = False
+
 # Alerta de mercado en rango — dedup 2h por chat
 _ultima_alerta_rango: dict = {}
 _ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
@@ -2976,6 +2985,8 @@ async def job_monitoreo_tendencia(ctx: ContextTypes.DEFAULT_TYPE):
     pullback. En validación (2 semanas paper): los mensajes dicen NO OPERAR AÚN.
     Corre cada 2 min. Dedup 30 min."""
     try:
+        if not TENDENCIA_ACTIVA:
+            return
         if not _en_horario_alertas():
             return
         configs         = obtener_todas_configs_bot()
@@ -3641,7 +3652,7 @@ def main():
         jq.run_repeating(job_monitoreo_reversal,       interval=60,  first=90)
         jq.run_repeating(job_monitoreo_scalp,          interval=60,  first=45)
         jq.run_repeating(job_monitoreo_rebote,         interval=60,  first=55)
-        jq.run_repeating(job_monitoreo_tendencia,      interval=120, first=110)  # EXPERIMENTAL (paper)
+        # job_monitoreo_tendencia desactivado 21-ago (ver TENDENCIA_ACTIVA)
         # Continuar el contador de IDs desde la DB (evita reusar códigos tras reinicio)
         try:
             _alerta_seq[0] = contar_alertas_id()
