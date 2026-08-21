@@ -93,6 +93,8 @@ UMBRAL_REBOTE = 60.0
 
 # Alerta de mercado en rango — dedup 2h por chat
 _ultima_alerta_rango: dict = {}
+_ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
+                                   # (cualquier job) — silencia el aviso de rango
 _checks_sin_senal:    dict = {}   # chat_id → checks consecutivos sin señal
 
 # Trades pendientes de confirmar desde Telegram — sig_id → datos de la señal
@@ -2235,7 +2237,16 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                 # Solo enviar en horario activo: 5am–5pm CDMX (fuera de sesión asiática)
                 en_horario_activo = 5 <= hora_mx < 17
                 # Enviar después de 20 checks (~60 min a 180s/check) sin señal y sin haberlo avisado en 2h
-                if (en_horario_activo and
+                # No avisar "mercado en rango" si el bot YA emitió una alerta
+                # operable en la última hora (MTF, sostenido, scalp, barrido o
+                # reversal) o si el usuario tiene trades abiertos: el mensaje
+                # contradecía señales enviadas minutos antes (21-ago 09:51).
+                _hay_actividad = (ahora_ts - _ultima_senal_enviada.get(chat_id, 0)) < 3600
+                try:
+                    _hay_actividad = _hay_actividad or bool(obtener_trades_activos_chat(chat_id))
+                except Exception:
+                    pass
+                if (en_horario_activo and not _hay_actividad and
                         _checks_sin_senal.get(chat_id, 0) >= 20 and
                         ahora_ts - _ultima_alerta_rango.get(chat_id, 0) > 7200):
                     _checks_sin_senal[chat_id]   = 0
@@ -2997,6 +3008,7 @@ async def _send_alerta(bot, chat_id: str, msg: str, senal: dict) -> str:
         logger.error(f"guardar_alerta_id {code}: {e}")
     msg = msg + f"\n🆔 *ID:* `{code}`  ·  si la operas: `/tomar {code}`"
     await _send(bot, chat_id, msg)
+    _ultima_senal_enviada[str(chat_id)] = datetime.now(TZ_MX).timestamp()
     return code
 
 
