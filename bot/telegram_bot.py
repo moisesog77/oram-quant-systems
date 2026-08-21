@@ -231,6 +231,21 @@ def _lineas_precision(entrada: float, sl: float, tp: float, dir_: str, ticker: s
     return []
 
 
+def _objetivo_minutos(entrada: float, tp: float, atr: float, tf: str):
+    """Ventana estimada al TP en minutos (lo, hi). Base del objetivo dinámico
+    y del plan original que se guarda al tomar el trade."""
+    try:
+        if not (entrada and tp and atr) or atr <= 0:
+            return (0, 0)
+        tf_min = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240}.get(tf, 15)
+        velas  = abs(tp - entrada) / atr
+        lo = max(int(round(velas * tf_min)), tf_min)
+        hi = max(int(round(velas * tf_min * 2.5)), lo + tf_min)
+        return (lo, hi)
+    except Exception:
+        return (0, 0)
+
+
 def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str) -> str:
     """Objetivo de tiempo DINÁMICO como HORA DE RELOJ (no duración).
     Distancia al TP / velocidad real (ATR por vela), rango [1x, 2.5x], sumado
@@ -240,10 +255,9 @@ def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str) -> str:
         if not (entrada and tp and atr) or atr <= 0:
             return ""
         from datetime import timedelta
-        tf_min = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240}.get(tf, 15)
-        velas  = abs(tp - entrada) / atr
-        lo = max(int(round(velas * tf_min)), tf_min)
-        hi = max(int(round(velas * tf_min * 2.5)), lo + tf_min)
+        lo, hi = _objetivo_minutos(entrada, tp, atr, tf)
+        if not lo:
+            return ""
         ahora = datetime.now(TZ_MX)
         t_lo  = (ahora + timedelta(minutes=lo)).strftime("%I:%M")
         t_hi  = (ahora + timedelta(minutes=hi)).strftime("%I:%M %p")
@@ -1613,10 +1627,24 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 _aviso_previo = f"\n\n⚠️ Ya tenías el trade #{_previo.get('id')} abierto en {ticker} — ahora hay 2."
 
+        # Plan original: ventana estimada al TP en el momento de entrar. Se guarda
+        # para comparar despues contra el pronostico vivo de cada seguimiento.
+        _tf_t = senal.get("tf", "15m")
+        _eta_lo = _eta_hi = 0
+        try:
+            _df_t, _ = obtener_datos(ticker, _tf_t)
+            if _df_t is not None and len(_df_t) > 14:
+                _atr_t = float((_df_t["High"] - _df_t["Low"]).rolling(14).mean().iloc[-1])
+                _eta_lo, _eta_hi = _objetivo_minutos(
+                    float(senal["entrada"]), float(senal["tp"]), _atr_t, _tf_t)
+        except Exception as e:
+            logger.error(f"eta inicial {ticker}: {e}")
+
         trade_id = registrar_trade_confirmado(
-            chat_id, ticker, senal.get("tf","15m"), senal["direccion"],
+            chat_id, ticker, _tf_t, senal["direccion"],
             float(senal["entrada"]), float(senal["sl"]), float(senal["tp"]),
-            float(senal.get("confianza", 0) or 0)
+            float(senal.get("confianza", 0) or 0),
+            eta_lo_min=_eta_lo, eta_hi_min=_eta_hi
         )
         emoji = _emoji_dir(senal["direccion"])
         await _reply(update,
@@ -3116,17 +3144,72 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                 if not (paso_tp or paso_sl):
                     _o = _objetivo_tiempo(precio, tp, atr_seg, "5m")
                     if _o:
-                        _obj_seg = _o.replace("Objetivo:", "TP probable:")
+                        _obj_seg = _o.replace("Objetivo:", "TP probable ahora:")
+
+                # ── Plan original vs pronóstico vivo ──────────────────────
+                # Si el TP estimado se corre mucho respecto al plan de entrada,
+                # el trade perdió momentum: dato clave para cerrar a tiempo.
+                _plan_txt = _deriva_txt = ""
+                _deriva_min = None
+                try:
+                    _elo = int(t.get("eta_lo_min") or 0)
+                    _ehi = int(t.get("eta_hi_min") or 0)
+                    _ca2 = t.get("created_at")
+                    _ts2 = pd.to_datetime(_ca2, errors="coerce", utc=True) if _ca2 else None
+                    if _elo and _ts2 is not None and pd.notna(_ts2) and not (paso_tp or paso_sl):
+                        _t0 = _ts2.tz_convert(TZ_MX)
+                        _plan_lo = _t0 + pd.Timedelta(minutes=_elo)
+                        _plan_hi = _t0 + pd.Timedelta(minutes=_ehi)
+                        _plan_txt = (f"📋 _Plan original ({_t0.strftime('%I:%M %p')}): "
+                                     f"TP entre {_plan_lo.strftime('%I:%M')} y {_plan_hi.strftime('%I:%M %p')}_")
+                        _lo_now, _hi_now = _objetivo_minutos(precio, tp, atr_seg, "5m")
+                        if _lo_now:
+                            _ahora = datetime.now(TZ_MX)
+                            _eta_now = _ahora + pd.Timedelta(minutes=_lo_now)
+                            _deriva_min = int((_eta_now - _plan_lo).total_seconds() / 60)
+                            _transc = int((_ahora - _t0).total_seconds() / 60)
+                            def _hm(m):
+                                m = abs(int(m))
+                                return f"{m//60}h {m%60}min" if m >= 60 else f"{m}min"
+                            if _deriva_min > 30:
+                                _deriva_txt = (f"🐢 _Va {_hm(_deriva_min)} más lento que el plan "
+                                               f"(lleva {_hm(_transc)} abierto)_")
+                            elif _deriva_min < -20:
+                                _deriva_txt = f"🚀 _Va {_hm(_deriva_min)} más rápido que el plan_"
+                            else:
+                                _deriva_txt = f"✅ _En línea con el plan (lleva {_hm(_transc)} abierto)_"
+                except Exception as e:
+                    logger.error(f"deriva plan {ticker}: {e}")
+
+                # Progreso hacia el TP (0-100%)
+                _prog = ""
+                try:
+                    _tot = abs(tp - entrada)
+                    if _tot > 0:
+                        _pc = max(0, min(100, (pl_diff / _tot) * 100))
+                        _prog = f" · {_pc:.0f}% del camino al TP"
+                except Exception:
+                    pass
+
+                # Aviso de cierre seguro: ganancia flotante + trade que perdió
+                # ritmo respecto al plan = candidato a proteger antes de devolverla.
+                if (_deriva_min is not None and _deriva_min > 60 and pl > 0
+                        and not (paso_tp or paso_sl or paso_parcial)):
+                    estatus += ("\n⚠️ *Vas ganando pero el trade perdió ritmo.* Considera subir "
+                                f"el SL a breakeven (`{fp(entrada)}`) para no devolver la ganancia.")
 
                 lineas = [
                     f"📊 *SEGUIMIENTO — {ticker} {dir_}* (#{t.get('id','')})",
                     "━━━━━━━━━━━━━━━━",
                     f"💰 Entrada `{fp(entrada)}`  ·  Precio `{fp(precio)}`",
-                    f"📈 Vas: *{pl:+.1f} {u}*",
+                    f"📈 Vas: *{pl:+.1f} {u}*{_prog}",
                     f"🎯 Parcial 1R `{fp(parcial)}` · " + ("✅ pasado" if paso_parcial else f"faltan {_pips(abs(parcial - precio), ticker):.0f} {u}"),
                     f"✅ TP `{fp(tp)}` · faltan {_pips(abs(tp - precio), ticker):.0f} {u}",
                     f"🛑 SL `{fp(sl)}` · a {_pips(abs(sl - precio), ticker):.0f} {u}",
                     _obj_seg,
+                    "",
+                    _plan_txt,
+                    _deriva_txt,
                     "",
                     f"🧭 {estatus}",
                     f"🔒 Para cerrar este trade: `/cerrar {t.get('id','')}`",

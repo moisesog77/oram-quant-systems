@@ -287,6 +287,8 @@ CREATE TABLE IF NOT EXISTS confirmed_trades (
     sl REAL NOT NULL,
     tp REAL NOT NULL,
     confianza REAL DEFAULT 0,
+    eta_lo_min INTEGER DEFAULT 0,
+    eta_hi_min INTEGER DEFAULT 0,
     activo INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now')),
     closed_at TEXT DEFAULT NULL,
@@ -410,6 +412,8 @@ _PG_TABLES = [
         sl REAL NOT NULL,
         tp REAL NOT NULL,
         confianza REAL DEFAULT 0,
+        eta_lo_min INTEGER DEFAULT 0,
+        eta_hi_min INTEGER DEFAULT 0,
         activo INTEGER DEFAULT 1,
         created_at TEXT DEFAULT (NOW()::text),
         closed_at TEXT DEFAULT NULL,
@@ -447,6 +451,8 @@ def inicializar_db():
                 ("users",      "is_active",       "INTEGER DEFAULT 1"),
                 ("bot_config", "riesgo_pct",      "REAL DEFAULT 2.0"),
                 ("bot_config", "capital_cuenta",  "REAL DEFAULT 0"),
+                ("confirmed_trades", "eta_lo_min", "INTEGER DEFAULT 0"),
+                ("confirmed_trades", "eta_hi_min", "INTEGER DEFAULT 0"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
@@ -463,6 +469,8 @@ def inicializar_db():
             for table, col, definition in [
                 ("bot_config", "riesgo_pct",     "REAL DEFAULT 2.0"),
                 ("bot_config", "capital_cuenta",  "REAL DEFAULT 0"),
+                ("confirmed_trades", "eta_lo_min", "INTEGER DEFAULT 0"),
+                ("confirmed_trades", "eta_hi_min", "INTEGER DEFAULT 0"),
             ]:
                 try:
                     _exec(conn, f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {definition}")
@@ -899,13 +907,18 @@ def obtener_backtests(user_id: int) -> list:
 
 def registrar_trade_confirmado(chat_id: str, ticker: str, timeframe: str,
                                 direccion: str, entrada: float, sl: float,
-                                tp: float, confianza: float) -> int:
-    """Registra un trade que el usuario confirmó haber tomado. Retorna ID."""
+                                tp: float, confianza: float,
+                                eta_lo_min: int = 0, eta_hi_min: int = 0) -> int:
+    """Registra un trade que el usuario confirmó haber tomado. Retorna ID.
+    eta_lo_min / eta_hi_min: ventana estimada al TP (minutos desde la entrada)
+    calculada al momento de tomar el trade — sirve para comparar el plan
+    original contra el pronóstico vivo en cada seguimiento."""
     with get_conn() as conn:
         cur = _exec(conn,
-            f"INSERT INTO confirmed_trades (chat_id,ticker,timeframe,direccion,entrada,sl,tp,confianza) "
-            f"VALUES ({_ph(8)})",
-            (chat_id, ticker, timeframe, direccion, entrada, sl, tp, confianza)
+            f"INSERT INTO confirmed_trades (chat_id,ticker,timeframe,direccion,entrada,sl,tp,confianza,eta_lo_min,eta_hi_min) "
+            f"VALUES ({_ph(10)})",
+            (chat_id, ticker, timeframe, direccion, entrada, sl, tp, confianza,
+             int(eta_lo_min or 0), int(eta_hi_min or 0))
         )
         return _lastrowid(cur, "confirmed_trades", conn)
 
