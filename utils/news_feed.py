@@ -45,6 +45,22 @@ def _relativo(ts: int) -> str:
     return f"hace {diff // 86400}d"
 
 
+_TITULOS_BASURA = (
+    "error 500", "error 404", "server error", "that's an error", "that’s an error",
+    "that's all we know", "please try again later", "access denied", "forbidden",
+    "just a moment", "are you a robot", "captcha", "page not found",
+    "service unavailable", "bad gateway", "too many requests",
+)
+
+
+def _es_basura(titulo: str) -> bool:
+    """Descarta paginas de error que el feed a veces devuelve como si fueran noticias."""
+    t = (titulo or "").strip().lower()
+    if len(t) < 15:
+        return True
+    return any(b in t for b in _TITULOS_BASURA)
+
+
 def _parsear_item(item: dict) -> dict | None:
     """Normaliza un item de yfinance (soporta formato antiguo y nuevo)."""
     try:
@@ -64,7 +80,7 @@ def _parsear_item(item: dict) -> dict | None:
         else:
             ts = int(item.get("providerPublishTime", 0))
 
-        if not titulo:
+        if not titulo or _es_basura(titulo):
             return None
         titulo = _traducir_es(titulo)
         return {"titulo": titulo, "fuente": fuente, "tiempo": _relativo(ts), "ts": ts}
