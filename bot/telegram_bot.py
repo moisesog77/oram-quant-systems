@@ -110,6 +110,7 @@ TENDENCIA_ACTIVA = False
 
 # Alerta de mercado en rango — dedup 2h por chat
 _ultima_alerta_rango: dict = {}
+_ultima_ranura_rango: dict = {}  # chat_id → (hora, 0|30) del último aviso de rango
 _ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
                                    # (cualquier job) — silencia el aviso de rango
 _checks_sin_senal:    dict = {}   # chat_id → checks consecutivos sin señal
@@ -2295,15 +2296,20 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                 # operable en la última hora (MTF, sostenido, scalp, barrido o
                 # reversal) o si el usuario tiene trades abiertos: el mensaje
                 # contradecía señales enviadas minutos antes (21-ago 09:51).
-                _hay_actividad = (ahora_ts - _ultima_senal_enviada.get(chat_id, 0)) < 3600
+                _hay_actividad = (ahora_ts - _ultima_senal_enviada.get(chat_id, 0)) < 1800
                 try:
                     _hay_actividad = _hay_actividad or bool(obtener_trades_activos_chat(chat_id))
                 except Exception:
                     pass
+                # Cadencia fija: 2 avisos por hora, en la primera corrida tras
+                # :00 y tras :30 (el job corre c/180s). Antes era 1 cada 2h.
+                _dt_r = datetime.now(TZ_MX)
+                _ranura = (_dt_r.hour, 0 if _dt_r.minute < 30 else 30)
                 if (en_horario_activo and not _hay_actividad and
-                        _checks_sin_senal.get(chat_id, 0) >= 20 and
-                        ahora_ts - _ultima_alerta_rango.get(chat_id, 0) > 7200):
-                    _checks_sin_senal[chat_id]   = 0
+                        _checks_sin_senal.get(chat_id, 0) >= 3 and
+                        _ultima_ranura_rango.get(chat_id) != _ranura):
+                    _checks_sin_senal[chat_id]    = 0
+                    _ultima_ranura_rango[chat_id] = _ranura
                     _ultima_alerta_rango[chat_id] = ahora_ts
                     lineas_r = ["━━━━━━━━━━━━━━━━"]
                     bloqueados = []   # conf >= umbral pero filtrado por OB/RR
