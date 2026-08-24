@@ -110,7 +110,6 @@ TENDENCIA_ACTIVA = False
 
 # Alerta de mercado en rango — dedup 2h por chat
 _ultima_alerta_rango: dict = {}
-_ultima_ranura_rango: dict = {}  # chat_id → (hora, 0|30) del último aviso de rango
 _ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
                                    # (cualquier job) — silencia el aviso de rango
 _checks_sin_senal:    dict = {}   # chat_id → checks consecutivos sin señal
@@ -2241,6 +2240,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                         plain = msg.replace("*","").replace("_","").replace("`","")
                         await ctx.bot.send_message(chat_id=chat_id, text=plain[:4000], reply_markup=kbd)
                     marcar_señal_enviada(sig_id)
+                    _ultima_senal_enviada[str(chat_id)] = datetime.now(TZ_MX).timestamp()
                     _senal = {"ticker": ticker, "tf": tf, "direccion": dir_, "entrada": smc.get("precio",0), "sl": smc.get("sl_sugerido",0), "tp": smc.get("tp_sugerido",0), "confianza": conf, "setup": tipo}
                     _ultimas_senales[(chat_id, ticker)] = _senal
                     _ultimas_senales[chat_id] = _senal
@@ -2269,6 +2269,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     _ds_m = smc.get("_data_source", "")
                     if _ds_m: _fuentes_medias.add(_ds_m)
                     marcar_señal_enviada(sig_id)
+                    _ultima_senal_enviada[str(chat_id)] = datetime.now(TZ_MX).timestamp()
                     _senal = {"ticker": ticker, "tf": tf, "direccion": dir_, "entrada": precio, "sl": sl, "tp": tp_, "confianza": conf}
                     _ultimas_senales[(chat_id, ticker)] = _senal
                     if _primera_media:
@@ -2284,95 +2285,105 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     except Exception as e:
                         logger.error(f"send medias: {e}")
 
-            # ── Alerta de mercado en rango ────────────────────────────────────
-            if not altas and not medias:
-                _checks_sin_senal[chat_id] = _checks_sin_senal.get(chat_id, 0) + 1
-                ahora_ts = datetime.now(TZ_MX).timestamp()
-                hora_mx  = datetime.now(TZ_MX).hour
-                # Solo enviar en horario activo: 5am–5pm CDMX (fuera de sesión asiática)
-                en_horario_activo = 5 <= hora_mx < 17
-                # Enviar después de 20 checks (~60 min a 180s/check) sin señal y sin haberlo avisado en 2h
-                # No avisar "mercado en rango" si el bot YA emitió una alerta
-                # operable en la última hora (MTF, sostenido, scalp, barrido o
-                # reversal) o si el usuario tiene trades abiertos: el mensaje
-                # contradecía señales enviadas minutos antes (21-ago 09:51).
-                _hay_actividad = (ahora_ts - _ultima_senal_enviada.get(chat_id, 0)) < 1800
-                try:
-                    _hay_actividad = _hay_actividad or bool(obtener_trades_activos_chat(chat_id))
-                except Exception:
-                    pass
-                # Cadencia fija: 2 avisos por hora, en la primera corrida tras
-                # :00 y tras :30 (el job corre c/180s). Antes era 1 cada 2h.
-                _dt_r = datetime.now(TZ_MX)
-                _ranura = (_dt_r.hour, 0 if _dt_r.minute < 30 else 30)
-                if (en_horario_activo and not _hay_actividad and
-                        _checks_sin_senal.get(chat_id, 0) >= 3 and
-                        _ultima_ranura_rango.get(chat_id) != _ranura):
-                    _checks_sin_senal[chat_id]    = 0
-                    _ultima_ranura_rango[chat_id] = _ranura
-                    _ultima_alerta_rango[chat_id] = ahora_ts
-                    lineas_r = ["━━━━━━━━━━━━━━━━"]
-                    bloqueados = []   # conf >= umbral pero filtrado por OB/RR
-                    sin_senal  = []   # conf < umbral
-                    _fuentes_rango = set()
-                    for tkr in activos:
-                        try:
-                            smc_r, _ = _analizar_activo(tkr, tf)
-                            if not smc_r or "error" in smc_r:
-                                continue
-                            dir_r   = smc_r.get("estructura", {}).get("direccion", "neutral")
-                            conf_r  = smc_r.get("confluencia", {}).get("confianza", 0)
-                            tipo_r  = smc_r.get("estructura", {}).get("tipo", "Sin señal")
-                            valid_r = smc_r.get("señal_valida", False)
-                            _ds_r = smc_r.get("_data_source", "")
-                            if _ds_r: _fuentes_rango.add(_ds_r)
-                            # Calcular RR
-                            p_r  = smc_r.get("precio", 0)
-                            sl_r = smc_r.get("sl_sugerido", 0)
-                            tp_r = smc_r.get("tp_sugerido", 0)
-                            rr_r = 0.0
-                            if p_r > 0 and sl_r > 0 and tp_r > 0:
-                                d_sl = abs(p_r - sl_r)
-                                rr_r = abs(tp_r - p_r) / d_sl if d_sl > 0 else 0
-                            lineas_r.append(f"{_emoji_dir(dir_r)} *{tkr}*: {tipo_r} ({conf_r:.0f}%)")
-                            if conf_r >= umbral:
-                                motivo = []
-                                if not valid_r:     motivo.append("sin OB activo")
-                                if rr_r < 1.5:      motivo.append(f"RR {rr_r:.1f}:1 < 1.5")
-                                bloqueados.append((tkr, conf_r, motivo))
-                            else:
-                                sin_senal.append(tkr)
-                        except Exception:
-                            pass
-
-                    if bloqueados:
-                        titulo = "⚠️ *SETUP DETECTADO — Condiciones insuficientes*"
-                        lineas_r.insert(0, titulo)
-                        lineas_r.append("")
-                        for tkr_b, conf_b, motivos in bloqueados:
-                            razon = ", ".join(motivos) if motivos else "filtro secundario"
-                            lineas_r.append(f"⚠️ _{tkr_b} {conf_b:.0f}% bloqueado: {razon}_")
-                        lineas_r.append(f"\n💡 _Confianza alcanzada pero sin condiciones operables. Revisa el chart._")
-                    else:
-                        lineas_r.insert(0, "⚪ *MERCADO EN RANGO — Sin setups activos*")
-                        lineas_r.append(f"\n💡 _Ningún activo supera el umbral {umbral:.0f}% — mercado lateral._")
-
-                    try:
-                        _ctx_rango = contexto_noticias_activos(activos, max_items=2)
-                        if _ctx_rango:
-                            lineas_r += ["", _ctx_rango]
-                    except Exception:
-                        pass
-                    lineas_r.append(f"_El bot alertará cuando aparezca una entrada válida._")
-                    if _fuentes_rango:
-                        lineas_r.append(f"📡 _Fuente: {' | '.join(_fuentes_rango)}_")
-                    lineas_r.append(f"🕐 _{_hora_mx()} CDMX_")
-                    await _send(ctx.bot, chat_id, "\n".join(lineas_r))
-            else:
-                _checks_sin_senal[chat_id] = 0  # reset si apareció señal
 
     except Exception as e:
         logger.error(f"job_monitoreo_senales: {e}")
+
+
+async def job_aviso_rango(ctx: ContextTypes.DEFAULT_TYPE):
+    """Aviso de mercado sin setups. Job propio alineado al reloj para caer
+    EXACTAMENTE en :00 y :30 (antes vivía dentro de job_monitoreo_senales,
+    que corre c/180s, y los avisos caían a horas arbitrarias tipo 11:02).
+    Se omite si hubo una alerta operable en los últimos 30 min o si el
+    usuario tiene trades abiertos."""
+    try:
+        if not _en_horario_alertas():
+            return
+        ahora_ts = datetime.now(TZ_MX).timestamp()
+        hora_mx  = datetime.now(TZ_MX).hour
+        if not (5 <= hora_mx < 17):
+            return
+        configs = obtener_todas_configs_bot()
+        activos_default = ["EURUSD=X", "GBPUSD=X", "GC=F"]
+        for cfg in configs:
+            chat_id = cfg.get("telegram_chat_id", "")
+            if not chat_id or not cfg.get("alertas_activas"):
+                continue
+            # Silenciar si hay actividad reciente o posiciones abiertas
+            if (ahora_ts - _ultima_senal_enviada.get(chat_id, 0)) < 1800:
+                continue
+            try:
+                if obtener_trades_activos_chat(chat_id):
+                    continue
+            except Exception:
+                pass
+
+            umbral = max(float(cfg.get("umbral_confianza", 65)), 65.0)
+            tf     = cfg.get("tf_monitor", "15m")
+            try:
+                activos = json.loads(cfg.get("activos_monitor", "[]")) or activos_default
+            except Exception:
+                activos = activos_default
+
+            lineas_r = ["━━━━━━━━━━━━━━━━"]
+            bloqueados, sin_senal, _fuentes_rango = [], [], set()
+            for tkr in activos:
+                try:
+                    smc_r, _ = _analizar_activo(tkr, tf)
+                    if not smc_r or "error" in smc_r:
+                        continue
+                    dir_r   = smc_r.get("estructura", {}).get("direccion", "neutral")
+                    conf_r  = smc_r.get("confluencia", {}).get("confianza", 0)
+                    tipo_r  = smc_r.get("estructura", {}).get("tipo", "Sin señal")
+                    valid_r = smc_r.get("señal_valida", False)
+                    _ds_r   = smc_r.get("_data_source", "")
+                    if _ds_r:
+                        _fuentes_rango.add(_ds_r)
+                    p_r  = smc_r.get("precio", 0)
+                    sl_r = smc_r.get("sl_sugerido", 0)
+                    tp_r = smc_r.get("tp_sugerido", 0)
+                    rr_r = 0.0
+                    if p_r > 0 and sl_r > 0 and tp_r > 0:
+                        d_sl = abs(p_r - sl_r)
+                        rr_r = abs(tp_r - p_r) / d_sl if d_sl > 0 else 0
+                    lineas_r.append(f"{_emoji_dir(dir_r)} *{tkr}*: {tipo_r} ({conf_r:.0f}%)")
+                    if conf_r >= umbral:
+                        motivo = []
+                        if not valid_r: motivo.append("sin OB activo")
+                        if rr_r < 1.5:  motivo.append(f"RR {rr_r:.1f}:1 < 1.5")
+                        bloqueados.append((tkr, conf_r, motivo))
+                    else:
+                        sin_senal.append(tkr)
+                except Exception:
+                    pass
+
+            if len(lineas_r) <= 1:
+                continue
+
+            if bloqueados:
+                lineas_r.insert(0, "⚠️ *SETUP DETECTADO — Condiciones insuficientes*")
+                lineas_r.append("")
+                for tkr_b, conf_b, motivos in bloqueados:
+                    razon = ", ".join(motivos) if motivos else "filtro secundario"
+                    lineas_r.append(f"⚠️ _{tkr_b} {conf_b:.0f}% bloqueado: {razon}_")
+                lineas_r.append("\n💡 _Confianza alcanzada pero sin condiciones operables. Revisa el chart._")
+            else:
+                lineas_r.insert(0, "⚪ *MERCADO EN RANGO — Sin setups activos*")
+                lineas_r.append(f"\n💡 _Ningún activo supera el umbral {umbral:.0f}% — mercado lateral._")
+
+            try:
+                _ctx_rango = contexto_noticias_activos(activos, max_items=2)
+                if _ctx_rango:
+                    lineas_r += ["", _ctx_rango]
+            except Exception:
+                pass
+            lineas_r.append("_El bot alertará cuando aparezca una entrada válida._")
+            if _fuentes_rango:
+                lineas_r.append(f"📡 _Fuente: {' | '.join(_fuentes_rango)}_")
+            lineas_r.append(f"🕐 _{_hora_mx()} CDMX_")
+            await _send(ctx.bot, chat_id, "\n".join(lineas_r))
+    except Exception as e:
+        logger.error(f"job_aviso_rango: {e}")
 
 
 async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
@@ -2603,6 +2614,7 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
                     await _send_alerta(ctx.bot, chat_id, msg,
                         {"ticker": ticker, "direccion": dir_bajo, "entrada": entrada, "sl": sl, "tp": tp, "tf": tf_bajo})
                     marcar_señal_enviada(sig_id)
+                    _ultima_senal_enviada[str(chat_id)] = datetime.now(TZ_MX).timestamp()
 
                 except Exception as e:
                     logger.error(f"job_reversal {ticker}: {e}")
@@ -3672,6 +3684,12 @@ def main():
         jq.run_repeating(job_seguimiento_trades,       interval=600, first=_first_seg)  # Capa 1: seguimiento en marcas de 10 min
         jq.run_repeating(job_verificar_alertas_precio, interval=120, first=30)
         jq.run_repeating(job_alerta_noticias,          interval=300, first=75)
+        # Aviso de mercado en rango: EXACTO en :00 y :30 (no relativo al arranque)
+        _now_rng = datetime.now(TZ_MX)
+        _first_rng = 1800 - ((_now_rng.minute % 30) * 60 + _now_rng.second)
+        if _first_rng <= 10:
+            _first_rng += 1800
+        jq.run_repeating(job_aviso_rango, interval=1800, first=_first_rng)
         print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Scalp c/90s · Alertas precio c/5m · Noticias c/5m")
     else:
         print("⚠️  Sin jobs. Instala: pip install APScheduler")
