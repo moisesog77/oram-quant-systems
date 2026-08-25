@@ -97,7 +97,8 @@ def obtener_noticias_ticker(ticker: str, max_items: int = 4) -> list:
     try:
         import yfinance as yf
         raw = yf.Ticker(ticker).news or []
-        items = [n for item in raw if (n := _parsear_item(item)) is not None]
+        items = [n for item in raw if (n := _parsear_item(item)) is not None
+                 and not _es_basura(n["titulo"])]
         items.sort(key=lambda x: x["ts"], reverse=True)
         result = items[:max_items]
         _CACHE[ticker] = {"ts": ahora, "data": result}
@@ -114,6 +115,8 @@ def obtener_noticias_mercado(max_por_cat: int = 3) -> dict:
         items_cat = []
         for ticker in tickers:
             for n in obtener_noticias_ticker(ticker, max_por_cat + 2):
+                if _es_basura(n["titulo"]):
+                    continue
                 clave = n["titulo"][:60].lower()
                 if clave not in vistos:
                     vistos.add(clave)
@@ -157,6 +160,8 @@ def contexto_noticias_activos(tickers: list, max_items: int = 2) -> str:
     seen: set = set()
     for ticker in tickers:
         for n in obtener_noticias_ticker(ticker, max_items=3):
+            if _es_basura(n["titulo"]):
+                continue
             clave = n["titulo"][:60].lower()
             if clave not in seen:
                 seen.add(clave)
