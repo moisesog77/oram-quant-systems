@@ -39,6 +39,24 @@ class NivelSMC:
 
 
 # ── 1. Detección de swings ────────────────────────────────────────────────────
+# Reconocer ruptura de estructura cuando los swings quedan obsoletos
+# (ver _detectar_bos_choch). ACTIVADO el 25-ago-2026 tras A/B sobre 60d y
+# los 3 activos, con los filtros reales del bot (65% + señal_valida + RR 1.5):
+#
+#   No altera lo existente: 32 señales identicas, 0 con resultado distinto.
+#     Una se adelanto 6 velas porque una nueva consumio el enfriamiento —
+#     mismo trade, mismo resultado (-1.02 vs -1.03R).
+#   Señales nuevas: 5 en 60d · +1.075R medio · 80% win · +5.37R.
+#     Muestra corta: el aporte en alertas NO esta probado, solo apuntado.
+#   Lo que si esta probado (n=175): en tramos direccionales de mas de 2 ATR
+#     donde el motor devolvia "neutral", acierta la direccion en 174 de 175
+#     casos (99%). Cubre el 21% de los puntos ciegos; el resto sigue ciego.
+#
+# Es seguro por construccion: solo se evalua cuando las reglas de HH/HL vs
+# LH/LL no produjeron señal, asi que no puede cambiar ninguna que ya exista.
+BOS_POR_RUPTURA = True
+
+
 def _detectar_swings(df: pd.DataFrame, lookback: int = 10) -> pd.DataFrame:
     """
     Detecta swing highs y swing lows con doble pasada:
@@ -185,6 +203,42 @@ def _detectar_bos_choch(df: pd.DataFrame) -> dict:
                 "direccion":  "LONG",
                 "fuerza":     0.6,
                 "es_bos":     False,
+            }
+
+    # Ruptura de estructura con swings obsoletos.
+    #
+    # Las reglas de arriba comparan los dos ultimos swings de cada lado entre si,
+    # pero nunca preguntan si el PRECIO los rompio. En una tendencia limpia no se
+    # confirma ningun swing nuevo del lado contrario (cada extremo invalida al
+    # anterior y al ultimo le faltan velas a la derecha), asi que la comparacion
+    # sigue describiendo una estructura que ya no existe.
+    #
+    # Caso testigo: oro 25-ago-2026 07:45, precio 4608.4 tras caer 32 USD.
+    #   last_sh 4642.7 < prev_sh 4647.2  -> LH, correcto
+    #   last_sl 4623.2 > prev_sl 4620.6  -> HL, pero ambos son de la madrugada
+    #   y el precio esta 15 USD por DEBAJO de los dos.
+    # Resultado: "Sin señal" mientras el mercado cae en linea recta. Pasa en el
+    # 21% de los tramos de mas de 2 ATR.
+    #
+    # Solo se evalua si las reglas anteriores no produjeron señal, de modo que
+    # no puede alterar ninguna de las que hoy funcionan.
+    if BOS_POR_RUPTURA and resultado["direccion"] == "neutral":
+        margen = df['ATR'].iloc[-1] * 0.10 if 'ATR' in df.columns else 0.0
+        if not is_bull and last_sh < prev_sh and close < last_sl - margen:
+            resultado = {
+                "tipo":       "BOS Bajista",
+                "descripcion":"LH + ruptura del ultimo swing low. Estructura bajista.",
+                "direccion":  "SHORT",
+                "fuerza":     round(min(1.0, (last_sl - close) / (last_sl * 0.001 + 1e-9)), 2),
+                "es_bos":     True,
+            }
+        elif is_bull and last_sl > prev_sl and close > last_sh + margen:
+            resultado = {
+                "tipo":       "BOS Alcista",
+                "descripcion":"HL + ruptura del ultimo swing high. Estructura alcista.",
+                "direccion":  "LONG",
+                "fuerza":     round(min(1.0, (close - last_sh) / (last_sh * 0.001 + 1e-9)), 2),
+                "es_bos":     True,
             }
 
     return resultado
