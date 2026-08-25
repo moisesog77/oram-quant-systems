@@ -34,7 +34,10 @@ _TICKERS_NOTICIAS = {
 }
 
 _CACHE: dict = {}
-_TTL = 900  # 15 minutos
+_TTL       = 900  # 15 minutos cuando hay noticias
+_TTL_VACIO = 180  # 3 minutos cuando la lista quedo vacia: si el feed solo
+                  # devolvio paginas de error, el filtro las descarta todas y
+                  # no tiene sentido esperar 15 min para reintentar.
 
 
 def _relativo(ts: int) -> str:
@@ -92,8 +95,10 @@ def obtener_noticias_ticker(ticker: str, max_items: int = 4) -> list:
     """Noticias recientes de un ticker via yfinance. Cacheadas 15 min."""
     ahora = time.time()
     cached = _CACHE.get(ticker)
-    if cached and ahora - cached["ts"] < _TTL:
-        return cached["data"]
+    if cached:
+        ttl = _TTL if cached["data"] else _TTL_VACIO
+        if ahora - cached["ts"] < ttl:
+            return cached["data"]
     try:
         import yfinance as yf
         raw = yf.Ticker(ticker).news or []
