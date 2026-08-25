@@ -2320,7 +2320,7 @@ async def cmd_diag(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         L_.append(f"⚙️ Configs en DB: {len(cfgs)} · la tuya: {'✅' if mia else '❌ NO ENCONTRADA'}")
         if mia:
             c = mia[0]
-            L_.append(f"  alertas_activas: {c.get('alertas_activas')!r}")
+            L_.append(f"  alertas activas: {c.get('alertas_activas')!r}")
             L_.append(f"  umbral: {c.get('umbral_confianza')} · tf: {c.get('tf_monitor')}")
             L_.append(f"  activos: {c.get('activos_monitor')}")
     except Exception as e:
