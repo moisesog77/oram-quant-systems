@@ -108,6 +108,26 @@ CONTINUACION_ACTIVA = False
 # tendencias bajistas y mercados laterales.
 TENDENCIA_ACTIVA = False
 
+# 🧪 IMPULSO — EN PRUEBA (25-ago-2026). Cubre el punto ciego del motor SMC:
+# en tramos direccionales limpios no se confirma ningun swing contrario, asi que
+# no hay BOS que detectar y el motor reporta 'rango' mientras el precio corre.
+# DESACTIVADA el 25-ago-2026 sin llegar a enviar nada. El backtest del diseño
+# daba +0.183R en oro (26/27 configs positivas, ambas direcciones, 3 regimenes),
+# pero al medir el detector REALMENTE implementado sobre los mismos 60d el
+# resultado es otro y no pasa la validacion:
+#   Rmedio +0.076 (no +0.183) · 5.7 señales/dia (no 3.3)
+#   LONG +0.169 pero SHORT -0.019  -> solo funciona en una direccion
+#   IS -0.042 / OOS +0.193         -> se invierte fuera de muestra
+#   junio (unico mes bajista) -0.067
+#   sin los 3 mejores dias: +1.0R de +21.3R  -> 95% del beneficio en 3 dias de 49
+# Causa: el backtest busca el pullback hacia adelante desde el impulso; el
+# detector lo busca hacia atras desde la vela actual y acepta muchas mas
+# combinaciones, de peor calidad. Son estrategias distintas con el mismo nombre.
+# NO reactivar sin que el detector reproduzca el backtest y vuelva a validarse.
+IMPULSO_ACTIVA  = False
+IMPULSO_ACTIVOS = ('GC=F',)
+_dedup_impulso: dict = {}
+
 # Alerta de mercado en rango — dedup 2h por chat
 _ultima_alerta_rango: dict = {}
 _ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
@@ -3060,6 +3080,112 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_rebote: {e}")
 
 
+async def job_monitoreo_impulso(ctx: ContextTypes.DEFAULT_TYPE):
+    """🧪 IMPULSO — EXPERIMENTAL, solo registro. Detecta impulso >=2 ATR,
+    espera un retroceso de 25-75% y entra cuando el movimiento se reanuda.
+    NUNCA persigue el extremo. Solo oro (ver IMPULSO_ACTIVOS)."""
+    try:
+        if not IMPULSO_ACTIVA or not _en_horario_alertas():
+            return
+        ahora_ts = datetime.now(TZ_MX).timestamp()
+        for cfg in obtener_todas_configs_bot():
+            chat_id = str(cfg.get("telegram_chat_id", "") or "")
+            if not chat_id or not cfg.get("alertas_activas"):
+                continue
+            for tkr in IMPULSO_ACTIVOS:
+                try:
+                    # Enfriamiento de 3h = las 12 velas de 15m del backtest.
+                    # Con menos, el detector dispara ~31 veces/dia y el resultado
+                    # validado (n=164) deja de ser el que corre en produccion.
+                    if ahora_ts - _dedup_impulso.get((chat_id, tkr), 0) < 10800:
+                        continue
+                    df, _st = obtener_datos(tkr, "15m")
+                    if df is None or len(df) < 60:
+                        continue
+                    r = _detectar_impulso(df, tkr)
+                    if not r:
+                        continue
+                    _dedup_impulso[(chat_id, tkr)] = ahora_ts
+                    ent, sl, tp, dir_ = r["entrada"], r["sl"], r["tp"], r["direccion"]
+                    _obj = _objetivo_tiempo(ent, tp, r["atr"], "15m")
+                    msg = [
+                        f"🧪 *IMPULSO {dir_} — {tkr}* · INTRADAY · 15m",
+                        "━━━━━━━━━━━━━━━━",
+                        f"{_emoji_dir(dir_)} Impulso de *{r['imp_atr']:.1f} ATR* + retroceso {r['retro']*100:.0f}% + reanudacion",
+                        "",
+                        f"📍 Entrada: `{_fmt_precio(ent, tkr)}`",
+                        f"🛑 SL: `{_fmt_precio(sl, tkr)}`  ({_pips(abs(ent-sl), tkr):.0f} pips)",
+                        f"🎯 TP: `{_fmt_precio(tp, tkr)}`  ({_pips(abs(tp-ent), tkr):.0f} pips)",
+                        f"⚖️ RR: 2.0:1",
+                    ]
+                    if _obj:
+                        msg.append(_obj)
+                    msg += [
+                        "",
+                        "🚫 *EN PRUEBA — solo registro, NO operar*",
+                        "_Valida el punto ciego del motor SMC. 60d en oro: 26/27",
+                        "configs positivas, ambas direcciones, 3 regimenes._",
+                        f"📡 _{_fuente_datos(_st)}_",
+                        f"🕐 _{_hora_mx()} CDMX_",
+                    ]
+                    await _send(ctx.bot, chat_id, chr(10).join(msg))
+                    logger.info(f"impulso: {tkr} {dir_} ent={ent}")
+                except Exception as e:
+                    logger.error(f"impulso {tkr}: {e}")
+    except Exception as e:
+        logger.error(f"job_monitoreo_impulso: {e}")
+
+
+def _detectar_impulso(df, ticker: str, imp_min: float = 2.0, W: int = 16,
+                      rr: float = 2.0, pb_min: float = 0.25, pb_max: float = 0.75):
+    """Impulso >= imp_min ATR en W velas, retroceso de pb_min..pb_max, y la vela
+    actual reanuda rompiendo el extremo de las 3 previas. Devuelve None si no aplica.
+    Parametros fijados por backtest de 60d; no tocarlos sin revalidar."""
+    import numpy as _np
+    if len(df) < W + 25:
+        return None
+    h, l, c = df["High"].values, df["Low"].values, df["Close"].values
+    tr = pd.concat([df["High"] - df["Low"],
+                    (df["High"] - df["Close"].shift()).abs(),
+                    (df["Low"] - df["Close"].shift()).abs()], axis=1).max(axis=1)
+    atr = tr.rolling(14).mean().values
+    k = len(df) - 1                      # vela actual = posible reanudacion
+    a = atr[k]
+    if not _np.isfinite(a) or a <= 0:
+        return None
+    # el impulso se mide hasta la vela previa al retroceso
+    for j in range(k - 1, max(k - 25, W + 5), -1):
+        i = j - 1
+        mov = (c[i] - c[i - W]) / a
+        if abs(mov) < imp_min:
+            continue
+        alza  = mov > 0
+        ext   = h[i - W:i + 1].max() if alza else l[i - W:i + 1].min()
+        rango = abs(ext - c[i - W])
+        if rango <= 0:
+            continue
+        retro = (ext - l[j]) / rango if alza else (h[j] - ext) / rango
+        if not (pb_min <= retro <= pb_max):
+            continue
+        if alza:
+            if h[k] <= h[k - 3:k].max():
+                continue
+            ent = h[k - 3:k].max(); sl = min(l[j], l[k]) - 0.25 * a
+            sl  = min(sl, ent - sl_minimo_absoluto(ticker, ent))
+            tp  = ent + rr * (ent - sl); dir_ = "LONG"
+        else:
+            if l[k] >= l[k - 3:k].min():
+                continue
+            ent = l[k - 3:k].min(); sl = max(h[j], h[k]) + 0.25 * a
+            sl  = max(sl, ent + sl_minimo_absoluto(ticker, ent))
+            tp  = ent - rr * (sl - ent); dir_ = "SHORT"
+        return {"direccion": dir_, "entrada": round(float(ent), 5),
+                "sl": round(float(sl), 5), "tp": round(float(tp), 5),
+                "atr": float(a), "imp_atr": abs(float(mov)), "retro": float(retro)}
+    return None
+
+
+
 async def job_monitoreo_tendencia(ctx: ContextTypes.DEFAULT_TYPE):
     """📈 TENDENCIA — EXPERIMENTAL. Complementa al SMC en días de grind con
     pullback. En validación (2 semanas paper): los mensajes dicen NO OPERAR AÚN.
@@ -3753,6 +3879,7 @@ def main():
         if _first_rng <= 10:
             _first_rng += 1800
         jq.run_repeating(job_aviso_rango, interval=1800, first=_first_rng)
+        jq.run_repeating(job_monitoreo_impulso,       interval=120, first=110)  # 🧪 EN PRUEBA, solo oro
         print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Scalp c/90s · Alertas precio c/5m · Noticias c/5m")
     else:
         print("⚠️  Sin jobs. Instala: pip install APScheduler")
