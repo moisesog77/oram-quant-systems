@@ -111,19 +111,29 @@ TENDENCIA_ACTIVA = False
 # 🧪 IMPULSO — EN PRUEBA (25-ago-2026). Cubre el punto ciego del motor SMC:
 # en tramos direccionales limpios no se confirma ningun swing contrario, asi que
 # no hay BOS que detectar y el motor reporta 'rango' mientras el precio corre.
-# DESACTIVADA el 25-ago-2026 sin llegar a enviar nada. El backtest del diseño
-# daba +0.183R en oro (26/27 configs positivas, ambas direcciones, 3 regimenes),
-# pero al medir el detector REALMENTE implementado sobre los mismos 60d el
-# resultado es otro y no pasa la validacion:
-#   Rmedio +0.076 (no +0.183) · 5.7 señales/dia (no 3.3)
-#   LONG +0.169 pero SHORT -0.019  -> solo funciona en una direccion
-#   IS -0.042 / OOS +0.193         -> se invierte fuera de muestra
-#   junio (unico mes bajista) -0.067
-#   sin los 3 mejores dias: +1.0R de +21.3R  -> 95% del beneficio en 3 dias de 49
-# Causa: el backtest busca el pullback hacia adelante desde el impulso; el
-# detector lo busca hacia atras desde la vela actual y acepta muchas mas
-# combinaciones, de peor calidad. Son estrategias distintas con el mismo nombre.
-# NO reactivar sin que el detector reproduzca el backtest y vuelva a validarse.
+# DETECTOR CORREGIDO el 25-ago-2026: _escanear_impulsos reproduce ahora el
+# backtest señal por señal (219 comunes, 0 divergentes, 0 con niveles distintos,
+# verificado con el buffer real de 300 velas). La version anterior no lo hacia
+# y por eso daba +0.076R donde el backtest prometia +0.183R.
+#
+# La causa fue look-ahead en la ASIGNACION DE TURNOS, no en los precios: el
+# backtest dejaba que un impulso reservara el turno mirando hacia adelante
+# (i=141 hallaba su entrada en k=155 y bloqueaba a los impulsos 145-148), algo
+# imposible en vivo. Ahora la decision sobre la vela k usa solo datos hasta k.
+#
+# SIGUE DESACTIVADA. Medida sobre todo el dia en oro se ve bien (+0.218R, ambas
+# direcciones, 3 regimenes, IS/OOS +0.202/+0.233), pero filtrada por el horario
+# real de alertas (05:45-15:00 CDMX) el edge se desvanece con el tiempo:
+#     junio +0.939 · julio +0.195 · AGOSTO -0.005     (config 2.0/16/2.0)
+#     IS +0.367 / OOS +0.158  ·  1.9 señales/dia  ·  50% del total en 3 dias
+# El mismo patron aparece en las 4 configuraciones probadas: agosto entre +0.018
+# y -0.064. El mes mas reciente es el que menos importa que sea bueno, y es el
+# unico que no lo es. Fuera de horario (madrugada) si rinde (+0.19/+0.36, n=140),
+# lo que sugiere que el edge vive en la sesion asiatica/europea temprana.
+#
+# En EURUSD (-0.168) y GBPUSD (-0.673) es PERDEDORA -> nunca fuera de GC=F.
+# Para reactivar: que agosto y los meses siguientes dejen de ser planos EN
+# HORARIO. El detector ya es fiable, asi que revalidar es solo volver a medir.
 IMPULSO_ACTIVA  = False
 IMPULSO_ACTIVOS = ('GC=F',)
 _dedup_impulso: dict = {}
@@ -3136,26 +3146,25 @@ async def job_monitoreo_impulso(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_impulso: {e}")
 
 
-def _detectar_impulso(df, ticker: str, imp_min: float = 2.0, W: int = 16,
-                      rr: float = 2.0, pb_min: float = 0.25, pb_max: float = 0.75):
-    """Impulso >= imp_min ATR en W velas, retroceso de pb_min..pb_max, y la vela
-    actual reanuda rompiendo el extremo de las 3 previas. Devuelve None si no aplica.
-    Parametros fijados por backtest de 60d; no tocarlos sin revalidar."""
+def _senal_impulso_en(h, l, c, atr, k, ticker, imp_min, W, rr, pb_min, pb_max, maxw, sl_min):
+    """¿Es la vela k un punto de entrada? Usa SOLO datos hasta k.
+
+    El pullback es siempre la vela j = k-1 y la reanudacion ocurre en k, igual
+    que en el backtest. Lo que cambia es como se asigna el turno: el backtest
+    dejaba que un impulso lo reservara mirando hacia adelante (i=141 encontraba
+    su entrada en k=155 y bloqueaba a los impulsos 145-148), algo imposible en
+    vivo. Aqui se recorren los impulsos candidatos hacia atras desde k."""
     import numpy as _np
-    if len(df) < W + 25:
+    j = k - 1
+    if j <= W + 20:
         return None
-    h, l, c = df["High"].values, df["Low"].values, df["Close"].values
-    tr = pd.concat([df["High"] - df["Low"],
-                    (df["High"] - df["Close"].shift()).abs(),
-                    (df["Low"] - df["Close"].shift()).abs()], axis=1).max(axis=1)
-    atr = tr.rolling(14).mean().values
-    k = len(df) - 1                      # vela actual = posible reanudacion
-    a = atr[k]
-    if not _np.isfinite(a) or a <= 0:
+    a_k = atr[k]
+    if not _np.isfinite(a_k) or a_k <= 0:
         return None
-    # el impulso se mide hasta la vela previa al retroceso
-    for j in range(k - 1, max(k - 25, W + 5), -1):
-        i = j - 1
+    for i in range(j - 1, max(j - maxw, W + 19), -1):
+        a = atr[i]
+        if not _np.isfinite(a) or a <= 0:
+            continue
         mov = (c[i] - c[i - W]) / a
         if abs(mov) < imp_min:
             continue
@@ -3164,26 +3173,71 @@ def _detectar_impulso(df, ticker: str, imp_min: float = 2.0, W: int = 16,
         rango = abs(ext - c[i - W])
         if rango <= 0:
             continue
-        retro = (ext - l[j]) / rango if alza else (h[j] - ext) / rango
-        if not (pb_min <= retro <= pb_max):
+        def _retro(x):
+            return (ext - l[x]) / rango if alza else (h[x] - ext) / rango
+        # el impulso muere si algun retroceso intermedio se lo comio
+        if any(_retro(x) > pb_max for x in range(i + 1, j + 1)):
+            continue
+        if not (pb_min <= _retro(j) <= pb_max):
             continue
         if alza:
             if h[k] <= h[k - 3:k].max():
                 continue
-            ent = h[k - 3:k].max(); sl = min(l[j], l[k]) - 0.25 * a
-            sl  = min(sl, ent - sl_minimo_absoluto(ticker, ent))
-            tp  = ent + rr * (ent - sl); dir_ = "LONG"
+            ent = h[k - 3:k].max()
+            sl  = min(l[j], l[k]) - 0.25 * a_k
+            if sl_min:
+                sl = min(sl, ent - sl_minimo_absoluto(ticker, ent))
+            tp, dir_ = ent + rr * (ent - sl), "LONG"
         else:
             if l[k] >= l[k - 3:k].min():
                 continue
-            ent = l[k - 3:k].min(); sl = max(h[j], h[k]) + 0.25 * a
-            sl  = max(sl, ent + sl_minimo_absoluto(ticker, ent))
-            tp  = ent - rr * (sl - ent); dir_ = "SHORT"
+            ent = l[k - 3:k].min()
+            sl  = max(h[j], h[k]) + 0.25 * a_k
+            if sl_min:
+                sl = max(sl, ent + sl_minimo_absoluto(ticker, ent))
+            tp, dir_ = ent - rr * (sl - ent), "SHORT"
+        if abs(ent - sl) <= 0 or not _np.isfinite(ent - sl):
+            continue
         return {"direccion": dir_, "entrada": round(float(ent), 5),
                 "sl": round(float(sl), 5), "tp": round(float(tp), 5),
-                "atr": float(a), "imp_atr": abs(float(mov)), "retro": float(retro)}
+                "atr": float(a_k), "imp_atr": abs(float(mov)), "retro": float(_retro(j))}
     return None
 
+
+def _series_impulso(df):
+    tr = pd.concat([df["High"] - df["Low"],
+                    (df["High"] - df["Close"].shift()).abs(),
+                    (df["Low"] - df["Close"].shift()).abs()], axis=1).max(axis=1)
+    return (df["High"].values, df["Low"].values, df["Close"].values,
+            tr.rolling(14).mean().values)
+
+
+def _escanear_impulsos(df, ticker: str, imp_min: float = 2.0, W: int = 16,
+                       rr: float = 2.0, pb_min: float = 0.25, pb_max: float = 0.75,
+                       cool: int = 12, maxw: int = 24, sl_min: bool = True):
+    """Recorre las velas en orden preguntando a _senal_impulso_en si cada una es
+    entrada. Determinista por prefijo por construccion: ninguna decision sobre la
+    vela k usa datos posteriores a k, asi que el resultado sobre df[:m] es
+    exactamente el prefijo del de df[:M]. Lo que se valida es lo que corre."""
+    h, l, c, atr = _series_impulso(df)
+    out, last = [], -999
+    for k in range(W + 25, len(df)):
+        if k - last < cool:
+            continue
+        r = _senal_impulso_en(h, l, c, atr, k, ticker, imp_min, W, rr, pb_min, pb_max, maxw, sl_min)
+        if r:
+            out.append((k, r))
+            last = k
+    return out
+
+
+def _detectar_impulso(df, ticker: str, **kw):
+    """Señal solo si la VELA ACTUAL es el punto de entrada del escaneo."""
+    sen = _escanear_impulsos(df, ticker, **kw)
+    if not sen:
+        return None
+    idx, r = sen[-1]
+    return r if idx == len(df) - 1 else None
 
 
 async def job_monitoreo_tendencia(ctx: ContextTypes.DEFAULT_TYPE):
