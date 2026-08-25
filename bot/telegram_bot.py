@@ -2333,6 +2333,17 @@ async def cmd_diag(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         m = (ahora.timestamp() - ts) / 60
         return f"hace {m:.0f} min" if m < 120 else f"hace {m/60:.1f} h"
     L_ = [f"🩺 *DIAGNOSTICO* — {ahora:%H:%M} CDMX", "━━━━━━━━━━━━━━━━"]
+    # Que version corre realmente. Sin esto no hay forma de distinguir "el
+    # cambio no funciona" de "el cambio no esta desplegado".
+    try:
+        import utils.smc_engine as _SE
+        _bos = getattr(_SE, "BOS_POR_RUPTURA", None)
+        L_.append(f"🔧 BOS por ruptura: {'✅ ON' if _bos else ('❌ OFF' if _bos is not None else '— no existe')}")
+    except Exception:
+        L_.append("🔧 BOS por ruptura: ⚠️ no se pudo leer")
+    L_.append(f"🧪 Impulso: {'ON' if IMPULSO_ACTIVA else 'OFF'} · "
+              f"Continuacion: {'ON' if CONTINUACION_ACTIVA else 'OFF'} · "
+              f"Tendencia: {'ON' if TENDENCIA_ACTIVA else 'OFF'}")
     L_.append(f"⏰ Horario de alertas: {'✅ activo' if _en_horario_alertas() else '❌ cerrado'}")
     L_.append(f"🕐 NY: {datetime.now(TZ_NY):%H:%M}")
     L_.append("")
