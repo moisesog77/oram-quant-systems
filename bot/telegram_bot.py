@@ -6,7 +6,7 @@ Cubre el 100% de las capacidades de la aplicación:
   Calendario Económico · Dashboard completo
 """
 import os, sys, json, logging
-from datetime import datetime, time as dtime
+from datetime import datetime, time as dtime, timedelta
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -112,6 +112,8 @@ TENDENCIA_ACTIVA = False
 _ultima_alerta_rango: dict = {}
 _ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
                                    # (cualquier job) — silencia el aviso de rango
+_ultimo_tick_rango:  list = [0.0]  # ts del ultimo tick de job_aviso_rango (/diag)
+_ultimo_envio_rango: list = [0.0]  # ts del ultimo aviso de rango enviado (/diag)
 _checks_sin_senal:    dict = {}   # chat_id → checks consecutivos sin señal
 
 # Trades pendientes de confirmar desde Telegram — sig_id → datos de la señal
@@ -2290,33 +2292,90 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_monitoreo_senales: {e}")
 
 
+async def cmd_diag(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Estado interno de los jobs. Sirve para saber si el bot esta vivo y,
+    si no llegan avisos, POR QUE no llegan."""
+    chat_id = str(update.effective_chat.id)
+    ahora   = datetime.now(TZ_MX)
+    def _hace(ts):
+        if not ts:
+            return "nunca"
+        m = (ahora.timestamp() - ts) / 60
+        return f"hace {m:.0f} min" if m < 120 else f"hace {m/60:.1f} h"
+    L_ = [f"🩺 *DIAGNOSTICO* — {ahora:%H:%M} CDMX", "━━━━━━━━━━━━━━━━"]
+    L_.append(f"⏰ Horario de alertas: {'✅ activo' if _en_horario_alertas() else '❌ cerrado'}")
+    L_.append(f"🕐 NY: {datetime.now(TZ_NY):%H:%M}")
+    L_.append("")
+    L_.append("*Aviso de mercado en rango*")
+    L_.append(f"  último intento: {_hace(_ultimo_tick_rango[0])}")
+    L_.append(f"  último enviado: {_hace(_ultimo_envio_rango[0])}")
+    _d = ahora.timestamp() - _ultima_senal_enviada.get(chat_id, 0)
+    L_.append(f"  silenciado por alerta: {'sí' if _d < 1800 else 'no'} (última {_hace(_ultima_senal_enviada.get(chat_id, 0))})")
+    _prox = 1800 - ((ahora.minute % 30) * 60 + ahora.second)
+    L_.append(f"  próximo: {(ahora + timedelta(seconds=_prox)):%H:%M}")
+    L_.append("")
+    try:
+        cfgs = obtener_todas_configs_bot()
+        mia  = [c for c in cfgs if str(c.get("telegram_chat_id", "")) == chat_id]
+        L_.append(f"⚙️ Configs en DB: {len(cfgs)} · la tuya: {'✅' if mia else '❌ NO ENCONTRADA'}")
+        if mia:
+            c = mia[0]
+            L_.append(f"  alertas_activas: {c.get('alertas_activas')!r}")
+            L_.append(f"  umbral: {c.get('umbral_confianza')} · tf: {c.get('tf_monitor')}")
+            L_.append(f"  activos: {c.get('activos_monitor')}")
+    except Exception as e:
+        L_.append(f"⚠️ Error leyendo config: {e}")
+    try:
+        tr = obtener_trades_activos_chat(chat_id)
+        L_.append(f"📈 Trades abiertos: {len(tr)} _(ya no silencian el aviso)_")
+    except Exception as e:
+        L_.append(f"⚠️ Error leyendo trades: {e}")
+    L_.append("")
+    L_.append("*Datos de mercado ahora*")
+    for tkr in ["EURUSD=X", "GBPUSD=X", "GC=F"]:
+        try:
+            smc_d, _ = _analizar_activo(tkr, "15m")
+            if smc_d and "error" not in smc_d:
+                L_.append(f"  ✅ {tkr}: {_fmt_precio(smc_d.get('precio',0), tkr)} "
+                          f"({smc_d.get('confluencia',{}).get('confianza',0):.0f}%)")
+            else:
+                L_.append(f"  ❌ {tkr}: sin datos")
+        except Exception as e:
+            L_.append(f"  ❌ {tkr}: {str(e)[:40]}")
+    await _send(ctx.bot, chat_id, "\n".join(L_))
+
+
+
 async def job_aviso_rango(ctx: ContextTypes.DEFAULT_TYPE):
     """Aviso de mercado sin setups. Job propio alineado al reloj para caer
     EXACTAMENTE en :00 y :30 (antes vivía dentro de job_monitoreo_senales,
     que corre c/180s, y los avisos caían a horas arbitrarias tipo 11:02).
-    Se omite si hubo una alerta operable en los últimos 30 min o si el
-    usuario tiene trades abiertos."""
+    Se omite solo si hubo una alerta operable en los ultimos 30 min."""
     try:
+        _t0 = datetime.now(TZ_MX)
+        _ultimo_tick_rango[0] = _t0.timestamp()
         if not _en_horario_alertas():
+            logger.info(f"rango: skip fuera de horario ({_t0:%H:%M})")
             return
-        ahora_ts = datetime.now(TZ_MX).timestamp()
-        hora_mx  = datetime.now(TZ_MX).hour
+        ahora_ts = _t0.timestamp()
+        hora_mx  = _t0.hour
         if not (5 <= hora_mx < 17):
+            logger.info(f"rango: skip hora {hora_mx}")
             return
         configs = obtener_todas_configs_bot()
+        logger.info(f"rango: tick {_t0:%H:%M} configs={len(configs)}")
         activos_default = ["EURUSD=X", "GBPUSD=X", "GC=F"]
         for cfg in configs:
-            chat_id = cfg.get("telegram_chat_id", "")
+            chat_id = str(cfg.get("telegram_chat_id", "") or "")
             if not chat_id or not cfg.get("alertas_activas"):
+                logger.info(f"rango: skip chat={chat_id!r} activas={cfg.get('alertas_activas')!r}")
                 continue
-            # Silenciar si hay actividad reciente o posiciones abiertas
-            if (ahora_ts - _ultima_senal_enviada.get(chat_id, 0)) < 1800:
+            # Solo silencia una alerta operable reciente. NO los trades abiertos:
+            # el usuario pidio no perder info de mercado por tener posiciones.
+            _delta = ahora_ts - _ultima_senal_enviada.get(chat_id, 0)
+            if _delta < 1800:
+                logger.info(f"rango: skip chat={chat_id} alerta hace {_delta/60:.0f}min")
                 continue
-            try:
-                if obtener_trades_activos_chat(chat_id):
-                    continue
-            except Exception:
-                pass
 
             umbral = max(float(cfg.get("umbral_confianza", 65)), 65.0)
             tf     = cfg.get("tf_monitor", "15m")
@@ -2358,6 +2417,7 @@ async def job_aviso_rango(ctx: ContextTypes.DEFAULT_TYPE):
                     pass
 
             if len(lineas_r) <= 1:
+                logger.warning(f"rango: sin datos de ningun activo ({activos}) - no se envia")
                 continue
 
             if bloqueados:
@@ -2382,6 +2442,8 @@ async def job_aviso_rango(ctx: ContextTypes.DEFAULT_TYPE):
                 lineas_r.append(f"📡 _Fuente: {' | '.join(_fuentes_rango)}_")
             lineas_r.append(f"🕐 _{_hora_mx()} CDMX_")
             await _send(ctx.bot, chat_id, "\n".join(lineas_r))
+            _ultimo_envio_rango[0] = ahora_ts
+            logger.info(f"rango: enviado a {chat_id}")
     except Exception as e:
         logger.error(f"job_aviso_rango: {e}")
 
@@ -3650,6 +3712,7 @@ def main():
         ("cerrar",      cmd_cerrar),
         ("activos",     cmd_activos),
         ("registrar",   cmd_registrar),
+        ("diag",        cmd_diag),
     ]:
         app.add_handler(CommandHandler(cmd, handler))
     app.add_handler(CallbackQueryHandler(callback_registrar, pattern=r"^reg_\d+$"))
