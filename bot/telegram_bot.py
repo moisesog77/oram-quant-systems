@@ -3392,12 +3392,24 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                 tp      = float(t.get("tp", 0) or 0)
                 if not (chat_id and ticker and entrada and sl and tp and dir_ in ("LONG", "SHORT")):
                     continue
-                df, _ = obtener_datos(ticker, "5m")
+                # El seguimiento DEBE usar el mismo timeframe con el que se
+                # calculo el plan original, o las dos estimaciones no son
+                # comparables. Estaba fijo en "5m" mientras las alertas de 15m
+                # guardaban su plan con ATR de 15m: el trade #32 (GBPUSD, 26-ago)
+                # anunciaba "va 1h 18min mas rapido que el plan" cuando iba
+                # -1.1 pips y 0% del camino al TP.
+                tf_seg = (t.get("timeframe") or "15m")
+                df, _ = obtener_datos(ticker, tf_seg)
                 if df is None or len(df) == 0:
                     continue
                 precio = float(df["Close"].iloc[-1])
                 try:
-                    atr_seg = float((df["High"] - df["Low"]).rolling(14).mean().iloc[-1])
+                    # ATR del propio motor (True Range, con gaps), no el rango
+                    # medio: usar otra formula anadia una segunda discrepancia.
+                    if "ATR" in df.columns:
+                        atr_seg = float(df["ATR"].iloc[-1])
+                    else:
+                        atr_seg = float((df["High"] - df["Low"]).rolling(14).mean().iloc[-1])
                 except Exception:
                     atr_seg = 0
                 u  = "pts" if ("GC" in ticker.upper() or "XAU" in ticker.upper()) else "pips"
@@ -3453,7 +3465,7 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                 # con el ATR actual → responsivo al mercado en tiempo real
                 _obj_seg = ""
                 if not (paso_tp or paso_sl):
-                    _o = _objetivo_tiempo(precio, tp, atr_seg, "5m")
+                    _o = _objetivo_tiempo(precio, tp, atr_seg, tf_seg)
                     if _o:
                         _obj_seg = _o.replace("Objetivo:", "TP probable ahora:")
 
@@ -3473,7 +3485,7 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                         _plan_hi = _t0 + pd.Timedelta(minutes=_ehi)
                         _plan_txt = (f"📋 _Plan original ({_t0.strftime('%I:%M %p')}): "
                                      f"TP entre {_plan_lo.strftime('%I:%M')} y {_plan_hi.strftime('%I:%M %p')}_")
-                        _lo_now, _hi_now = _objetivo_minutos(precio, tp, atr_seg, "5m")
+                        _lo_now, _hi_now = _objetivo_minutos(precio, tp, atr_seg, tf_seg)
                         if _lo_now:
                             _ahora = datetime.now(TZ_MX)
                             _eta_now = _ahora + pd.Timedelta(minutes=_lo_now)
