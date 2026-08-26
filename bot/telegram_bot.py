@@ -295,6 +295,13 @@ def _objetivo_minutos(entrada: float, tp: float, atr: float, tf: str):
         return (0, 0)
 
 
+def _cierre_mercado_hoy():
+    """17:00 NY (fin del dia de mercado de los 3 activos) en hora CDMX.
+    DST-proof: en verano son las 15:00 CDMX, en invierno las 16:00."""
+    ny = datetime.now(TZ_NY).replace(hour=17, minute=0, second=0, microsecond=0)
+    return ny.astimezone(TZ_MX)
+
+
 def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str) -> str:
     """Objetivo de tiempo DINÁMICO como HORA DE RELOJ (no duración).
     Distancia al TP / velocidad real (ATR por vela), rango [1x, 2.5x], sumado
@@ -307,10 +314,24 @@ def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str) -> str:
         lo, hi = _objetivo_minutos(entrada, tp, atr, tf)
         if not lo:
             return ""
-        ahora = datetime.now(TZ_MX)
-        t_lo  = (ahora + timedelta(minutes=lo)).strftime("%I:%M")
-        t_hi  = (ahora + timedelta(minutes=hi)).strftime("%I:%M %p")
-        return f"⏱ _Objetivo: entre {t_lo} y {t_hi} CDMX_"
+        ahora  = datetime.now(TZ_MX)
+        dt_lo  = ahora + timedelta(minutes=lo)
+        dt_hi  = ahora + timedelta(minutes=hi)
+        t_lo   = dt_lo.strftime("%I:%M")
+        t_hi   = dt_hi.strftime("%I:%M %p")
+        linea  = f"⏱ _Objetivo: entre {t_lo} y {t_hi} CDMX_"
+        # El objetivo se calculaba sumando minutos a la hora actual sin mirar
+        # el cierre: una señal de las 08:18 con TP lejano anunciaba "06:57 PM",
+        # tres horas despues de que el mercado cierre.
+        cierre = _cierre_mercado_hoy()
+        if dt_lo > cierre:
+            linea += (f"\n🚫 _Ni el escenario rapido cabe antes del cierre "
+                      f"({cierre:%I:%M %p}). Este TP no da tiempo hoy._")
+        elif dt_hi > cierre:
+            _resta = int((cierre - ahora).total_seconds() // 60)
+            linea += (f"\n⚠️ _El rango alto pasa del cierre ({cierre:%I:%M %p}); "
+                      f"quedan {_resta // 60}h {_resta % 60}m de mercado._")
+        return linea
     except Exception:
         return ""
 
