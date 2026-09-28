@@ -142,6 +142,8 @@ _dedup_impulso: dict = {}
 _ultima_alerta_rango: dict = {}
 _ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
                                    # (cualquier job) — silencia el aviso de rango
+_hist_seguimiento: dict = {}       # trade_id -> [(ts, eta_lo, prog)] para detectar
+                                   # objetivos que se alejan lectura tras lectura
 _ultimo_tick_rango:  list = [0.0]  # ts del ultimo tick de job_aviso_rango (/diag)
 _ultimo_envio_rango: list = [0.0]  # ts del ultimo aviso de rango enviado (/diag)
 _checks_sin_senal:    dict = {}   # chat_id → checks consecutivos sin señal
@@ -3514,12 +3516,61 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     pass
 
-                # Aviso de cierre seguro: ganancia flotante + trade que perdió
-                # ritmo respecto al plan = candidato a proteger antes de devolverla.
-                if (_deriva_min is not None and _deriva_min > 60 and pl > 0
-                        and not (paso_tp or paso_sl or paso_parcial)):
-                    estatus += ("\n⚠️ *Vas ganando pero el trade perdió ritmo.* Considera subir "
-                                f"el SL a breakeven (`{fp(entrada)}`) para no devolver la ganancia.")
+                # ── DIAGNOSTICO DE DETERIORO ──────────────────────────────
+                # Antes solo se avisaba de un caso (ganando + sin ritmo) y el
+                # resto del tiempo el objetivo se iba corriendo hacia adelante
+                # sin decir nada. Ahora se juntan señales objetivas de que el
+                # trade dejo de cuadrar, para poder decidir con datos.
+                _sint = []
+                try:
+                    _tid = t.get("id")
+                    _tot = abs(tp - entrada)
+                    _pc  = max(0.0, min(100.0, (pl_diff / _tot) * 100)) if _tot > 0 else 0.0
+                    _riesgo0 = abs(entrada - sl)
+                    _lo_n, _hi_n = _objetivo_minutos(precio, tp, atr_seg, tf_seg)
+                    _h = _hist_seguimiento.setdefault(_tid, [])
+                    _h.append((datetime.now(TZ_MX).timestamp(), _lo_n or 0, _pc))
+                    del _h[:-6]
+                    if not (paso_tp or paso_sl):
+                        try:
+                            _r_now = analisis_completo(df, ticker)
+                            _d_now = _r_now.get("estructura", {}).get("direccion", "neutral")
+                            _c_now = _r_now.get("confluencia", {}).get("confianza", 0)
+                            if _d_now not in ("neutral", dir_) and _c_now >= 60:
+                                _sint.append(f"la estructura se invirtio a {_d_now} ({_c_now:.0f}%)")
+                        except Exception:
+                            pass
+                        try:
+                            _cierre = _cierre_mercado_hoy()
+                            _resta = (_cierre - datetime.now(TZ_MX)).total_seconds() / 60
+                            if _lo_n and 0 < _resta < _lo_n:
+                                _sint.append(f"ni el escenario rapido cabe antes del cierre ({_cierre:%I:%M %p})")
+                        except Exception:
+                            pass
+                        if _deriva_min is not None and _ehi and _lo_n and _lo_n > _ehi:
+                            _sint.append("el TP estimado se paso del plan original entero")
+                        if _elo and _transc > _elo * 0.6 and _pc < 20:
+                            _sint.append(f"lleva {_transc}min ({_transc/_elo*100:.0f}% del plan) y solo {_pc:.0f}% del camino")
+                        _d_sl, _d_tp = abs(precio - sl), abs(tp - precio)
+                        if _riesgo0 > 0 and _d_sl < _riesgo0 * 0.35 and _d_tp > _d_sl:
+                            _sint.append(f"el SL esta a {_pips(_d_sl, ticker):.0f} {u} ({_d_sl/_riesgo0*100:.0f}% del riesgo inicial)")
+                        if len(_h) >= 3:
+                            _e = [x[1] for x in _h[-3:]]
+                            _p = [x[2] for x in _h[-3:]]
+                            if _e[0] < _e[1] < _e[2] and _p[2] <= _p[0] + 2:
+                                _sint.append("el objetivo se aleja en 3 lecturas seguidas sin avanzar hacia el TP")
+                except Exception as _e_det:
+                    logger.error(f"diagnostico deterioro {ticker}: {_e_det}")
+
+                if _sint and not (paso_tp or paso_sl):
+                    _cab = ("🚨 *REVISA ESTE TRADE — varias señales en contra*"
+                            if len(_sint) >= 2 else "🟡 *Señal de aviso*")
+                    _det = [_cab] + [f"   • _{x}_" for x in _sint]
+                    if pl > 0:
+                        _det.append(f"   👉 _Vas +{pl:.1f} {u}. Mover el SL a breakeven (`{fp(entrada)}`) deja el trade sin riesgo._")
+                    elif len(_sint) >= 2:
+                        _det.append("   👉 _Evalua cerrar aqui en lugar de esperar al SL. La decision es tuya; estos son los datos._")
+                    estatus += chr(10) + chr(10).join(_det)
 
                 lineas = [
                     f"📊 *SEGUIMIENTO — {ticker} {dir_}* (#{t.get('id','')})",
