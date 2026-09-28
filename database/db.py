@@ -289,6 +289,7 @@ CREATE TABLE IF NOT EXISTS confirmed_trades (
     confianza REAL DEFAULT 0,
     eta_lo_min INTEGER DEFAULT 0,
     eta_hi_min INTEGER DEFAULT 0,
+    num_dia INTEGER DEFAULT 0,
     activo INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now')),
     closed_at TEXT DEFAULT NULL,
@@ -414,6 +415,7 @@ _PG_TABLES = [
         confianza REAL DEFAULT 0,
         eta_lo_min INTEGER DEFAULT 0,
         eta_hi_min INTEGER DEFAULT 0,
+        num_dia INTEGER DEFAULT 0,
         activo INTEGER DEFAULT 1,
         created_at TEXT DEFAULT (NOW()::text),
         closed_at TEXT DEFAULT NULL,
@@ -453,6 +455,7 @@ def inicializar_db():
                 ("bot_config", "capital_cuenta",  "REAL DEFAULT 0"),
                 ("confirmed_trades", "eta_lo_min", "INTEGER DEFAULT 0"),
                 ("confirmed_trades", "eta_hi_min", "INTEGER DEFAULT 0"),
+                ("confirmed_trades", "num_dia",     "INTEGER DEFAULT 0"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
@@ -471,6 +474,7 @@ def inicializar_db():
                 ("bot_config", "capital_cuenta",  "REAL DEFAULT 0"),
                 ("confirmed_trades", "eta_lo_min", "INTEGER DEFAULT 0"),
                 ("confirmed_trades", "eta_hi_min", "INTEGER DEFAULT 0"),
+                ("confirmed_trades", "num_dia",     "INTEGER DEFAULT 0"),
             ]:
                 try:
                     _exec(conn, f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {definition}")
@@ -914,11 +918,24 @@ def registrar_trade_confirmado(chat_id: str, ticker: str, timeframe: str,
     calculada al momento de tomar el trade — sirve para comparar el plan
     original contra el pronóstico vivo en cada seguimiento."""
     with get_conn() as conn:
+        # Numero del dia: el id autoincremental seguia creciendo para siempre
+        # (#50 al mes de uso). El usuario quiere empezar limpio cada dia, asi
+        # que se guarda ademas un contador que arranca en 1 cada jornada.
+        try:
+            _hoy = datetime.now().strftime("%Y-%m-%d")
+            cur_n = _exec(conn,
+                "SELECT COALESCE(MAX(num_dia),0) FROM confirmed_trades "
+                "WHERE chat_id=? AND created_at >= ?",
+                (chat_id, _hoy))
+            _fila = cur_n.fetchone()
+            num_dia = int((_fila[0] if _fila else 0) or 0) + 1
+        except Exception:
+            num_dia = 1
         cur = _exec(conn,
-            f"INSERT INTO confirmed_trades (chat_id,ticker,timeframe,direccion,entrada,sl,tp,confianza,eta_lo_min,eta_hi_min) "
-            f"VALUES ({_ph(10)})",
+            f"INSERT INTO confirmed_trades (chat_id,ticker,timeframe,direccion,entrada,sl,tp,confianza,eta_lo_min,eta_hi_min,num_dia) "
+            f"VALUES ({_ph(11)})",
             (chat_id, ticker, timeframe, direccion, entrada, sl, tp, confianza,
-             int(eta_lo_min or 0), int(eta_hi_min or 0))
+             int(eta_lo_min or 0), int(eta_hi_min or 0), num_dia)
         )
         return _lastrowid(cur, "confirmed_trades", conn)
 

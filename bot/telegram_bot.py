@@ -1730,7 +1730,7 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"📊 *Seguimiento cada 10 min activado* — te avisaré tu P/L, distancia\n"
             f"al parcial/TP/SL y cuándo cobrar y mover el SL a breakeven.\n"
             f"🔔 Las señales de *{ticker}* siguen llegando por si aparece otra oportunidad.\n"
-            f"Usa `/cerrar {trade_id}` para salida manual."
+            f"Usa `/cerrar {_num_dia_de(trade_id, chat_id)}` para salida manual."
             + _aviso_previo
         )
     except Exception as e:
@@ -1749,9 +1749,14 @@ async def cmd_cerrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if args:
         _a0 = args[0].strip().lstrip("#")
         if _a0.isdigit():
-            # Cierre por número de trade — necesario cuando hay 2 del mismo activo
-            trade = next((t for t in obtener_trades_activos_chat(chat_id)
-                          if str(t.get("id")) == _a0), None)
+            # Cierre por número de trade — necesario cuando hay 2 del mismo
+            # activo. Se busca primero por num_dia (el numero que ve el usuario,
+            # reiniciado cada noche) y como respaldo por id, para que los trades
+            # anteriores a la migracion sigan cerrandose con el numero viejo.
+            _activos_c = obtener_trades_activos_chat(chat_id)
+            trade = next((t for t in _activos_c if str(t.get("num_dia") or "") == _a0), None)
+            if not trade:
+                trade = next((t for t in _activos_c if str(t.get("id")) == _a0), None)
             if not trade:
                 await _reply(update, f"⚠️ No encuentro un trade activo *#{_a0}*.\nUsa /activos para ver los tuyos.")
                 return
@@ -1763,15 +1768,15 @@ async def cmd_cerrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             ticker = _map.get(ticker_input, ticker_input + "=X" if "=" not in ticker_input and "-" not in ticker_input else ticker_input)
             _mismos = [t for t in obtener_trades_activos_chat(chat_id) if t.get("ticker") == ticker]
             if len(_mismos) > 1:
-                _l = "\n".join(f"  • `#{t['id']}` {t['direccion']} @ {_fmt_precio(t['entrada'], ticker)}" for t in _mismos)
-                await _reply(update, f"Tienes *{len(_mismos)} trades* en {ticker}:\n{_l}\n\nEspecifica cuál: `/cerrar {_mismos[0]['id']}`")
+                _l = "\n".join(f"  • `#{_num_trade(t)}` {t['direccion']} @ {_fmt_precio(t['entrada'], ticker)}" for t in _mismos)
+                await _reply(update, f"Tienes *{len(_mismos)} trades* en {ticker}:\n{_l}\n\nEspecifica cuál: `/cerrar {_num_trade(_mismos[0])}`")
                 return
             trade = _mismos[0] if _mismos else None
     else:
         trades = obtener_trades_activos_chat(chat_id)
         if len(trades) > 1:
-            lista = "\n".join(f"  • `#{t['id']}` {t['ticker'].replace('=X','')} ({t['direccion']})" for t in trades)
-            await _reply(update, f"Tienes varios trades activos:\n{lista}\n\nEspecifica: `/cerrar {trades[0]['id']}`")
+            lista = "\n".join(f"  • `#{_num_trade(t)}` {t['ticker'].replace('=X','')} ({t['direccion']})" for t in trades)
+            await _reply(update, f"Tienes varios trades activos:\n{lista}\n\nEspecifica: `/cerrar {_num_trade(trades[0])}`")
             return
         trade = trades[0] if trades else None
 
@@ -3366,6 +3371,26 @@ async def _send_alerta(bot, chat_id: str, msg: str, senal: dict) -> str:
     return code
 
 
+def _num_dia_de(trade_id, chat_id: str) -> str:
+    """Numero del dia del trade recien creado, para el mensaje de confirmacion."""
+    try:
+        for t in obtener_trades_activos_chat(str(chat_id)):
+            if str(t.get("id")) == str(trade_id):
+                return _num_trade(t)
+    except Exception:
+        pass
+    return str(trade_id)
+
+
+def _num_trade(t: dict) -> str:
+    """Numero corto que ve el usuario. Se usa num_dia (arranca en 1 cada
+    jornada) en vez del id autoincremental, que crecia sin fin: al mes de uso
+    el bot pedia `/cerrar 50`. Si num_dia no esta (trades previos a la
+    migracion) se cae al id para no romper nada."""
+    n = t.get("num_dia")
+    return str(n) if n else str(t.get("id", ""))
+
+
 def _pips(diff: float, ticker: str) -> float:
     """Convierte una diferencia de precio a pips (forex) o puntos (oro)."""
     t = ticker.upper()
@@ -3451,11 +3476,11 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
 
                 if paso_tp:
                     _h = f" (a las {_hit_tp.strftime('%H:%M')})" if _hit_tp is not None else ""
-                    estatus = f"✅ *¡TP ALCANZADO!*{_h} Tu broker ya debió cerrarlo. Confirma y usa `/cerrar {t.get('id','')}` aquí."
+                    estatus = f"✅ *¡TP ALCANZADO!*{_h} Tu broker ya debió cerrarlo. Confirma y usa `/cerrar {_num_trade(t)}` aquí."
                 elif paso_sl:
                     _h = f" a las {_hit_sl.strftime('%H:%M')}" if _hit_sl is not None else ""
                     estatus = (f"🛑 *SL TOCADO*{_h} — tu broker ya debió cerrar esta posición. "
-                               f"Verifícalo y usa `/cerrar {t.get('id','')}` para sacarlo del registro.")
+                               f"Verifícalo y usa `/cerrar {_num_trade(t)}` para sacarlo del registro.")
                 elif paso_parcial:
                     estatus = "🎯 *¡PARCIAL 1R alcanzado!* Cobra 50% y mueve el SL a *breakeven*. Desde aquí ya no puedes perder — deja correr el resto al TP."
                 elif pl >= 0:
@@ -3573,7 +3598,7 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                     estatus += chr(10) + chr(10).join(_det)
 
                 lineas = [
-                    f"📊 *SEGUIMIENTO — {ticker} {dir_}* (#{t.get('id','')})",
+                    f"📊 *SEGUIMIENTO — {ticker} {dir_}* (#{_num_trade(t)})",
                     "━━━━━━━━━━━━━━━━",
                     f"💰 Entrada `{fp(entrada)}`  ·  Precio `{fp(precio)}`",
                     f"📈 Vas: *{pl:+.1f} {u}*{_prog}",
@@ -3586,7 +3611,7 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                     _deriva_txt,
                     "",
                     f"🧭 {estatus}",
-                    f"🔒 Para cerrar este trade: `/cerrar {t.get('id','')}`",
+                    f"🔒 Para cerrar este trade: `/cerrar {_num_trade(t)}`",
                     f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
                 ]
                 await _send(ctx.bot, chat_id, "\n".join(l for l in lineas if l))
