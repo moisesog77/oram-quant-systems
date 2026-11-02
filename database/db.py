@@ -301,6 +301,16 @@ CREATE TABLE IF NOT EXISTS confirmed_trades (
     closed_at TEXT DEFAULT NULL,
     resultado TEXT DEFAULT NULL
 );
+CREATE TABLE IF NOT EXISTS alertas_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT, chat_id TEXT NOT NULL, ticker TEXT NOT NULL,
+    tipo_alerta TEXT DEFAULT '', timeframe TEXT DEFAULT '15m',
+    direccion TEXT NOT NULL, confianza REAL DEFAULT 0,
+    entrada REAL NOT NULL, sl REAL NOT NULL, tp REAL NOT NULL,
+    atr REAL DEFAULT 0, sl_sombra REAL DEFAULT 0,
+    tomada INTEGER DEFAULT 0, trade_id INTEGER DEFAULT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS alertas_id (
     code TEXT PRIMARY KEY,
     chat_id TEXT NOT NULL,
@@ -427,6 +437,16 @@ _PG_TABLES = [
         closed_at TEXT DEFAULT NULL,
         resultado TEXT DEFAULT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS alertas_log (
+        id SERIAL PRIMARY KEY,
+        code TEXT, chat_id TEXT NOT NULL, ticker TEXT NOT NULL,
+        tipo_alerta TEXT DEFAULT '', timeframe TEXT DEFAULT '15m',
+        direccion TEXT NOT NULL, confianza REAL DEFAULT 0,
+        entrada REAL NOT NULL, sl REAL NOT NULL, tp REAL NOT NULL,
+        atr REAL DEFAULT 0, sl_sombra REAL DEFAULT 0,
+        tomada INTEGER DEFAULT 0, trade_id INTEGER DEFAULT NULL,
+        created_at TEXT DEFAULT (NOW()::text)
+    );""",
     """CREATE TABLE IF NOT EXISTS alertas_id (
         code TEXT PRIMARY KEY,
         chat_id TEXT NOT NULL,
@@ -953,6 +973,44 @@ def registrar_trade_confirmado(chat_id: str, ticker: str, timeframe: str,
              int(eta_lo_min or 0), int(eta_hi_min or 0), num_dia)
         )
         return _lastrowid(cur, "confirmed_trades", conn)
+
+
+def registrar_alerta_log(code: str, chat_id: str, ticker: str, tipo_alerta: str,
+                         timeframe: str, direccion: str, confianza: float,
+                         entrada: float, sl: float, tp: float, atr: float = 0,
+                         sl_sombra: float = 0) -> int:
+    """Historico PERMANENTE de alertas emitidas. A diferencia de alertas_id
+    (que se limpia cada noche), esta tabla no se borra: es la base del reporte
+    semanal y del modo sombra, que compara el SL real contra uno de 2 ATR."""
+    with get_conn() as conn:
+        cur = _exec(conn,
+            f"INSERT INTO alertas_log (code,chat_id,ticker,tipo_alerta,timeframe,"
+            f"direccion,confianza,entrada,sl,tp,atr,sl_sombra) VALUES ({_ph(12)})",
+            (code, str(chat_id), ticker, tipo_alerta, timeframe, direccion,
+             float(confianza or 0), float(entrada or 0), float(sl or 0),
+             float(tp or 0), float(atr or 0), float(sl_sombra or 0)))
+        return _lastrowid(cur, "alertas_log", conn)
+
+
+def marcar_alerta_tomada(code: str, chat_id: str, trade_id: int):
+    """Enlaza la alerta con el trade que el usuario abrio con /tomar."""
+    with get_conn() as conn:
+        _exec(conn, "UPDATE alertas_log SET tomada=1, trade_id=? "
+                    "WHERE code=? AND chat_id=? AND tomada=0",
+              (int(trade_id), code, str(chat_id)))
+
+
+def obtener_alertas_log(chat_id: str, desde: str, hasta: str = None) -> list:
+    """Alertas emitidas en un rango (fechas 'YYYY-MM-DD HH:MM:SS' en UTC)."""
+    with get_conn() as conn:
+        if hasta:
+            cur = _exec(conn, "SELECT * FROM alertas_log WHERE chat_id=? AND "
+                              "created_at>=? AND created_at<=? ORDER BY created_at",
+                        (str(chat_id), desde, hasta))
+        else:
+            cur = _exec(conn, "SELECT * FROM alertas_log WHERE chat_id=? AND "
+                              "created_at>=? ORDER BY created_at", (str(chat_id), desde))
+        return _fetchall(cur)
 
 
 def guardar_alerta_id(code: str, chat_id: str, ticker: str, direccion: str,

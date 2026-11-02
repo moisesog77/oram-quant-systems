@@ -45,6 +45,7 @@ from database.db import (
     obtener_trades_activos_chat, obtener_todos_trades_activos,
     cerrar_trade_confirmado, insertar_trade,
     guardar_alerta_id, obtener_alerta_id, limpiar_alertas_id, contar_alertas_id,
+    registrar_alerta_log, marcar_alerta_tomada, obtener_alertas_log,
 )
 
 import pandas as pd
@@ -142,6 +143,7 @@ _dedup_impulso: dict = {}
 _ultima_alerta_rango: dict = {}
 _ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
                                    # (cualquier job) — silencia el aviso de rango
+_reporte_semanal_hecho: list = [""]  # semana del ultimo resumen enviado
 _mfe_trades:     dict = {}         # trade_id -> mejor P/L alcanzado (MFE) y su ts
 _emerg_enviada:  dict = {}         # trade_id -> ts del ultimo aviso de emergencia
 _hist_seguimiento: dict = {}       # trade_id -> [(ts, eta_lo, prog)] para detectar
@@ -1720,6 +1722,10 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             float(senal.get("confianza", 0) or 0),
             eta_lo_min=_eta_lo, eta_hi_min=_eta_hi
         )
+        try:
+            marcar_alerta_tomada(code, chat_id, trade_id)   # enlaza alerta <-> trade
+        except Exception as e:
+            logger.error(f"marcar_alerta_tomada {code}: {e}")
         emoji = _emoji_dir(senal["direccion"])
         await _reply(update,
             f"✅ *TRADE CONFIRMADO* (alerta {code} · trade #{trade_id})\n"
@@ -3378,6 +3384,27 @@ async def _send_alerta(bot, chat_id: str, msg: str, senal: dict) -> str:
                           senal.get("tf", "15m"))
     except Exception as e:
         logger.error(f"guardar_alerta_id {code}: {e}")
+    # Historico permanente + modo sombra: se guarda tambien un SL alternativo
+    # de 2 ATR para comparar, en vivo y sin arriesgar nada, contra el SL real.
+    # El backtest de 11 dias apuntaba a que el stop de SCALP y REBOTE es muy
+    # ajustado (MAE 4.5 y 3.1 ATR), pero con n=5-6 no habia con que validarlo.
+    try:
+        _atr_a = float(senal.get("atr", 0) or 0)
+        _ent_a = float(senal.get("entrada", 0) or 0)
+        _sl_a  = float(senal.get("sl", 0) or 0)
+        _dir_a = (senal.get("direccion") or "").upper()
+        _sl_sombra = 0.0
+        if _atr_a > 0 and _ent_a and _sl_a and _dir_a in ("LONG", "SHORT"):
+            _dist = max(abs(_ent_a - _sl_a), _atr_a * 2.0)
+            _sl_sombra = _ent_a - _dist if _dir_a == "LONG" else _ent_a + _dist
+        registrar_alerta_log(code, str(chat_id), senal.get("ticker", ""),
+                             senal.get("tipo_alerta", senal.get("setup", "")),
+                             senal.get("tf", "15m"), _dir_a,
+                             float(senal.get("confianza", 0) or 0),
+                             _ent_a, _sl_a, float(senal.get("tp", 0) or 0),
+                             _atr_a, _sl_sombra)
+    except Exception as _e_log:
+        logger.error(f"registrar_alerta_log {code}: {_e_log}")
     msg = msg + f"\n🆔 *ID:* `{code}`  ·  si la operas: `/tomar {code}`"
     await _send(bot, chat_id, msg)
     _ultima_senal_enviada[str(chat_id)] = datetime.now(TZ_MX).timestamp()
@@ -3412,6 +3439,135 @@ def _pips(diff: float, ticker: str) -> float:
     if "GC" in t or "XAU" in t:
         return diff        # oro: puntos
     return diff * 10000
+
+
+def _resolver_alerta(tk: str, dir_: str, ent: float, sl: float, tp: float, desde):
+    """Simula como termino una alerta con los datos reales posteriores.
+    Devuelve (estado, R) — entrada como orden pendiente: si el precio nunca
+    toco el nivel, no hubo trade."""
+    try:
+        df, _ = obtener_datos(tk, "5m")
+        if df is None or df.empty:
+            return ("sin datos", None)
+        fut = df[df.index > desde]
+        if fut.empty:
+            return ("sin datos", None)
+        rk = abs(ent - sl)
+        if rk <= 0:
+            return ("niveles invalidos", None)
+        ini = None
+        for ts, r in fut.head(24).iterrows():      # 2h para que se llene
+            if r.Low <= ent <= r.High:
+                ini = ts
+                break
+        if ini is None:
+            return ("no se lleno", None)
+        viva = df[df.index > ini].head(96)         # 8h de vida
+        for ts, r in viva.iterrows():
+            if dir_ == "LONG":
+                if r.Low <= sl:  return ("SL", -1.0)
+                if r.High >= tp: return ("TP", abs(tp - ent) / rk)
+            else:
+                if r.High >= sl: return ("SL", -1.0)
+                if r.Low <= tp:  return ("TP", abs(tp - ent) / rk)
+        if viva.empty:
+            return ("abierta", None)
+        c = float(viva["Close"].iloc[-1])
+        return ("abierta", ((c - ent) if dir_ == "LONG" else (ent - c)) / rk)
+    except Exception:
+        return ("error", None)
+
+
+async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
+    """📄 Viernes 15:00 CDMX: CSV con todas las alertas de la semana, como
+    terminaron, cuales se tomaron y que habria pasado con el SL sombra de
+    2 ATR. Es el historico real que alimenta las decisiones de calibracion."""
+    try:
+        import csv, os
+        ahora = datetime.now(TZ_MX)
+        if ahora.weekday() != 4 or ahora.hour < 14:
+            return                      # solo viernes, y ya cerrado el mercado
+        _clave_sem = ahora.strftime("%Y-%W")
+        if _reporte_semanal_hecho[0] == _clave_sem:
+            return                      # las dos run_daily cubren verano e invierno
+        _reporte_semanal_hecho[0] = _clave_sem
+        desde_mx = (ahora - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        desde_utc = desde_mx.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S")
+        for cfg in obtener_todas_configs_bot():
+            chat_id = str(cfg.get("telegram_chat_id", "") or "")
+            if not chat_id:
+                continue
+            filas = obtener_alertas_log(chat_id, desde_utc)
+            if not filas:
+                await _send(ctx.bot, chat_id,
+                            f"📄 *RESUMEN SEMANAL*\n━━━━━━━━━━━━━━━━\n"
+                            f"Sin alertas emitidas entre el {desde_mx:%d-%b} y hoy.")
+                continue
+            ruta = os.path.join("/tmp" if os.path.isdir("/tmp") else ".",
+                                f"alertas_{ahora:%Y%m%d}.csv")
+            tot_r = tot_s = 0.0
+            n_res = n_tom = n_tp = n_sl = n_nl = 0
+            with open(ruta, "w", newline="", encoding="utf-8-sig") as fh:
+                w = csv.writer(fh, delimiter=";")
+                w.writerow(["fecha_cdmx", "id", "activo", "alerta", "tf", "dir",
+                            "confianza", "entrada", "sl", "tp", "rr", "atr",
+                            "resultado", "R", "sl_sombra", "resultado_sombra",
+                            "R_sombra", "tomada", "trade"])
+                for f in filas:
+                    try:
+                        ts = pd.to_datetime(f.get("created_at"), errors="coerce", utc=True)
+                        ts_mx = ts.tz_convert(TZ_MX) if pd.notna(ts) else ahora
+                    except Exception:
+                        ts_mx = ahora
+                    ent = float(f.get("entrada") or 0); sl = float(f.get("sl") or 0)
+                    tp  = float(f.get("tp") or 0);      d_  = (f.get("direccion") or "").upper()
+                    tk  = f.get("ticker", "");          sls = float(f.get("sl_sombra") or 0)
+                    rr  = (abs(tp - ent) / abs(ent - sl)) if abs(ent - sl) > 0 else 0
+                    est, R   = _resolver_alerta(tk, d_, ent, sl, tp, ts_mx)
+                    if sls and abs(ent - sls) > 0:
+                        est_s, Rs = _resolver_alerta(tk, d_, ent, sls, tp, ts_mx)
+                    else:
+                        est_s, Rs = ("-", None)
+                    if R is not None:  tot_r += R; n_res += 1
+                    if Rs is not None: tot_s += Rs
+                    if est == "TP": n_tp += 1
+                    elif est == "SL": n_sl += 1
+                    elif est == "no se lleno": n_nl += 1
+                    if f.get("tomada"): n_tom += 1
+                    w.writerow([f"{ts_mx:%Y-%m-%d %H:%M}", f.get("code", ""), tk,
+                                f.get("tipo_alerta", ""), f.get("timeframe", ""), d_,
+                                f"{float(f.get('confianza') or 0):.0f}",
+                                f"{ent:.5f}", f"{sl:.5f}", f"{tp:.5f}", f"{rr:.2f}",
+                                f"{float(f.get('atr') or 0):.5f}",
+                                est, ("" if R is None else f"{R:+.2f}"),
+                                (f"{sls:.5f}" if sls else ""), est_s,
+                                ("" if Rs is None else f"{Rs:+.2f}"),
+                                "si" if f.get("tomada") else "no",
+                                f.get("trade_id") or ""])
+            resumen = [
+                "📄 *RESUMEN SEMANAL DE ALERTAS*",
+                "━━━━━━━━━━━━━━━━",
+                f"🗓 {desde_mx:%d-%b} → {ahora:%d-%b}",
+                f"🔔 Alertas emitidas: *{len(filas)}*  ·  tomadas: *{n_tom}*",
+                f"✅ TP: {n_tp}   🛑 SL: {n_sl}   ⏳ no se llenaron: {n_nl}",
+                "",
+                f"📊 R acumulado (SL real):   *{tot_r:+.2f}R* en {n_res} resueltas",
+                f"🌑 R acumulado (SL sombra 2 ATR): *{tot_s:+.2f}R*",
+                "",
+                "_El CSV trae cada alerta con sus niveles, como termino y que_",
+                "_habria pasado con el stop de 2 ATR. Compartelo para analizarlo._",
+                f"🕐 _{_hora_mx()} CDMX_",
+            ]
+            await _send(ctx.bot, chat_id, chr(10).join(resumen))
+            try:
+                with open(ruta, "rb") as fh:
+                    await ctx.bot.send_document(chat_id=chat_id, document=fh,
+                                                filename=os.path.basename(ruta),
+                                                caption="Histórico de alertas de la semana")
+            except Exception as e:
+                logger.error(f"enviar CSV semanal: {e}")
+    except Exception as e:
+        logger.error(f"job_reporte_semanal: {e}")
 
 
 async def job_emergencia_trades(ctx: ContextTypes.DEFAULT_TYPE):
@@ -4134,6 +4290,10 @@ def main():
         jq.run_daily(job_reporte_cierre,   time=dtime(hour=22, minute=2))   # 17:02 NY en invierno
         jq.run_daily(job_apertura_semana,  time=dtime(hour=22, minute=5))   # Dom 16:05 CDMX
         jq.run_daily(job_cierre_nocturno,  time=dtime(hour=5,  minute=0))   # 11:00 PM CDMX (reset IDs + cierre)
+        # 📄 Resumen semanal: viernes 15:00 CDMX = 21:00 UTC en verano,
+        # 22:00 en invierno. Se registran ambas y el job sale solo si no toca.
+        jq.run_daily(job_reporte_semanal, time=dtime(hour=21, minute=0), days=(4,))
+        jq.run_daily(job_reporte_semanal, time=dtime(hour=22, minute=0), days=(4,))
         # Intervalos calibrados para plan Twelve Data Grow 55 (55 créditos/min,
         # sin límite diario). Consumo sostenido ~10-12/min, pico ~24/min.
         jq.run_repeating(job_monitoreo_senales,        interval=180, first=60)
