@@ -3018,6 +3018,17 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                     precio_actual = smc.get("precio", 0)
                     if not (nivel_barrido and mecha and tp and atr > 0):
                         continue
+                    # La alerta llega tarde cuando el precio ya dejo atras el
+                    # nivel de retesteo: el 2-nov el oro proponia entrar en
+                    # 3896.81 con el precio en 3945.99 (49 USD, ~5 ATR), una
+                    # orden que no se llena nunca. En GBPUSD el mismo dia la
+                    # distancia era de 0.2 pips y la alerta si era valida.
+                    _dist_ent = abs(precio_actual - nivel_barrido)
+                    if _dist_ent > atr * 1.0:
+                        logger.info(
+                            f"rebote {ticker}: descartado, el precio ya se alejo "
+                            f"{_dist_ent/atr:.1f} ATR del nivel de entrada")
+                        continue
 
                     # Entrada = retesteo del nivel barrido (orden límite)
                     entrada = nivel_barrido
