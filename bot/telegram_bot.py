@@ -142,6 +142,8 @@ _dedup_impulso: dict = {}
 _ultima_alerta_rango: dict = {}
 _ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
                                    # (cualquier job) — silencia el aviso de rango
+_mfe_trades:     dict = {}         # trade_id -> mejor P/L alcanzado (MFE) y su ts
+_emerg_enviada:  dict = {}         # trade_id -> ts del ultimo aviso de emergencia
 _hist_seguimiento: dict = {}       # trade_id -> [(ts, eta_lo, prog)] para detectar
                                    # objetivos que se alejan lectura tras lectura
 _ultimo_tick_rango:  list = [0.0]  # ts del ultimo tick de job_aviso_rango (/diag)
@@ -3401,6 +3403,101 @@ def _pips(diff: float, ticker: str) -> float:
     return diff * 10000
 
 
+async def job_emergencia_trades(ctx: ContextTypes.DEFAULT_TYPE):
+    """🚨 SALIDA DE EMERGENCIA. Corre cada 60s, no cada 10 min: cuando un trade
+    que iba bien se da la vuelta, esperar al siguiente seguimiento puede costar
+    la ganancia entera.
+
+    Vigila el MFE (mejor P/L alcanzado) de cada trade y avisa cuando:
+      1) devolvio la mitad o mas de lo que llegó a ganar
+      2) estuvo en ganancia real y ya cruzó por debajo de la entrada
+      3) iba ganando y la estructura del motor se dio la vuelta
+    No decide por el usuario: informa y deja la salida en sus manos."""
+    try:
+        if not _en_horario_alertas():
+            return
+        ahora_ts = datetime.now(TZ_MX).timestamp()
+        for t in obtener_todos_trades_activos():
+            try:
+                tid     = t.get("id")
+                chat_id = str(t.get("chat_id") or "")
+                ticker  = t.get("ticker")
+                dir_    = (t.get("direccion") or "").upper()
+                entrada = float(t.get("entrada") or 0)
+                sl      = float(t.get("sl") or 0)
+                tp      = float(t.get("tp") or 0)
+                if not (chat_id and ticker and entrada and sl and dir_ in ("LONG", "SHORT")):
+                    continue
+                tf_t = t.get("timeframe") or "15m"
+                df, _st = obtener_datos(ticker, tf_t)
+                if df is None or len(df) == 0:
+                    continue
+                precio  = float(df["Close"].iloc[-1])
+                u       = "pts" if ("GC" in ticker.upper() or "XAU" in ticker.upper()) else "pips"
+                pl_diff = (precio - entrada) if dir_ == "LONG" else (entrada - precio)
+                pl      = _pips(pl_diff, ticker)
+                riesgo  = _pips(abs(entrada - sl), ticker)
+                if riesgo <= 0:
+                    continue
+
+                prev_mfe = _mfe_trades.get(tid, 0.0)
+                mfe      = max(prev_mfe, pl)
+                _mfe_trades[tid] = mfe
+
+                # Solo tiene sentido hablar de "devolver" si llego a ganar algo
+                # relevante: al menos 0.8R o la mitad del camino al TP.
+                _umbral_mfe = min(riesgo * 0.8, _pips(abs(tp - entrada), ticker) * 0.5) if tp else riesgo * 0.8
+                if mfe < max(_umbral_mfe, 1e-9):
+                    continue
+
+                motivo = None
+                devuelto_pct = ((mfe - pl) / mfe * 100) if mfe > 0 else 0
+                if pl <= 0:
+                    motivo = (f"llegaste a *+{mfe:.1f} {u}* y ya estas en "
+                              f"*{pl:+.1f} {u}* — devolviste toda la ganancia")
+                elif devuelto_pct >= 50:
+                    motivo = (f"llegaste a *+{mfe:.1f} {u}* y vas *+{pl:.1f} {u}*: "
+                              f"devolviste el *{devuelto_pct:.0f}%* de lo ganado")
+                else:
+                    try:
+                        _r = analisis_completo(df, ticker)
+                        _d = _r.get("estructura", {}).get("direccion", "neutral")
+                        _c = _r.get("confluencia", {}).get("confianza", 0)
+                        if _d not in ("neutral", dir_) and _c >= 60 and pl > 0:
+                            motivo = (f"la estructura se invirtio a *{_d}* ({_c:.0f}%) "
+                                      f"con *+{pl:.1f} {u}* a favor")
+                    except Exception:
+                        pass
+                if not motivo:
+                    continue
+
+                # Un aviso cada 15 min por trade: es urgente, no repetitivo.
+                if ahora_ts - _emerg_enviada.get(tid, 0) < 900:
+                    continue
+                _emerg_enviada[tid] = ahora_ts
+
+                _n = _num_trade(t)
+                msg = [
+                    f"🚨 *SALIDA DE EMERGENCIA — {ticker} {dir_}* (#{_n})",
+                    "━━━━━━━━━━━━━━━━",
+                    f"⚠️ _{motivo}_",
+                    "",
+                    f"💰 Entrada `{_fmt_precio(entrada, ticker)}` · Precio `{_fmt_precio(precio, ticker)}`",
+                    f"📈 Ahora: *{pl:+.1f} {u}*  ·  mejor momento: *+{mfe:.1f} {u}*",
+                    f"🛑 SL `{_fmt_precio(sl, ticker)}` — si lo esperas arriesgas {riesgo:.0f} {u} desde la entrada",
+                    "",
+                    f"👉 *Cerrar ahora asegura {pl:+.1f} {u}.* Esperar al SL puede costarte la diferencia.",
+                    f"🔒 `/cerrar {_n}`",
+                    f"🕐 _{_hora_mx()} CDMX_",
+                ]
+                await _send(ctx.bot, chat_id, chr(10).join(msg))
+                logger.info(f"emergencia {ticker} #{_n}: {motivo[:60]}")
+            except Exception as e:
+                logger.error(f"emergencia trade {t.get('id')}: {e}")
+    except Exception as e:
+        logger.error(f"job_emergencia_trades: {e}")
+
+
 async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
     """CAPA 1 — Seguimiento de trades tomados (vía /tomar). Cada 10 min manda
     estatus de cada trade activo: P/L en pips, distancia a parcial/TP/SL, y el
@@ -4054,6 +4151,7 @@ def main():
             _first_rng += 1800
         jq.run_repeating(job_aviso_rango, interval=1800, first=_first_rng)
         jq.run_repeating(job_monitoreo_impulso,       interval=120, first=110)  # 🧪 EN PRUEBA, solo oro
+        jq.run_repeating(job_emergencia_trades,       interval=60,  first=40)   # 🚨 salida de emergencia
         print("✅ Jobs activos: Apertura 7AM · Cierre 4PM · Dom apertura 4:05PM · Señales c/5m · MTF c/15m · Reversal c/1m · Scalp c/90s · Alertas precio c/5m · Noticias c/5m")
     else:
         print("⚠️  Sin jobs. Instala: pip install APScheduler")

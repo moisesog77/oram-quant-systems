@@ -33,6 +33,12 @@ from datetime import datetime, timezone, timedelta, date
 
 logger = logging.getLogger(__name__)
 
+try:
+    from zoneinfo import ZoneInfo
+    _TZ_MX = ZoneInfo("America/Mexico_City")
+except Exception:          # respaldo si falta tzdata
+    _TZ_MX = timezone(timedelta(hours=-6))
+
 # ── Detección de motor ────────────────────────────────────────────────────────
 # DATABASE_URL puede venir de dos fuentes según el entorno:
 #   · Railway (bot worker)    → variable de entorno del sistema (os.environ)
@@ -922,14 +928,23 @@ def registrar_trade_confirmado(chat_id: str, ticker: str, timeframe: str,
         # (#50 al mes de uso). El usuario quiere empezar limpio cada dia, asi
         # que se guarda ademas un contador que arranca en 1 cada jornada.
         try:
-            _hoy = datetime.now().strftime("%Y-%m-%d")
+            # created_at se guarda en UTC en ambos motores (datetime('now') /
+            # NOW()). La jornada del usuario es CDMX, asi que el corte se
+            # calcula en CDMX y se convierte a UTC antes de comparar.
+            _ini_mx = datetime.now(_TZ_MX).replace(hour=0, minute=0, second=0, microsecond=0)
+            _corte  = _ini_mx.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             cur_n = _exec(conn,
-                "SELECT COALESCE(MAX(num_dia),0) FROM confirmed_trades "
+                "SELECT COALESCE(MAX(num_dia),0) AS maxn FROM confirmed_trades "
                 "WHERE chat_id=? AND created_at >= ?",
-                (chat_id, _hoy))
-            _fila = cur_n.fetchone()
-            num_dia = int((_fila[0] if _fila else 0) or 0) + 1
-        except Exception:
+                (chat_id, _corte))
+            # Ambos motores devuelven filas tipo dict (RealDictCursor en PG,
+            # sqlite3.Row en SQLite): _fila[0] lanzaba KeyError en produccion y
+            # el except dejaba num_dia=1 para SIEMPRE. Por eso todos los trades
+            # del 2-nov salieron como "#1" y /cerrar 1 era ambiguo.
+            _fila = _fetchone(cur_n)
+            num_dia = int((_fila.get("maxn") if _fila else 0) or 0) + 1
+        except Exception as _e_num:
+            logger.warning(f"num_dia fallback: {_e_num}")
             num_dia = 1
         cur = _exec(conn,
             f"INSERT INTO confirmed_trades (chat_id,ticker,timeframe,direccion,entrada,sl,tp,confianza,eta_lo_min,eta_hi_min,num_dia) "
