@@ -454,6 +454,14 @@ def _en_horario_trading() -> bool:
     if wd == 4 and hut >= 22: return False        # viernes desde 22:00 UTC
     return True
 
+def _en_horario_notificacion() -> bool:
+    """Ventana en la que el usuario quiere avisos: 05:45 - 22:00 CDMX.
+    Fuera de ella el bot sigue DETECTANDO y REGISTRANDO en alertas_log
+    —hace falta para la recoleccion del modo sombra— pero no envia nada."""
+    h = datetime.now(TZ_MX)
+    return 5.75 <= h.hour + h.minute / 60 < 22.0
+
+
 def _es_forex_mayor(ticker: str) -> bool:
     t = (ticker or "").upper()
     return ("=X" in t or len(t) == 6) and "GC" not in t and "XAU" not in t
@@ -2484,8 +2492,8 @@ async def job_aviso_rango(ctx: ContextTypes.DEFAULT_TYPE):
             return
         ahora_ts = _t0.timestamp()
         hora_mx  = _t0.hour
-        if not (5 <= hora_mx < 17):
-            logger.info(f"rango: skip hora {hora_mx}")
+        if not _en_horario_notificacion():
+            logger.info("rango: fuera de la ventana de notificacion")
             return
         configs = obtener_todas_configs_bot()
         logger.info(f"rango: tick {_t0:%H:%M} configs={len(configs)}")
@@ -3515,6 +3523,11 @@ async def _send_alerta(bot, chat_id: str, msg: str, senal: dict) -> str:
                              _atr_a, _sl_sombra, ",".join(_fac), _smc)
     except Exception as _e_log:
         logger.error(f"registrar_alerta_log {code}: {_e_log}")
+    # Ya quedo registrada en alertas_log. Fuera de la ventana de notificacion
+    # no se envia: el dato se acumula para el CSV semanal sin ruido nocturno.
+    if not _en_horario_notificacion():
+        logger.info(f"alerta {code} registrada en silencio (fuera de 05:45-22:00)")
+        return code
     msg = msg + f"\n🆔 *ID:* `{code}`  ·  si la operas: `/tomar {code}`"
     await _send(bot, chat_id, msg)
     _ultima_senal_enviada[str(chat_id)] = datetime.now(TZ_MX).timestamp()
