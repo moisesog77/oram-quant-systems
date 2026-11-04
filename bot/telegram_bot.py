@@ -143,6 +143,11 @@ _dedup_impulso: dict = {}
 _ultima_alerta_rango: dict = {}
 _ultima_senal_enviada: dict = {}   # chat_id → ts de la última alerta OPERABLE
                                    # (cualquier job) — silencia el aviso de rango
+_sl_reciente: dict = {}            # (chat_id,ticker,direccion) -> ts del ultimo SL.
+                                   # Tras un stop, esa misma direccion queda en
+                                   # cuarentena: el 3-nov el bot mando 8 alertas
+                                   # LONG seguidas en oro mientras caia de 3941
+                                   # a 3917, dos de ellas tras un SL en LONG.
 _reporte_semanal_hecho: list = [""]  # semana del ultimo resumen enviado
 _mfe_trades:     dict = {}         # trade_id -> mejor P/L alcanzado (MFE) y su ts
 _emerg_enviada:  dict = {}         # trade_id -> ts del ultimo aviso de emergencia
@@ -1953,14 +1958,29 @@ async def job_resumen_diario(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_resumen_diario: {e}")
 
 
-async def _generar_reporte_cierre() -> str:
+async def _generar_reporte_cierre(chat_id: str = "") -> str:
     """Reporte de cierre de día — al cierre real del mercado (17:00 NY)."""
     categorias = {"Forex": ["EURUSD=X", "GBPUSD=X"], "Materias": ["GC=F"]}
     ahora      = datetime.now(TZ_MX)
 
     senales_hoy = obtener_señales_recientes(horas=24)
-    longs_hoy   = sum(1 for s in senales_hoy if s.get("direccion") == "LONG"  and s.get("enviada_bot"))
-    shorts_hoy  = sum(1 for s in senales_hoy if s.get("direccion") == "SHORT" and s.get("enviada_bot"))
+    # El contador miraba el flag enviada_bot de la tabla de señales, que SCALP,
+    # SOSTENIDO y REBOTE no marcan: el 3-nov el reporte dijo "Total: 0" tras
+    # emitir 14 alertas. alertas_log si las tiene todas, asi que manda esa.
+    longs_hoy = shorts_hoy = 0
+    try:
+        if not chat_id:
+            raise ValueError("sin chat_id")
+        _ini_d = datetime.now(TZ_MX).replace(hour=0, minute=0, second=0, microsecond=0)
+        _ini_u = _ini_d.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S")
+        for _a in obtener_alertas_log(str(chat_id), _ini_u):
+            _d = (_a.get("direccion") or "").upper()
+            if _d == "LONG":    longs_hoy  += 1
+            elif _d == "SHORT": shorts_hoy += 1
+    except Exception as e:
+        logger.error(f"contador alertas cierre: {e}")
+        longs_hoy  = sum(1 for s in senales_hoy if s.get("direccion") == "LONG"  and s.get("enviada_bot"))
+        shorts_hoy = sum(1 for s in senales_hoy if s.get("direccion") == "SHORT" and s.get("enviada_bot"))
     total_hoy   = longs_hoy + shorts_hoy
 
     lineas = [
@@ -2043,9 +2063,11 @@ async def job_reporte_cierre(ctx: ContextTypes.DEFAULT_TYPE):
         if wd in (5, 6):   # sábado o domingo — sin reporte
             return
         configs = obtener_todas_configs_bot()
-        txt     = await _generar_reporte_cierre()
         for cfg in configs:
             if cfg.get("resumen_diario") and cfg.get("telegram_chat_id"):
+                # el contador de alertas es por chat, asi que el reporte se
+                # genera para cada uno en vez de compartir un texto unico
+                txt = await _generar_reporte_cierre(str(cfg["telegram_chat_id"]))
                 await _send(ctx.bot, cfg["telegram_chat_id"], txt)
     except Exception as e:
         logger.error(f"job_reporte_cierre: {e}")
@@ -3373,6 +3395,16 @@ async def _send_alerta(bot, chat_id: str, msg: str, senal: dict) -> str:
     """Envía una alerta operable con un ID corto para /tomar. Asigna el ID,
     lo agrega al mensaje, guarda la señal en _alertas_dia y envía.
     senal: {ticker, direccion, entrada, sl, tp, tf}. Retorna el code."""
+    # Cuarentena tras un stop: 45 min sin repetir la misma direccion en el
+    # mismo activo. Evita la cadena de alertas identicas contra la tendencia.
+    try:
+        _k_sl = (str(chat_id), senal.get("ticker", ""), (senal.get("direccion") or "").upper())
+        _t_sl = _sl_reciente.get(_k_sl, 0)
+        if _t_sl and datetime.now(TZ_MX).timestamp() - _t_sl < 2700:
+            logger.info(f"alerta suprimida: SL reciente en {_k_sl[1]} {_k_sl[2]}")
+            return ""
+    except Exception:
+        pass
     _alerta_seq[0] += 1
     code = f"A{_alerta_seq[0]}"
     _alertas_dia[code] = dict(senal)
@@ -3581,8 +3613,9 @@ async def job_emergencia_trades(ctx: ContextTypes.DEFAULT_TYPE):
       3) iba ganando y la estructura del motor se dio la vuelta
     No decide por el usuario: informa y deja la salida en sus manos."""
     try:
-        if not _en_horario_alertas():
-            return
+        # NO se filtra por _en_horario_alertas(): ese horario existe para no
+        # ABRIR posiciones nuevas, pero una ya abierta hay que vigilarla
+        # siempre. Si el trade sigue vivo fuera de horario, el riesgo tambien.
         ahora_ts = datetime.now(TZ_MX).timestamp()
         for t in obtener_todos_trades_activos():
             try:
@@ -3611,15 +3644,38 @@ async def job_emergencia_trades(ctx: ContextTypes.DEFAULT_TYPE):
                 mfe      = max(prev_mfe, pl)
                 _mfe_trades[tid] = mfe
 
-                # Solo tiene sentido hablar de "devolver" si llego a ganar algo
-                # relevante: al menos 0.8R o la mitad del camino al TP.
                 _umbral_mfe = min(riesgo * 0.8, _pips(abs(tp - entrada), ticker) * 0.5) if tp else riesgo * 0.8
-                if mfe < max(_umbral_mfe, 1e-9):
-                    continue
-
                 motivo = None
+
+                # CASO "NUNCA ARRANCO" (añadido 3-nov-2026). La version anterior
+                # solo vigilaba que no devolvieras lo ganado, asi que el 3-nov no
+                # salto ni una vez: los cinco trades del dia murieron sin llegar
+                # nunca a ganar (mejor MFE 0.31R). El trade que no arranca y se
+                # desangra hasta el SL necesita su propio aviso.
+                if mfe < max(_umbral_mfe, 1e-9):
+                    try:
+                        _ca = t.get("created_at")
+                        _ts = pd.to_datetime(_ca, errors="coerce", utc=True) if _ca else None
+                        _elo_e = int(t.get("eta_lo_min") or 0)
+                        if _ts is not None and pd.notna(_ts) and _elo_e > 0:
+                            _transc_e = (datetime.now(TZ_MX) - _ts.tz_convert(TZ_MX)).total_seconds() / 60
+                            _d_sl_e = _pips(abs(precio - sl), ticker)
+                            # pasado el plan, sin haber arrancado nunca y con el
+                            # stop ya cerca: el trade esta agonizando
+                            if (_transc_e > _elo_e * 1.5 and mfe < riesgo * 0.35
+                                    and _d_sl_e < riesgo * 0.45):
+                                motivo = (f"no arranco: lleva *{_transc_e/60:.1f}h* abierto "
+                                          f"({_transc_e/_elo_e*100:.0f}% del plan), nunca paso de "
+                                          f"*+{max(mfe,0):.1f} {u}* y el SL esta a *{_d_sl_e:.0f} {u}*")
+                    except Exception:
+                        pass
+                    if not motivo:
+                        continue
+                    devuelto_pct = 0
                 devuelto_pct = ((mfe - pl) / mfe * 100) if mfe > 0 else 0
-                if pl <= 0:
+                if motivo:
+                    pass                      # ya diagnosticado como "no arranco"
+                elif pl <= 0:
                     motivo = (f"llegaste a *+{mfe:.1f} {u}* y ya estas en "
                               f"*{pl:+.1f} {u}* — devolviste toda la ganancia")
                 elif devuelto_pct >= 50:
@@ -3743,6 +3799,7 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                     estatus = f"✅ *¡TP ALCANZADO!*{_h} Tu broker ya debió cerrarlo. Confirma y usa `/cerrar {_num_trade(t)}` aquí."
                 elif paso_sl:
                     _h = f" a las {_hit_sl.strftime('%H:%M')}" if _hit_sl is not None else ""
+                    _sl_reciente[(str(chat_id), ticker, dir_)] = datetime.now(TZ_MX).timestamp()
                     estatus = (f"🛑 *SL TOCADO*{_h} — tu broker ya debió cerrar esta posición. "
                                f"Verifícalo y usa `/cerrar {_num_trade(t)}` para sacarlo del registro.")
                 elif paso_parcial:
@@ -3852,6 +3909,13 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                     logger.error(f"diagnostico deterioro {ticker}: {_e_det}")
 
                 if _sint and not (paso_tp or paso_sl):
+                    # El 3-nov el mismo mensaje decia "Respeta el stop, no lo
+                    # muevas" y justo debajo "Evalua cerrar aqui". Con dos
+                    # consejos opuestos el aviso no sirve: si hay 2+ señales en
+                    # contra, se retira la frase de aguantar.
+                    if len(_sint) >= 2:
+                        estatus = estatus.replace(
+                            " Respeta el stop, no lo muevas.", "")
                     _cab = ("🚨 *REVISA ESTE TRADE — varias señales en contra*"
                             if len(_sint) >= 2 else "🟡 *Señal de aviso*")
                     _det = [_cab] + [f"   • _{x}_" for x in _sint]

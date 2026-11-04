@@ -624,16 +624,25 @@ def sl_minimo_absoluto(ticker: str, precio: float = 0) -> float:
     el stop, y el lote calculado para arriesgar 2% se dispara (0.138 lotes), así
     que cualquier deslizamiento multiplica la pérdida real muy por encima del
     riesgo planeado. Un SL que no sobrevive al spread no es un SL.
+
+    ACTUALIZADO 3-nov-2026. El piso del oro estaba en 2.0 puntos, puesto
+    cuando cotizaba a 4650 con spread de 0.40. Hoy el spread de XAUUSD en IC
+    Markets es de ~5.0 puntos: la alerta A1 de esta mañana salio con un stop
+    de 2.00 puntos, es decir MENOS DE LA MITAD del spread. La posicion nacia
+    perdida y murio en 6 minutos. Un stop que no sobrevive al spread no es un
+    stop, asi que ahora cada activo pide al menos ~3x su spread tipico.
     """
     t = (ticker or "").upper()
     if "BTC" in t or "ETH" in t:
         return precio * 0.0015 if precio else 0.0      # ~0.15% en cripto
-    if "GC" in t or "XAU" in t or "SI=" in t or "XAG" in t:
-        return 2.0                                      # oro/plata: 2.0 puntos
+    if "GC" in t or "XAU" in t:
+        return 15.0                                     # oro: spread ~5 pts -> 3x
+    if "SI=" in t or "XAG" in t:
+        return 0.15                                     # plata
     if "JPY" in t:
-        return 0.05                                     # pares JPY: 5 pips
+        return 0.08                                     # pares JPY: 8 pips
     if "=X" in t or len(t) == 6:
-        return 0.0005                                   # forex mayor: 5 pips
+        return 0.0008                                   # forex mayor: 8 pips
     return 0.0
 
 
