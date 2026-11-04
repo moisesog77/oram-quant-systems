@@ -3395,6 +3395,28 @@ async def _send_alerta(bot, chat_id: str, msg: str, senal: dict) -> str:
     """Envía una alerta operable con un ID corto para /tomar. Asigna el ID,
     lo agrega al mensaje, guarda la señal en _alertas_dia y envía.
     senal: {ticker, direccion, entrada, sl, tp, tf}. Retorna el code."""
+    # FILTRO DE MOMENTUM (3-nov-2026). is_bull se decide con la EMA200: el
+    # 3-nov el oro subio 70 pts por la mañana, quedo 20 pts sobre su EMA200 y
+    # el motor siguio leyendo "alcista" durante todo el retroceso. Resultado:
+    # 11 alertas LONG de 14 mientras el oro bajaba de 3941 a 3917.
+    # El momentum de las ultimas 6 velas de 15m era negativo casi siempre y
+    # ese dato no se miraba. Medido sobre 85 señales de 11 dias: lo que este
+    # filtro bloquea promedia -0.632R y lo que deja pasar +0.023R, asi que
+    # discrimina de verdad. NO hace rentable el sistema: evita perdidas.
+    try:
+        _tk_m = senal.get("ticker", "")
+        _dir_m = (senal.get("direccion") or "").upper()
+        if _tk_m and _dir_m in ("LONG", "SHORT"):
+            _df_m, _ = obtener_datos(_tk_m, "15m")
+            if _df_m is not None and len(_df_m) > 7:
+                _mom = float(_df_m["Close"].iloc[-1]) - float(_df_m["Close"].iloc[-7])
+                if (_dir_m == "LONG" and _mom < 0) or (_dir_m == "SHORT" and _mom > 0):
+                    logger.info(f"alerta suprimida: {_dir_m} contra el momentum "
+                                f"de 90min en {_tk_m} ({_mom:+.2f})")
+                    return ""
+    except Exception:
+        pass
+
     # Cuarentena tras un stop: 45 min sin repetir la misma direccion en el
     # mismo activo. Evita la cadena de alertas identicas contra la tendencia.
     try:
