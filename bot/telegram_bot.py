@@ -3485,12 +3485,34 @@ async def _send_alerta(bot, chat_id: str, msg: str, senal: dict) -> str:
         if _atr_a > 0 and _ent_a and _sl_a and _dir_a in ("LONG", "SHORT"):
             _dist = max(abs(_ent_a - _sl_a), _atr_a * 2.0)
             _sl_sombra = _ent_a - _dist if _dir_a == "LONG" else _ent_a + _dist
+        # Factores que componen la confianza. El diagnostico del 3-nov mostro
+        # que BOS, OB y señal_valida estan en el 99-100% de las señales (no
+        # discriminan) y que el BARRIDO suma puntos pero predice PEOR
+        # (-0.662R con barrido vs -0.017R sin el). Registrarlos permite
+        # rehacer el score con datos reales en vez de con 12 casos.
+        _fac = []
+        _smc = 0.0
+        try:
+            _df_f, _ = obtener_datos(senal.get("ticker", ""), senal.get("tf", "15m"))
+            if _df_f is not None and len(_df_f) > 60:
+                _r_f = analisis_completo(_df_f, senal.get("ticker", ""))
+                _cf_f = _r_f.get("confluencia", {}) or {}
+                _smc = float(_cf_f.get("smc_score", 0) or 0)
+                _txt = " | ".join(_cf_f.get("factores", []) or [])
+                if (_r_f.get("estructura", {}) or {}).get("es_bos"): _fac.append("BOS")
+                if "OB" in _txt or "Order Block" in _txt:            _fac.append("OB")
+                if "FVG" in _txt:                                    _fac.append("FVG")
+                if "liquidez" in _txt.lower():                       _fac.append("LIQ")
+                if _r_f.get("barrido_liquidez"):                     _fac.append("BARRIDO")
+                if _r_f.get("señal_valida"):                         _fac.append("VALIDA")
+        except Exception:
+            pass
         registrar_alerta_log(code, str(chat_id), senal.get("ticker", ""),
                              senal.get("tipo_alerta", senal.get("setup", "")),
                              senal.get("tf", "15m"), _dir_a,
                              float(senal.get("confianza", 0) or 0),
                              _ent_a, _sl_a, float(senal.get("tp", 0) or 0),
-                             _atr_a, _sl_sombra)
+                             _atr_a, _sl_sombra, ",".join(_fac), _smc)
     except Exception as _e_log:
         logger.error(f"registrar_alerta_log {code}: {_e_log}")
     msg = msg + f"\n🆔 *ID:* `{code}`  ·  si la operas: `/tomar {code}`"
@@ -3600,7 +3622,7 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                 w.writerow(["fecha_cdmx", "id", "activo", "alerta", "tf", "dir",
                             "confianza", "entrada", "sl", "tp", "rr", "atr",
                             "resultado", "R", "sl_sombra", "resultado_sombra",
-                            "R_sombra", "tomada", "trade"])
+                            "R_sombra", "factores", "smc_score", "tomada", "trade"])
                 for f in filas:
                     try:
                         ts = pd.to_datetime(f.get("created_at"), errors="coerce", utc=True)
@@ -3630,6 +3652,7 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                                 est, ("" if R is None else f"{R:+.2f}"),
                                 (f"{sls:.5f}" if sls else ""), est_s,
                                 ("" if Rs is None else f"{Rs:+.2f}"),
+                                f.get("factores", ""), f"{float(f.get('smc_score') or 0):.0f}",
                                 "si" if f.get("tomada") else "no",
                                 f.get("trade_id") or ""])
             resumen = [

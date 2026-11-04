@@ -308,6 +308,7 @@ CREATE TABLE IF NOT EXISTS alertas_log (
     direccion TEXT NOT NULL, confianza REAL DEFAULT 0,
     entrada REAL NOT NULL, sl REAL NOT NULL, tp REAL NOT NULL,
     atr REAL DEFAULT 0, sl_sombra REAL DEFAULT 0,
+    factores TEXT DEFAULT '', smc_score REAL DEFAULT 0,
     tomada INTEGER DEFAULT 0, trade_id INTEGER DEFAULT NULL,
     created_at TEXT DEFAULT (datetime('now'))
 );
@@ -444,6 +445,7 @@ _PG_TABLES = [
         direccion TEXT NOT NULL, confianza REAL DEFAULT 0,
         entrada REAL NOT NULL, sl REAL NOT NULL, tp REAL NOT NULL,
         atr REAL DEFAULT 0, sl_sombra REAL DEFAULT 0,
+        factores TEXT DEFAULT '', smc_score REAL DEFAULT 0,
         tomada INTEGER DEFAULT 0, trade_id INTEGER DEFAULT NULL,
         created_at TEXT DEFAULT (NOW()::text)
     );""",
@@ -482,6 +484,8 @@ def inicializar_db():
                 ("confirmed_trades", "eta_lo_min", "INTEGER DEFAULT 0"),
                 ("confirmed_trades", "eta_hi_min", "INTEGER DEFAULT 0"),
                 ("confirmed_trades", "num_dia",     "INTEGER DEFAULT 0"),
+                ("alertas_log", "factores",  "TEXT DEFAULT ''"),
+                ("alertas_log", "smc_score", "REAL DEFAULT 0"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
@@ -501,6 +505,8 @@ def inicializar_db():
                 ("confirmed_trades", "eta_lo_min", "INTEGER DEFAULT 0"),
                 ("confirmed_trades", "eta_hi_min", "INTEGER DEFAULT 0"),
                 ("confirmed_trades", "num_dia",     "INTEGER DEFAULT 0"),
+                ("alertas_log", "factores",  "TEXT DEFAULT ''"),
+                ("alertas_log", "smc_score", "REAL DEFAULT 0"),
             ]:
                 try:
                     _exec(conn, f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {definition}")
@@ -978,17 +984,20 @@ def registrar_trade_confirmado(chat_id: str, ticker: str, timeframe: str,
 def registrar_alerta_log(code: str, chat_id: str, ticker: str, tipo_alerta: str,
                          timeframe: str, direccion: str, confianza: float,
                          entrada: float, sl: float, tp: float, atr: float = 0,
-                         sl_sombra: float = 0) -> int:
+                         sl_sombra: float = 0, factores: str = "",
+                         smc_score: float = 0) -> int:
     """Historico PERMANENTE de alertas emitidas. A diferencia de alertas_id
     (que se limpia cada noche), esta tabla no se borra: es la base del reporte
     semanal y del modo sombra, que compara el SL real contra uno de 2 ATR."""
     with get_conn() as conn:
         cur = _exec(conn,
             f"INSERT INTO alertas_log (code,chat_id,ticker,tipo_alerta,timeframe,"
-            f"direccion,confianza,entrada,sl,tp,atr,sl_sombra) VALUES ({_ph(12)})",
+            f"direccion,confianza,entrada,sl,tp,atr,sl_sombra,factores,smc_score) "
+            f"VALUES ({_ph(14)})",
             (code, str(chat_id), ticker, tipo_alerta, timeframe, direccion,
              float(confianza or 0), float(entrada or 0), float(sl or 0),
-             float(tp or 0), float(atr or 0), float(sl_sombra or 0)))
+             float(tp or 0), float(atr or 0), float(sl_sombra or 0),
+             str(factores or ""), float(smc_score or 0)))
         return _lastrowid(cur, "alertas_log", conn)
 
 
