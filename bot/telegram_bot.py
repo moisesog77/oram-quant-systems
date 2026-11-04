@@ -454,7 +454,12 @@ def _en_horario_trading() -> bool:
     if wd == 4 and hut >= 22: return False        # viernes desde 22:00 UTC
     return True
 
-def _en_horario_alertas() -> bool:
+def _es_forex_mayor(ticker: str) -> bool:
+    t = (ticker or "").upper()
+    return ("=X" in t or len(t) == 6) and "GC" not in t and "XAU" not in t
+
+
+def _en_horario_alertas(ticker: str = "") -> bool:
     """Alertas automáticas: desde 5:45 AM CDMX hasta el cierre del mercado.
 
     El día de mercado de los 3 activos termina a las 17:00 NY:
@@ -465,10 +470,31 @@ def _en_horario_alertas() -> bool:
     if not _en_horario_trading():
         return False
     ahora = datetime.now(TZ_MX)
-    if ahora.hour + ahora.minute / 60 < 5.75:
+    _h_now = ahora.hour + ahora.minute / 60
+    # sin ticker se responde por la ventana MAS AMPLIA: cada job itera activos
+    # y _send_alerta vuelve a comprobar el horario con el ticker concreto.
+    if not ticker and (1.0 <= _h_now < 5.75):
         return False
-    # Cierre a las 17:00 NY. El piso de 6:00 NY evita que la ventana "reviva"
-    # cuando NY cruza medianoche antes que CDMX (22:00-24:00 CDMX = 00:00-02:00 NY).
+    if ticker and not _es_forex_mayor(ticker) and _h_now < 5.75:
+        return False
+    # VENTANA EXTENDIDA PARA FOREX (3-nov-2026). Medido sobre 52 dias: en
+    # EURUSD y GBPUSD hay 2.5-3x mas tramos fuertes FUERA de 05:45-15:00 que
+    # dentro, con la misma calidad direccional (cuerpo/rango ~49% a toda hora)
+    # y —verificado en la plataforma a las 23:12— el MISMO spread: 0.1 y 0.2
+    # pips. El 3-nov EURUSD recorrio 76.9 pips entre las 15:00 y medianoche
+    # (+38.3 netos de 17:00 a 19:30) con el bot dormido.
+    # El oro NO se amplia: su spread es 5 pts sobre un ATR de 8.2 (1.6x), asi
+    # que fuera de sesion no queda margen.
+    if ticker and _es_forex_mayor(ticker):
+        h = ahora.hour + ahora.minute / 60
+        return h >= 5.75 or h < 1.0          # 05:45 -> 01:00 CDMX
+    # Sin ticker la respuesta es la union de ambas ventanas: los jobs usan esta
+    # forma para decidir si merece la pena iterar, y _send_alerta vuelve a
+    # comprobar con el activo concreto antes de enviar nada.
+    if not ticker:
+        return _h_now >= 5.75 or _h_now < 1.0
+    # Oro y resto: cierre a las 17:00 NY. El piso de 6:00 NY evita que la
+    # ventana "reviva" cuando NY cruza medianoche antes que CDMX.
     ny = datetime.now(TZ_NY)
     return 6 <= ny.hour + ny.minute / 60 < 17
 
@@ -3395,6 +3421,14 @@ async def _send_alerta(bot, chat_id: str, msg: str, senal: dict) -> str:
     """Envía una alerta operable con un ID corto para /tomar. Asigna el ID,
     lo agrega al mensaje, guarda la señal en _alertas_dia y envía.
     senal: {ticker, direccion, entrada, sl, tp, tf}. Retorna el code."""
+    # Horario por activo: forex llega hasta la 01:00 CDMX, el oro no.
+    try:
+        if not _en_horario_alertas(senal.get("ticker", "")):
+            logger.info(f"alerta fuera de horario para {senal.get('ticker','')}")
+            return ""
+    except Exception:
+        pass
+
     # FILTRO DE MOMENTUM (3-nov-2026). is_bull se decide con la EMA200: el
     # 3-nov el oro subio 70 pts por la mañana, quedo 20 pts sobre su EMA200 y
     # el motor siguio leyendo "alcista" durante todo el retroceso. Resultado:
