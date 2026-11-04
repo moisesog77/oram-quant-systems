@@ -2436,7 +2436,16 @@ async def cmd_diag(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     L_.append(f"🧪 Impulso: {'ON' if IMPULSO_ACTIVA else 'OFF'} · "
               f"Continuacion: {'ON' if CONTINUACION_ACTIVA else 'OFF'} · "
               f"Tendencia: {'ON' if TENDENCIA_ACTIVA else 'OFF'}")
-    L_.append(f"⏰ Horario de alertas: {'✅ activo' if _en_horario_alertas() else '❌ cerrado'}")
+    # Distinguir DETECCION de NOTIFICACION: decir solo "activo" a las 23:37
+    # hacia pensar que iban a llegar alertas cuando estaban silenciadas.
+    _notif = _en_horario_notificacion()
+    L_.append(f"🔔 Notificaciones: {'✅ ON' if _notif else '🔇 silencio (05:45-22:00)'}")
+    L_.append("⏰ Detección por activo:")
+    for _tk_d in ("EURUSD=X", "GBPUSD=X", "GC=F"):
+        _on = _en_horario_alertas(_tk_d)
+        _hasta = "01:00" if _es_forex_mayor(_tk_d) else "15:00"
+        L_.append(f"   {'✅' if _on else '❌'} {_tk_d.replace('=X',''):8s} (hasta {_hasta})"
+                  + ("" if _notif or not _on else "  — detecta y registra, no avisa"))
     L_.append(f"🕐 NY: {datetime.now(TZ_NY):%H:%M}")
     L_.append("")
     L_.append("*Aviso de mercado en rango*")
@@ -2445,7 +2454,9 @@ async def cmd_diag(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     _d = ahora.timestamp() - _ultima_senal_enviada.get(chat_id, 0)
     L_.append(f"  silenciado por alerta: {'sí' if _d < 1800 else 'no'} (última {_hace(_ultima_senal_enviada.get(chat_id, 0))})")
     _prox = 1800 - ((ahora.minute % 30) * 60 + ahora.second)
-    L_.append(f"  próximo: {(ahora + timedelta(seconds=_prox)):%H:%M}")
+    _dt_prox = ahora + timedelta(seconds=_prox)
+    _son = 5.75 <= _dt_prox.hour + _dt_prox.minute / 60 < 22.0
+    L_.append(f"  próximo: {_dt_prox:%H:%M}" + ("" if _son else " _(en silencio)_"))
     L_.append("")
     try:
         cfgs = obtener_todas_configs_bot()
