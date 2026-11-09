@@ -3612,6 +3612,19 @@ def _resolver_alerta(tk: str, dir_: str, ent: float, sl: float, tp: float, desde
         return ("error", None)
 
 
+async def cmd_reporte(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Genera el CSV semanal bajo demanda, sin esperar al viernes."""
+    await _reply(update, "📄 Generando el histórico de la semana…")
+    class _Ctx:
+        bot = ctx.bot
+        _forzar_reporte = True
+    try:
+        await job_reporte_semanal(_Ctx())
+    except Exception as e:
+        logger.error(f"cmd_reporte: {e}")
+        await _reply(update, f"❌ No pude generarlo: `{str(e)[:120]}`")
+
+
 async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
     """📄 Viernes 15:00 CDMX: CSV con todas las alertas de la semana, como
     terminaron, cuales se tomaron y que habria pasado con el SL sombra de
@@ -3619,12 +3632,14 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
     try:
         import csv, os
         ahora = datetime.now(TZ_MX)
-        if ahora.weekday() != 4 or ahora.hour < 14:
-            return                      # solo viernes, y ya cerrado el mercado
-        _clave_sem = ahora.strftime("%Y-%W")
-        if _reporte_semanal_hecho[0] == _clave_sem:
-            return                      # las dos run_daily cubren verano e invierno
-        _reporte_semanal_hecho[0] = _clave_sem
+        _forzado = bool(getattr(ctx, "_forzar_reporte", False))
+        if not _forzado:
+            if ahora.weekday() != 4 or ahora.hour < 14:
+                return                  # solo viernes, y ya cerrado el mercado
+            _clave_sem = ahora.strftime("%Y-%W")
+            if _reporte_semanal_hecho[0] == _clave_sem:
+                return                  # las dos run_daily cubren verano e invierno
+            _reporte_semanal_hecho[0] = _clave_sem
         desde_mx = (ahora - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
         desde_utc = desde_mx.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S")
         for cfg in obtener_todas_configs_bot():
@@ -4444,6 +4459,7 @@ def main():
         ("activos",     cmd_activos),
         ("registrar",   cmd_registrar),
         ("diag",        cmd_diag),
+        ("reporte",     cmd_reporte),
     ]:
         app.add_handler(CommandHandler(cmd, handler))
     app.add_handler(CallbackQueryHandler(callback_registrar, pattern=r"^reg_\d+$"))
@@ -4459,8 +4475,13 @@ def main():
         jq.run_daily(job_cierre_nocturno,  time=dtime(hour=5,  minute=0))   # 11:00 PM CDMX (reset IDs + cierre)
         # 📄 Resumen semanal: viernes 15:00 CDMX = 21:00 UTC en verano,
         # 22:00 en invierno. Se registran ambas y el job sale solo si no toca.
-        jq.run_daily(job_reporte_semanal, time=dtime(hour=21, minute=0), days=(4,))
-        jq.run_daily(job_reporte_semanal, time=dtime(hour=22, minute=0), days=(4,))
+        # CUIDADO: en python-telegram-bot days=0 es DOMINGO, no lunes
+        # (_CRON_MAPPING = sun,mon,tue,wed,thu,fri,sat). Con days=(4,) el job
+        # se programaba el JUEVES y la guarda interna —que usa weekday() de
+        # Python, donde 4 SI es viernes— lo abortaba. Resultado: el CSV del
+        # 6-nov nunca se envio. Viernes es days=(5,).
+        jq.run_daily(job_reporte_semanal, time=dtime(hour=21, minute=0), days=(5,))
+        jq.run_daily(job_reporte_semanal, time=dtime(hour=22, minute=0), days=(5,))
         # Intervalos calibrados para plan Twelve Data Grow 55 (55 créditos/min,
         # sin límite diario). Consumo sostenido ~10-12/min, pico ~24/min.
         jq.run_repeating(job_monitoreo_senales,        interval=180, first=60)
