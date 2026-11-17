@@ -3683,6 +3683,9 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                                 f"alertas_{ahora:%Y%m%d}.csv")
             tot_r = tot_s = 0.0
             n_res = n_tom = n_tp = n_sl = n_nl = 0
+            # Chequeo de salud: el CSV del 13-nov llego con ATR y SL sombra
+            # vacios en las 83 filas y nadie se entero hasta abrirlo.
+            _n_atr = _n_conf = _n_tipo = _n_sombra = _n_resuelta = 0
             with open(ruta, "w", newline="", encoding="utf-8-sig") as fh:
                 w = csv.writer(fh, delimiter=";")
                 w.writerow(["fecha_cdmx", "id", "activo", "alerta", "tf", "dir",
@@ -3704,6 +3707,11 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                         est_s, Rs = _resolver_alerta(tk, d_, ent, sls, tp, ts_mx)
                     else:
                         est_s, Rs = ("-", None)
+                    if float(f.get("atr") or 0) > 0:        _n_atr += 1
+                    if float(f.get("confianza") or 0) > 0:  _n_conf += 1
+                    if (f.get("tipo_alerta") or "").strip(): _n_tipo += 1
+                    if sls:                                  _n_sombra += 1
+                    if est not in ("sin datos", "error", "fuera del historico"): _n_resuelta += 1
                     if R is not None:  tot_r += R; n_res += 1
                     if Rs is not None: tot_s += Rs
                     if est == "TP": n_tp += 1
@@ -3730,6 +3738,14 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                 "",
                 f"📊 R acumulado (SL real):   *{tot_r:+.2f}R* en {n_res} resueltas",
                 f"🌑 R acumulado (SL sombra 2 ATR): *{tot_s:+.2f}R*",
+                "",
+                "",
+                "🩺 *Salud de los datos* (si algo sale en 0, el registro falla):",
+                f"   ATR capturado: *{_n_atr}/{len(filas)}*",
+                f"   Confianza: *{_n_conf}/{len(filas)}*",
+                f"   Tipo de alerta: *{_n_tipo}/{len(filas)}*",
+                f"   SL sombra: *{_n_sombra}/{len(filas)}*",
+                f"   Resueltas (no 'sin datos'): *{_n_resuelta}/{len(filas)}*",
                 "",
                 "_El CSV trae cada alerta con sus niveles, como termino y que_",
                 "_habria pasado con el stop de 2 ATR. Compartelo para analizarlo._",
