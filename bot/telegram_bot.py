@@ -313,7 +313,8 @@ def _cierre_mercado_hoy():
     return ny.astimezone(TZ_MX)
 
 
-def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str) -> str:
+def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str,
+                     ticker: str = "") -> str:
     """Objetivo de tiempo DINÁMICO como HORA DE RELOJ (no duración).
     Distancia al TP / velocidad real (ATR por vela), rango [1x, 2.5x], sumado
     a la hora actual. Ej: '⏱ Objetivo: entre 10:00 y 10:50 AM CDMX'.
@@ -331,10 +332,17 @@ def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str) -> str:
         t_lo   = dt_lo.strftime("%I:%M")
         t_hi   = dt_hi.strftime("%I:%M %p")
         linea  = f"⏱ _Objetivo: entre {t_lo} y {t_hi} CDMX_"
+        _tk_obj = ticker or ""
         # El objetivo se calculaba sumando minutos a la hora actual sin mirar
         # el cierre: una señal de las 08:18 con TP lejano anunciaba "06:57 PM",
         # tres horas despues de que el mercado cierre.
         cierre = _cierre_mercado_hoy()
+        # El aviso solo tiene sentido si el cierre AUN NO HA PASADO y el activo
+        # cierra de verdad a esa hora. A las 19:35 el bot decia "Ni el escenario
+        # rapido cabe antes del cierre (04:00 PM)" sobre GBPUSD, que opera hasta
+        # la 01:00 y cuyo cierre de las 16:00 ya habia pasado hacia 3 horas.
+        if ahora >= cierre or _es_forex_mayor(_tk_obj):
+            return linea
         if dt_lo > cierre:
             linea += (f"\n🚫 _Ni el escenario rapido cabe antes del cierre "
                       f"({cierre:%I:%M %p}). Este TP no da tiempo hoy._")
@@ -2276,7 +2284,9 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                                 lineas_sos.append(_sos_noticia)
                             await _send_alerta(ctx.bot, chat_id,
                                         "\n".join(l for l in lineas_sos if l),
-                                        {"ticker": ticker, "direccion": dir_, "entrada": precio, "sl": sl, "tp": tp_, "tf": tf})
+                                        {"ticker": ticker, "direccion": dir_, "entrada": precio, "sl": sl, "tp": tp_, "tf": tf,
+                                         "atr": smc.get("atr", 0) or 0, "confianza": conf,
+                                         "tipo_alerta": "SOSTENIDO"})
                         continue
 
                     # Confianza ≥ umbral — flujo normal
@@ -2697,7 +2707,10 @@ async def job_monitoreo_mtf(ctx: ContextTypes.DEFAULT_TYPE):
                     _msg_mtf = "🔭 *MTF ALINEADO — INTRADAY · " + tf_alto + "/" + tf_bajo + "*\n" + _formato_mtf(mtf, ticker, contexto=ctx_bajo, data_source=_ds_mtf)
                     if _aviso_noticia:
                         _msg_mtf += f"\n{_aviso_noticia}"
-                    _senal_mtf = {"ticker": ticker, "tf": tf_bajo, "direccion": dir_mtf, "entrada": entrada_m, "sl": sl_m, "tp": tp_m, "confianza": confianza_mtf}
+                    _senal_mtf = {"ticker": ticker, "tf": tf_bajo, "direccion": dir_mtf, "entrada": entrada_m,
+                                  "sl": sl_m, "tp": tp_m, "confianza": confianza_mtf,
+                                  "atr": (mtf.get("smc_bajo") or {}).get("atr", 0) or 0,
+                                  "tipo_alerta": "MTF"}
                     await _send_alerta(ctx.bot, chat_id, _msg_mtf, _senal_mtf)
                     _ultimas_senales[(chat_id, ticker)] = _senal_mtf
                     _ultimas_senales[chat_id] = _senal_mtf
@@ -2818,7 +2831,9 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
                     if _noticia_proxima:
                         msg += f"\n{_noticia_proxima}"
                     await _send_alerta(ctx.bot, chat_id, msg,
-                        {"ticker": ticker, "direccion": dir_bajo, "entrada": entrada, "sl": sl, "tp": tp, "tf": tf_bajo})
+                        {"ticker": ticker, "direccion": dir_bajo, "entrada": entrada, "sl": sl, "tp": tp, "tf": tf_bajo,
+                         "atr": smc_bajo.get("atr", 0) or 0, "confianza": conf_bajo,
+                         "tipo_alerta": "REVERSAL"})
                     marcar_señal_enviada(sig_id)
                     _ultima_senal_enviada[str(chat_id)] = datetime.now(TZ_MX).timestamp()
 
@@ -3003,7 +3018,9 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
 
                     msg = "\n".join(l for l in lineas if l)
                     await _send_alerta(ctx.bot, chat_id, msg,
-                        {"ticker": ticker, "direccion": dir_, "entrada": entrada, "sl": sl, "tp": tp, "tf": "5m"})
+                        {"ticker": ticker, "direccion": dir_, "entrada": entrada, "sl": sl, "tp": tp, "tf": "5m",
+                         "atr": smc_5m.get("atr", 0) or 0, "confianza": conf_show,
+                         "tipo_alerta": "SCALP" if modo == "normal" else "SCALP_DISC"})
 
                     _dedup_scalp[clave_dd] = ahora_ts
                     _ultimas_senales[chat_id] = {
@@ -3168,7 +3185,7 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                         f"⚖️ *RR:* {rr}:1",
                     ]
                     lineas += _lineas_precision(entrada, sl, tp, dir_, ticker, rr_min=1.3)
-                    _obj = _objetivo_tiempo(entrada, tp, atr, "5m")
+                    _obj = _objetivo_tiempo(entrada, tp, atr, "5m", ticker)
                     if _obj:
                         lineas.append(_obj)
                     if lote:
@@ -3202,7 +3219,8 @@ async def job_monitoreo_rebote(ctx: ContextTypes.DEFAULT_TYPE):
                         pass
 
                     await _send_alerta(ctx.bot, chat_id, "\n".join(l for l in lineas if l),
-                        {"ticker": ticker, "direccion": dir_, "entrada": entrada, "sl": sl, "tp": tp, "tf": "5m"})
+                        {"ticker": ticker, "direccion": dir_, "entrada": entrada, "sl": sl, "tp": tp, "tf": "5m",
+                         "atr": atr, "confianza": conf, "tipo_alerta": "REBOTE"})
                     _dedup_rebote[clave_dd] = ahora_ts
                     _ultimas_senales[chat_id] = {
                         "ticker": ticker, "direccion": dir_, "entrada": entrada,
@@ -3242,7 +3260,7 @@ async def job_monitoreo_impulso(ctx: ContextTypes.DEFAULT_TYPE):
                         continue
                     _dedup_impulso[(chat_id, tkr)] = ahora_ts
                     ent, sl, tp, dir_ = r["entrada"], r["sl"], r["tp"], r["direccion"]
-                    _obj = _objetivo_tiempo(ent, tp, r["atr"], "15m")
+                    _obj = _objetivo_tiempo(ent, tp, r["atr"], "15m", ticker)
                     msg = [
                         f"🧪 *IMPULSO {dir_} — {tkr}* · INTRADAY · 15m",
                         "━━━━━━━━━━━━━━━━",
@@ -3580,9 +3598,17 @@ def _resolver_alerta(tk: str, dir_: str, ent: float, sl: float, tp: float, desde
     Devuelve (estado, R) — entrada como orden pendiente: si el precio nunca
     toco el nivel, no hubo trade."""
     try:
-        df, _ = obtener_datos(tk, "5m")
+        # obtener_datos("5m") solo trae ~288 velas = 1 dia. Para una alerta del
+        # lunes, el viernes ese buffer ya no la cubre y TODO salia "no se lleno":
+        # 82 de 83 filas del primer CSV. Se usa 15m (~3 dias) y si la alerta es
+        # mas antigua se dice que no se pudo resolver, en vez de mentir.
+        _ant_h = (datetime.now(TZ_MX) - desde).total_seconds() / 3600
+        _tf_res = "5m" if _ant_h <= 20 else ("15m" if _ant_h <= 70 else "1h")
+        df, _ = obtener_datos(tk, _tf_res)
         if df is None or df.empty:
             return ("sin datos", None)
+        if desde < df.index[0]:
+            return ("fuera del historico", None)
         fut = df[df.index > desde]
         if fut.empty:
             return ("sin datos", None)
@@ -3590,13 +3616,14 @@ def _resolver_alerta(tk: str, dir_: str, ent: float, sl: float, tp: float, desde
         if rk <= 0:
             return ("niveles invalidos", None)
         ini = None
-        for ts, r in fut.head(24).iterrows():      # 2h para que se llene
+        _n_esp = {"5m": 24, "15m": 8, "1h": 2}[_tf_res]   # 2h en el TF que toque
+        for ts, r in fut.head(_n_esp).iterrows():
             if r.Low <= ent <= r.High:
                 ini = ts
                 break
         if ini is None:
             return ("no se lleno", None)
-        viva = df[df.index > ini].head(96)         # 8h de vida
+        viva = df[df.index > ini].head({"5m": 96, "15m": 32, "1h": 8}[_tf_res])  # 8h
         for ts, r in viva.iterrows():
             if dir_ == "LONG":
                 if r.Low <= sl:  return ("SL", -1.0)
@@ -3931,7 +3958,7 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                 # con el ATR actual → responsivo al mercado en tiempo real
                 _obj_seg = ""
                 if not (paso_tp or paso_sl):
-                    _o = _objetivo_tiempo(precio, tp, atr_seg, tf_seg)
+                    _o = _objetivo_tiempo(precio, tp, atr_seg, tf_seg, ticker)
                     if _o:
                         _obj_seg = _o.replace("Objetivo:", "TP probable ahora:")
 
