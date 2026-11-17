@@ -616,6 +616,14 @@ def obtener_muros_htf(ticker: str, tf_base: str) -> dict:
     return {"support_levels": sops, "resistance_levels": ress}
 
 
+def _es_forex_mayor_sl(ticker: str) -> bool:
+    """Pares de forex mayores (no metales ni cripto)."""
+    t = (ticker or "").upper()
+    if "GC" in t or "XAU" in t or "SI=" in t or "XAG" in t: return False
+    if "BTC" in t or "ETH" in t: return False
+    return "=X" in t or len(t) == 6
+
+
 def sl_minimo_absoluto(ticker: str, precio: float = 0) -> float:
     """Distancia mínima de SL en unidades de PRECIO, independiente del ATR.
 
@@ -683,7 +691,15 @@ def _calcular_sl_tp_dinamico(
     buffer_tp   = atr * 0.15   # cobrar antes de que el precio toque el muro
     # Piso del SL: el mayor entre el relativo (0.5×ATR) y el absoluto por activo
     # (evita SLs que el spread se come y que inflan el lote calculado).
-    dist_sl_min = max(atr * 0.5, sl_minimo_absoluto(ticker, precio))
+    # Piso del SL. En los pares de forex pasa de 0.5 a 2.0 ATR: medido sobre
+    # 11 dias, SCALP recorria 4.48 ATR EN CONTRA antes de desarrollarse frente
+    # a 1.86 a favor, y el trade real del 16-nov (GBPUSD SHORT, stop de 12.5
+    # pips) se fue 35 pips en contra antes de girar en la direccion correcta.
+    # Un stop que no aguanta el ruido normal del par convierte en perdida una
+    # lectura acertada. El oro se queda en 0.5 ATR: su spread ya es el 61% del
+    # ATR y ampliar mas lo dejaria sin RR operable.
+    _mult_piso = 2.0 if _es_forex_mayor_sl(ticker) else 0.5
+    dist_sl_min = max(atr * _mult_piso, sl_minimo_absoluto(ticker, precio))
     dist_sl_max = max(atr * 3.0, dist_sl_min)
 
     sops = sorted([s for s in liquidez.get("support_levels", []) if s < precio], reverse=True)
