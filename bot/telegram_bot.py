@@ -1793,13 +1793,13 @@ async def cmd_tomar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 _plp  = _pips((_pp - _entp) if _dirp == "LONG" else (_entp - _pp), ticker) if (_pp and _entp) else 0.0
                 _up   = "pts" if ("GC" in ticker.upper() or "XAU" in ticker.upper()) else "pips"
                 _aviso_previo = (
-                    f"\n\n⚠️ *Ya tenías el trade #{_previo.get('id')} abierto en este activo* "
+                    f"\n\n⚠️ *Ya tenías el trade #{_num_trade(_previo)} abierto en este activo* "
                     f"({_dirp}, va {_plp:+.1f} {_up}).\n"
                     f"Ahora hay *2 posiciones en {ticker}* — riesgo duplicado en la misma apuesta.\n"
-                    f"Si quieres cerrar una: `/cerrar {_previo.get('id')}`"
+                    f"Si quieres cerrar una: `/cerrar {_num_trade(_previo)}`"
                 )
             except Exception:
-                _aviso_previo = f"\n\n⚠️ Ya tenías el trade #{_previo.get('id')} abierto en {ticker} — ahora hay 2."
+                _aviso_previo = f"\n\n⚠️ Ya tenías el trade #{_num_trade(_previo)} abierto en {ticker} — ahora hay 2."
 
         # Plan original: ventana estimada al TP en el momento de entrar. Se guarda
         # para comparar despues contra el pronostico vivo de cada seguimiento.
@@ -1902,7 +1902,8 @@ async def cmd_cerrar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         pips = _calcular_pips(trade["ticker"], precio_actual, trade["entrada"])
         signo = "+" if ((trade["direccion"]=="SHORT" and precio_actual < trade["entrada"]) or
                         (trade["direccion"]=="LONG"  and precio_actual > trade["entrada"])) else "-"
-        pips_txt = f"\n📏 P&L aprox: {signo}{pips} pips"
+        _u_c = "pts" if ("GC" in trade["ticker"].upper() or "XAU" in trade["ticker"].upper()) else "pips"
+        pips_txt = f"\n📏 P&L aprox: {signo}{float(pips):.1f} {_u_c}"
 
     await _reply(update,
         f"🔒 *TRADE CERRADO MANUALMENTE*\n"
@@ -4089,7 +4090,10 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                     _riesgo0 = abs(entrada - sl)
                     _lo_n, _hi_n = _objetivo_minutos(precio, tp, atr_seg, tf_seg)
                     _h = _hist_seguimiento.setdefault(_tid, [])
-                    _h.append((datetime.now(TZ_MX).timestamp(), _lo_n or 0, _pc))
+                    # Se guarda tambien la DISTANCIA AL TP en precio: los minutos
+                    # estimados dependen del ATR y suben solos cuando el ATR se
+                    # comprime, aunque el trade vaya perfecto.
+                    _h.append((datetime.now(TZ_MX).timestamp(), _lo_n or 0, _pc, abs(tp - precio)))
                     del _h[:-6]
                     if not (paso_tp or paso_sl):
                         try:
@@ -4114,11 +4118,21 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                         _d_sl, _d_tp = abs(precio - sl), abs(tp - precio)
                         if _riesgo0 > 0 and _d_sl < _riesgo0 * 0.35 and _d_tp > _d_sl:
                             _sint.append(f"el SL esta a {_pips(_d_sl, ticker):.0f} {u} ({_d_sl/_riesgo0*100:.0f}% del riesgo inicial)")
-                        if len(_h) >= 3:
-                            _e = [x[1] for x in _h[-3:]]
-                            _p = [x[2] for x in _h[-3:]]
-                            if _e[0] < _e[1] < _e[2] and _p[2] <= _p[0] + 2:
-                                _sint.append("el objetivo se aleja en 3 lecturas seguidas sin avanzar hacia el TP")
+                        # El 19-nov este aviso salto en trades que iban +46 pts con
+                        # el parcial 1R ya cobrado y el 82% del camino al TP hecho.
+                        # Causa: miraba solo los MINUTOS estimados, que crecen solos
+                        # cuando el ATR se comprime al cierre aunque el precio no se
+                        # mueva (el #10 paso de "TP a 6.4 ATR" a "8.3 ATR" con el
+                        # precio clavado en 3627). Ahora exige las tres cosas:
+                        # el precio se aleja del TP, el progreso retrocede, y el
+                        # trade no tiene aun el 1R asegurado.
+                        _h3 = [x for x in _h[-3:] if len(x) >= 4]
+                        if len(_h3) == 3 and not paso_parcial:
+                            _e = [x[1] for x in _h3]
+                            _p = [x[2] for x in _h3]
+                            _d = [x[3] for x in _h3]
+                            if _e[0] < _e[1] < _e[2] and _d[0] < _d[1] < _d[2] and _p[2] < _p[0]:
+                                _sint.append("el precio retrocede: el TP se aleja en 3 lecturas seguidas")
                 except Exception as _e_det:
                     logger.error(f"diagnostico deterioro {ticker}: {_e_det}")
 
