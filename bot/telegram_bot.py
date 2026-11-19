@@ -712,7 +712,7 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None, data_source: str
             f"🛑 *SL:* `{_fmt_precio(sl, ticker)}`" if sl else "",
         ]
         lineas += _lineas_precision(entrada, sl, tp, dir_bajo, ticker)
-        _obj_ali = _objetivo_tiempo(entrada, tp, smc_bajo.get("atr", 0) or 0, tf_bajo)
+        _obj_ali = _objetivo_tiempo(entrada, tp, smc_bajo.get("atr", 0) or 0, tf_bajo, ticker)
         if _obj_ali:
             lineas.append(_obj_ali)
 
@@ -739,7 +739,7 @@ def _formato_mtf(mtf: dict, ticker: str, contexto: dict = None, data_source: str
             f"📊 *RR estimado:* {rr_d}:1"                 if rr_d > 0 else "",
         ]
         lineas += _lineas_precision(entrada_disc, sl_disc, tp_disc, dir_disc, ticker)
-        _obj_disc = _objetivo_tiempo(entrada_disc, tp_disc, smc_bajo.get("atr", 0) or 0, tf_bajo)
+        _obj_disc = _objetivo_tiempo(entrada_disc, tp_disc, smc_bajo.get("atr", 0) or 0, tf_bajo, ticker)
         if _obj_disc:
             lineas.append(_obj_disc)
         lineas.append(f"⚠️ _Sin confirmación {tf_alto} — opera con tamaño reducido_")
@@ -2324,7 +2324,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                             if ctx_l:
                                 lineas_sos.append(ctx_l)
                             lineas_sos.append(f"⚠️ _Señal por debajo del umbral ({umbral:.0f}%) pero persistente. Valida en chart._")
-                            _obj_sos = _objetivo_tiempo(precio, tp_, smc.get("atr", 0) or 0, tf)
+                            _obj_sos = _objetivo_tiempo(precio, tp_, smc.get("atr", 0) or 0, tf, ticker)
                             lineas_sos.append(_obj_sos or "⏱ _Objetivo: 2-6 horas_")
                             if _aviso_noticia:
                                 lineas_sos.append(_aviso_noticia)
@@ -2397,7 +2397,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     dir_  = smc.get("estructura", {}).get("direccion", "")
                     tipo  = smc.get("estructura", {}).get("tipo", "SMC Signal")
                     msg   = "🚨 *SEÑAL ALTA PRIORIDAD — INTRADAY · " + tf + "*\n" + _formato_senal_completo(smc, ticker, tf, capital, riesgo_pct)
-                    _obj_a = _objetivo_tiempo(smc.get("precio", 0), smc.get("tp_sugerido", 0), smc.get("atr", 0) or 0, tf)
+                    _obj_a = _objetivo_tiempo(smc.get("precio", 0), smc.get("tp_sugerido", 0), smc.get("atr", 0) or 0, tf, ticker)
                     msg  += f"\n{_obj_a}" if _obj_a else "\n⏱ _Objetivo: 2-6 horas_"
                     try:
                         noticia_ctx = contexto_noticia_ticker(ticker)
@@ -2443,7 +2443,7 @@ async def job_monitoreo_senales(ctx: ContextTypes.DEFAULT_TYPE):
                     precio = smc.get("precio", 0)
                     sl    = smc.get("sl_sugerido", 0)
                     tp_   = smc.get("tp_sugerido", 0)
-                    _obj_med = _objetivo_tiempo(precio, tp_, smc.get("atr", 0) or 0, tf)
+                    _obj_med = _objetivo_tiempo(precio, tp_, smc.get("atr", 0) or 0, tf, ticker)
                     _linea_m = (
                         f"{_emoji_dir(dir_)} *{ticker}* `{_fmt_precio(precio, ticker)}` — {tipo} ({conf:.0f}%)\n"
                         f"   TP:`{_fmt_precio(tp_, ticker)}` SL:`{_fmt_precio(sl, ticker)}`"
@@ -2877,7 +2877,7 @@ async def job_monitoreo_reversal(ctx: ContextTypes.DEFAULT_TYPE):
                     msg = "🔔 *REVERSAL — INTRADAY · " + tf_alto + "/" + tf_bajo + "*\n" + _formato_reversal(
                         smc_alto, smc_bajo, ticker, tf_alto, tf_bajo, nivel_redondo, data_source=_ds_rev
                     )
-                    _obj_r = _objetivo_tiempo(entrada, tp, smc_bajo.get("atr", 0) or 0, tf_bajo)
+                    _obj_r = _objetivo_tiempo(entrada, tp, smc_bajo.get("atr", 0) or 0, tf_bajo, ticker)
                     msg += f"\n{_obj_r}" if _obj_r else "\n⏱ _Objetivo: 4-12 horas_"
                     if _noticia_proxima:
                         msg += f"\n{_noticia_proxima}"
@@ -3054,7 +3054,7 @@ async def job_monitoreo_scalp(ctx: ContextTypes.DEFAULT_TYPE):
                         ]
                     if ctx_txt:
                         lineas.append(ctx_txt)
-                    _obj_t = _objetivo_tiempo(entrada, tp, smc_5m.get("atr", 0) or 0, "5m")
+                    _obj_t = _objetivo_tiempo(entrada, tp, smc_5m.get("atr", 0) or 0, "5m", ticker)
                     lineas.append(_obj_t or f"⏱ _Objetivo: {'15-30' if modo == 'normal' else '10-20'} min_")
                     if warn:
                         lineas.append(warn)
@@ -3487,7 +3487,7 @@ async def job_monitoreo_tendencia(ctx: ContextTypes.DEFAULT_TYPE):
                         f"⚖️ *RR:* {rr}:1",
                     ]
                     lineas += _lineas_precision(entrada, sl, tp, dir_, ticker, rr_min=1.5)
-                    _obj = _objetivo_tiempo(entrada, tp, r.get("atr15", 0) or 0, "15m")
+                    _obj = _objetivo_tiempo(entrada, tp, r.get("atr15", 0) or 0, "15m", ticker)
                     if _obj:
                         lineas.append(_obj)
                     if lote:
