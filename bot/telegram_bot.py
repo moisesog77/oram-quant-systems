@@ -298,9 +298,16 @@ def _objetivo_minutos(entrada: float, tp: float, atr: float, tf: str):
         if not (entrada and tp and atr) or atr <= 0:
             return (0, 0)
         tf_min = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240}.get(tf, 15)
-        velas  = abs(tp - entrada) / atr
+        atrs   = abs(tp - entrada) / atr
+        # El precio NO avanza 1 ATR por vela: va y viene. Medido sobre los 3
+        # activos en 15m y 1h, la mediana de velas para recorrer N ATRs es
+        # ~7.4N, no N. La formula anterior usaba el factor 1 y por eso el
+        # trade #1 del 18-nov (TP a 6.5 ATR) anunciaba "2 a 4 horas" y acabo
+        # necesitando 12: con el factor correcto habria dicho ~11h.
+        velas  = atrs * 7.0
         lo = max(int(round(velas * tf_min)), tf_min)
-        hi = max(int(round(velas * tf_min * 2.5)), lo + tf_min)
+        # el percentil 75 ronda 1.8x la mediana, no 2.5x
+        hi = max(int(round(velas * tf_min * 1.8)), lo + tf_min)
         return (lo, hi)
     except Exception:
         return (0, 0)
@@ -333,6 +340,12 @@ def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str,
         t_hi   = dt_hi.strftime("%I:%M %p")
         linea  = f"⏱ _Objetivo: entre {t_lo} y {t_hi} CDMX_"
         _tk_obj = ticker or ""
+        # Probabilidad de alcanzarlo: medido, un TP a 1 ATR se toca el 67-81%
+        # de las veces; a 2 ATR el 53-69%; a 3 ATR solo el 36-64%.
+        _atrs_tp = abs(tp - entrada) / atr if atr > 0 else 0
+        if _atrs_tp >= 3.0:
+            linea += (f"\n📉 _TP a {_atrs_tp:.1f} ATR: a esa distancia el precio llega "
+                      f"algo mas de la mitad de las veces. El parcial 1R es el objetivo realista._")
         # El objetivo se calculaba sumando minutos a la hora actual sin mirar
         # el cierre: una señal de las 08:18 con TP lejano anunciaba "06:57 PM",
         # tres horas despues de que el mercado cierre.
