@@ -4075,8 +4075,13 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                     # consejos opuestos el aviso no sirve: si hay 2+ señales en
                     # contra, se retira la frase de aguantar.
                     if len(_sint) >= 2:
-                        estatus = estatus.replace(
-                            " Respeta el stop, no lo muevas.", "")
+                        # Se retira TODA frase de aguantar, no solo la del stop.
+                        # El 18-nov el trade #1 decia "Manten el plan — no cortes
+                        # por impaciencia" y justo debajo "Evalua cerrar aqui".
+                        for _frase in (" Respeta el stop, no lo muevas.",
+                                       " Mantén el plan — no cortes por impaciencia.",
+                                       " Desde aquí ya no puedes perder — deja correr el resto al TP."):
+                            estatus = estatus.replace(_frase, "")
                     _cab = ("🚨 *REVISA ESTE TRADE — varias señales en contra*"
                             if len(_sint) >= 2 else "🟡 *Señal de aviso*")
                     _det = [_cab] + [f"   • _{x}_" for x in _sint]
@@ -4141,8 +4146,9 @@ async def job_cierre_nocturno(ctx: ContextTypes.DEFAULT_TYPE):
                 "🔔 *CIERRE NOCTURNO — REGISTRO DEL BOT*",
                 "━━━━━━━━━━━━━━━━",
                 f"Se encontraron *{len(trades_chat)} posición(es) abiertas* en el registro.",
+                "_Se cierran del registro para que la numeración vuelva a 1 mañana._",
                 "",
-                "*Trades cerrados en el registro interno:*",
+                "*Estado en el que quedaron:*",
             ]
             for t in trades_chat:
                 ticker  = t.get("ticker", "")
@@ -4150,7 +4156,19 @@ async def job_cierre_nocturno(ctx: ContextTypes.DEFAULT_TYPE):
                 entrada = t.get("entrada", 0)
                 emoji   = "🟢" if dir_ == "LONG" else "🔴"
                 fp      = lambda p: _fmt_precio(p, ticker)
-                lineas.append(f"  {emoji} {ticker} {dir_} @ `{fp(entrada)}`")
+                # P/L al cerrar el registro: el 18-nov los dos GBPUSD se
+                # cerraron sin decir en que estado quedaban, y uno iba +11.5 pips.
+                _pl_txt = ""
+                try:
+                    _dfc, _ = obtener_datos(ticker, t.get("timeframe") or "15m")
+                    if _dfc is not None and len(_dfc):
+                        _px = float(_dfc["Close"].iloc[-1])
+                        _d  = (_px - entrada) if dir_ == "LONG" else (entrada - _px)
+                        _u  = "pts" if ("GC" in ticker.upper() or "XAU" in ticker.upper()) else "pips"
+                        _pl_txt = f"  →  *{_pips(_d, ticker):+.1f} {_u}*"
+                except Exception:
+                    pass
+                lineas.append(f"  {emoji} {ticker} {dir_} @ `{fp(entrada)}`{_pl_txt}")
                 cerrar_trade_confirmado(t["id"], "auto-cierre nocturno")
 
             lineas += [
