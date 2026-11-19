@@ -313,6 +313,29 @@ def _objetivo_minutos(entrada: float, tp: float, atr: float, tf: str):
         return (0, 0)
 
 
+def _fmt_dur(mins) -> str:
+    """Duracion legible: '45 min', '2h 30m', '10h'."""
+    try:
+        m = int(mins)
+    except Exception:
+        return "?"
+    if m < 90:
+        return f"{m} min"
+    h, r = divmod(m, 60)
+    return f"{h}h" if r == 0 else f"{h}h {r}m"
+
+
+def _fmt_hora(dt, hoy=None) -> str:
+    """Hora de reloj SIEMPRE con AM/PM, marcando si cae en otro dia."""
+    try:
+        s = dt.strftime("%I:%M %p").lstrip("0")
+        if hoy is not None and dt.date() != hoy:
+            s += " de mañana" if (dt.date() - hoy).days == 1 else dt.strftime(" del %d/%m")
+        return s
+    except Exception:
+        return "?"
+
+
 def _cierre_mercado_hoy():
     """17:00 NY (fin del dia de mercado de los 3 activos) en hora CDMX.
     DST-proof: en verano son las 15:00 CDMX, en invierno las 16:00."""
@@ -323,9 +346,10 @@ def _cierre_mercado_hoy():
 def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str,
                      ticker: str = "") -> str:
     """Objetivo de tiempo DINÁMICO como HORA DE RELOJ (no duración).
-    Distancia al TP / velocidad real (ATR por vela), rango [1x, 2.5x], sumado
-    a la hora actual. Ej: '⏱ Objetivo: entre 10:00 y 10:50 AM CDMX'.
-    Escala con el TP: un TP a 8 ATRs da un rango de horas, no de minutos."""
+    Mediana medida (~7 velas por ATR) y su p75, sumadas a la hora actual.
+    Ej: '⏱ Objetivo: entre 10:00 y 10:50 AM CDMX'. Si el escenario rapido
+    ya no cabe antes del cierre muestra la DURACION en vez de la hora de
+    reloj: una hora posterior al cierre no es informacion operable."""
     try:
         if not (entrada and tp and atr) or atr <= 0:
             return ""
@@ -333,36 +357,50 @@ def _objetivo_tiempo(entrada: float, tp: float, atr: float, tf: str,
         lo, hi = _objetivo_minutos(entrada, tp, atr, tf)
         if not lo:
             return ""
-        ahora  = datetime.now(TZ_MX)
-        dt_lo  = ahora + timedelta(minutes=lo)
-        dt_hi  = ahora + timedelta(minutes=hi)
-        t_lo   = dt_lo.strftime("%I:%M")
-        t_hi   = dt_hi.strftime("%I:%M %p")
-        linea  = f"⏱ _Objetivo: entre {t_lo} y {t_hi} CDMX_"
+        ahora   = datetime.now(TZ_MX)
+        dt_lo   = ahora + timedelta(minutes=lo)
+        dt_hi   = ahora + timedelta(minutes=hi)
         _tk_obj = ticker or ""
+        cierre  = _cierre_mercado_hoy()
+        # El activo cierra hoy solo si el cierre AUN NO HA PASADO y no es un par
+        # mayor: esos operan hasta la 01:00 CDMX y su cierre de las 16:00 no les
+        # aplica (a las 19:35 el bot avisaba del cierre de GBPUSD 3h tarde).
+        _cierra_hoy = (ahora < cierre) and not _es_forex_mayor(_tk_obj)
+
+        if _cierra_hoy and dt_lo > cierre:
+            # Ni el escenario rapido cabe antes del cierre: la hora de reloj es
+            # ruido. "08:38 PM" sobre un activo que cierra a las 04:00 PM no
+            # dice nada; lo util es cuanto mercado haria falta.
+            _resta = int((cierre - ahora).total_seconds() // 60)
+            linea  = f"⏱ _Objetivo: necesita {_fmt_dur(lo)} a {_fmt_dur(hi)} de mercado_"
+            linea += (f"\n🚫 _No cabe hoy: el mercado cierra a las {_fmt_hora(cierre)} "
+                      f"y quedan {_fmt_dur(_resta)}. El parcial 1R es lo alcanzable "
+                      f"en esta sesion._")
+        else:
+            # Hora de reloj con AM/PM en AMBOS extremos y marcando el cruce de
+            # dia. Bug del 19-nov: el extremo bajo salia con "%I:%M" (sin %p),
+            # asi que una alerta de las 10:08 con TP a 6 ATR mostro "entre 08:38
+            # y 05:02 AM" -- eran las 8:38 PM de hoy y las 5:02 AM de manana.
+            _hoy  = ahora.date()
+            # Si ambos extremos caen el mismo dia, el marcador va solo al final
+            # ("entre 5:30 AM y 1:26 PM de manana", no dos veces).
+            _marca_lo = None if dt_lo.date() == dt_hi.date() else _hoy
+            linea = (f"⏱ _Objetivo: entre {_fmt_hora(dt_lo, _marca_lo)} y "
+                     f"{_fmt_hora(dt_hi, _hoy)} CDMX_")
+            if hi >= 120:
+                linea += f" _({_fmt_dur(lo)} a {_fmt_dur(hi)})_"
+
         # Probabilidad de alcanzarlo: medido, un TP a 1 ATR se toca el 67-81%
         # de las veces; a 2 ATR el 53-69%; a 3 ATR solo el 36-64%.
         _atrs_tp = abs(tp - entrada) / atr if atr > 0 else 0
         if _atrs_tp >= 3.0:
             linea += (f"\n📉 _TP a {_atrs_tp:.1f} ATR: a esa distancia el precio llega "
                       f"algo mas de la mitad de las veces. El parcial 1R es el objetivo realista._")
-        # El objetivo se calculaba sumando minutos a la hora actual sin mirar
-        # el cierre: una señal de las 08:18 con TP lejano anunciaba "06:57 PM",
-        # tres horas despues de que el mercado cierre.
-        cierre = _cierre_mercado_hoy()
-        # El aviso solo tiene sentido si el cierre AUN NO HA PASADO y el activo
-        # cierra de verdad a esa hora. A las 19:35 el bot decia "Ni el escenario
-        # rapido cabe antes del cierre (04:00 PM)" sobre GBPUSD, que opera hasta
-        # la 01:00 y cuyo cierre de las 16:00 ya habia pasado hacia 3 horas.
-        if ahora >= cierre or _es_forex_mayor(_tk_obj):
-            return linea
-        if dt_lo > cierre:
-            linea += (f"\n🚫 _Ni el escenario rapido cabe antes del cierre "
-                      f"({cierre:%I:%M %p}). Este TP no da tiempo hoy._")
-        elif dt_hi > cierre:
+
+        if _cierra_hoy and dt_lo <= cierre < dt_hi:
             _resta = int((cierre - ahora).total_seconds() // 60)
-            linea += (f"\n⚠️ _El rango alto pasa del cierre ({cierre:%I:%M %p}); "
-                      f"quedan {_resta // 60}h {_resta % 60}m de mercado._")
+            linea += (f"\n⚠️ _El rango alto pasa del cierre ({_fmt_hora(cierre)}); "
+                      f"quedan {_fmt_dur(_resta)} de mercado._")
         return linea
     except Exception:
         return ""
@@ -4005,8 +4043,10 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                         _t0 = _ts2.tz_convert(TZ_MX)
                         _plan_lo = _t0 + pd.Timedelta(minutes=_elo)
                         _plan_hi = _t0 + pd.Timedelta(minutes=_ehi)
-                        _plan_txt = (f"📋 _Plan original ({_t0.strftime('%I:%M %p')}): "
-                                     f"TP entre {_plan_lo.strftime('%I:%M')} y {_plan_hi.strftime('%I:%M %p')}_")
+                        _hoy_pl   = datetime.now(TZ_MX).date()
+                        _plan_txt = (f"📋 _Plan original ({_fmt_hora(_t0)}): "
+                                     f"TP entre {_fmt_hora(_plan_lo, _hoy_pl)} y "
+                                     f"{_fmt_hora(_plan_hi, _hoy_pl)}_")
                         _lo_now, _hi_now = _objetivo_minutos(precio, tp, atr_seg, tf_seg)
                         if _lo_now:
                             _ahora = datetime.now(TZ_MX)
