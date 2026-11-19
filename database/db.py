@@ -1002,10 +1002,18 @@ def registrar_alerta_log(code: str, chat_id: str, ticker: str, tipo_alerta: str,
 
 
 def marcar_alerta_tomada(code: str, chat_id: str, trade_id: int):
-    """Enlaza la alerta con el trade que el usuario abrio con /tomar."""
+    """Enlaza la alerta con el trade que el usuario abrio con /tomar.
+
+    Los codigos (A1, A2...) se reinician cada dia, asi que un UPDATE por code
+    a secas tocaba TODAS las alertas viejas con el mismo codigo que seguian sin
+    tomar. En el CSV del 19-nov salieron 9 pares corruptos: el trade 123 figuraba
+    a la vez en el A5 del 12-nov y en el A5 del 19-nov. Ahora se marca una sola
+    fila: la mas reciente con ese codigo.
+    """
     with get_conn() as conn:
-        _exec(conn, "UPDATE alertas_log SET tomada=1, trade_id=? "
-                    "WHERE code=? AND chat_id=? AND tomada=0",
+        _exec(conn, "UPDATE alertas_log SET tomada=1, trade_id=? WHERE id = ("
+                    "  SELECT id FROM alertas_log WHERE code=? AND chat_id=? AND tomada=0"
+                    "  ORDER BY created_at DESC LIMIT 1)",
               (int(trade_id), code, str(chat_id)))
 
 

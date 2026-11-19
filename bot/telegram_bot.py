@@ -3733,7 +3733,12 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                 continue
             ruta = os.path.join("/tmp" if os.path.isdir("/tmp") else ".",
                                 f"alertas_{ahora:%Y%m%d}.csv")
-            tot_r = tot_s = 0.0
+            # R realizado (solo TP/SL) aparte del flotante de las abiertas: el
+            # CSV del 19-nov reporto "+20.77R" sumando 19 posiciones abiertas
+            # (+11.78R sin realizar) a los +9.00R que de verdad habian cerrado.
+            tot_r = tot_s = 0.0          # realizado
+            flo_r = flo_s = 0.0          # flotante (abiertas)
+            n_flo = 0
             n_res = n_tom = n_tp = n_sl = n_nl = 0
             # Chequeo de salud: el CSV del 13-nov llego con ATR y SL sombra
             # vacios en las 83 filas y nadie se entero hasta abrirlo.
@@ -3764,8 +3769,12 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                     if (f.get("tipo_alerta") or "").strip(): _n_tipo += 1
                     if sls:                                  _n_sombra += 1
                     if est not in ("sin datos", "error", "fuera del historico"): _n_resuelta += 1
-                    if R is not None:  tot_r += R; n_res += 1
-                    if Rs is not None: tot_s += Rs
+                    if est == "abierta":
+                        if R is not None:  flo_r += R; n_flo += 1
+                        if Rs is not None: flo_s += Rs
+                    else:
+                        if R is not None:  tot_r += R; n_res += 1
+                        if Rs is not None: tot_s += Rs
                     if est == "TP": n_tp += 1
                     elif est == "SL": n_sl += 1
                     elif est == "no se lleno": n_nl += 1
@@ -3788,8 +3797,12 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                 f"🔔 Alertas emitidas: *{len(filas)}*  ·  tomadas: *{n_tom}*",
                 f"✅ TP: {n_tp}   🛑 SL: {n_sl}   ⏳ no se llenaron: {n_nl}",
                 "",
-                f"📊 R acumulado (SL real):   *{tot_r:+.2f}R* en {n_res} resueltas",
-                f"🌑 R acumulado (SL sombra 2 ATR): *{tot_s:+.2f}R*",
+                f"📊 R REALIZADO (solo TP/SL): *{tot_r:+.2f}R* en {n_res} cerradas",
+                (f"⏳ Sin cerrar: {n_flo} abiertas, *{flo_r:+.2f}R* flotante "
+                 f"(no cuenta como ganancia)" if n_flo else ""),
+                (f"🌑 SL sombra 2 ATR: *{tot_s:+.2f}R* realizado"
+                 if abs(tot_s - tot_r) > 0.01 else
+                 "🌑 SL sombra 2 ATR: identico al SL real — ya es el piso vigente"),
                 "",
                 "",
                 "🩺 *Salud de los datos* (si algo sale en 0, el registro falla):",
