@@ -152,6 +152,7 @@ _reporte_semanal_hecho: list = [""]  # semana del ultimo resumen enviado
 _mfe_trades:     dict = {}         # trade_id -> mejor P/L alcanzado (MFE) y su ts
 _emerg_enviada:  dict = {}         # trade_id -> ts del ultimo aviso de emergencia
 _hist_seguimiento: dict = {}       # trade_id -> [(ts, eta_lo, prog)] para detectar
+_avisos_cierre: dict = {}      # trade_id -> veces que se aviso del TP/SL tocado
                                    # objetivos que se alejan lectura tras lectura
 _ultimo_tick_rango:  list = [0.0]  # ts del ultimo tick de job_aviso_rango (/diag)
 _ultimo_envio_rango: list = [0.0]  # ts del ultimo aviso de rango enviado (/diag)
@@ -4170,6 +4171,36 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
                     elif len(_sint) >= 2:
                         _det.append("   👉 _Evalua cerrar aqui en lugar de esperar al SL. La decision es tuya; estos son los datos._")
                     estatus += chr(10) + chr(10).join(_det)
+
+                # Tocado el TP o el SL, la posicion ya no existe: seguir mostrando
+                # el P&L del precio VIVO es inventar dinero. El 20-nov el trade #1
+                # toco su SL (3580.89) a las 08:21 y el seguimiento siguio
+                # anunciando "+36.0 pts - 88% del camino al TP" una hora despues,
+                # junto a "SL TOCADO", siete veces seguidas.
+                if paso_tp or paso_sl:
+                    _niv   = tp if paso_tp else sl
+                    _et    = "TP" if paso_tp else "SL"
+                    _hhit  = _hit_tp if paso_tp else _hit_sl
+                    _hora_h = f" ({_hhit:%H:%M})" if _hhit is not None else ""
+                    _pl_c  = _pips((_niv - entrada) if dir_ == "LONG" else (entrada - _niv), ticker)
+                    _n_av  = _avisos_cierre.get(t.get("id"), 0) + 1
+                    _avisos_cierre[t.get("id")] = _n_av
+                    if _n_av > 2:
+                        continue        # ya se aviso dos veces; no repetir cada 10 min
+                    await _send(ctx.bot, chat_id, chr(10).join([
+                        f"📊 *SEGUIMIENTO — {ticker} {dir_}* (#{_num_trade(t)})",
+                        "━━━━━━━━━━━━━━━━",
+                        f"💰 Entrada `{fp(entrada)}`  ·  {_et} `{fp(_niv)}`{_hora_h}",
+                        f"📈 Resultado: *{_pl_c:+.1f} {u}* — al {_et}",
+                        "",
+                        f"ℹ️ _El precio ahora está en {fp(precio)}, pero tu posición "
+                        f"ya no seguía abierta: lo de después no es tu P&L._",
+                        "",
+                        f"🧭 {estatus}",
+                        f"🔒 Para sacarlo del registro: `/cerrar {_num_trade(t)}`",
+                        f"🕐 {datetime.now(TZ_MX).strftime('%H:%M')} CDMX",
+                    ]))
+                    continue
 
                 lineas = [
                     f"📊 *SEGUIMIENTO — {ticker} {dir_}* (#{_num_trade(t)})",
