@@ -153,6 +153,11 @@ _mfe_trades:     dict = {}         # trade_id -> mejor P/L alcanzado (MFE) y su 
 _emerg_enviada:  dict = {}         # trade_id -> ts del ultimo aviso de emergencia
 _hist_seguimiento: dict = {}       # trade_id -> [(ts, eta_lo, prog)] para detectar
 _avisos_cierre: dict = {}      # trade_id -> veces que se aviso del TP/SL tocado
+# Cambios de configuracion que parten el historico en tramos no comparables.
+# El CSV marca cada alerta con el tramo al que pertenece para no mezclarlos.
+_CAMBIOS_CONFIG = [
+    ("2026-11-20 10:00", "techo SL oro 3->4 ATR"),
+]
                                    # objetivos que se alejan lectura tras lectura
 _ultimo_tick_rango:  list = [0.0]  # ts del ultimo tick de job_aviso_rango (/diag)
 _ultimo_envio_rango: list = [0.0]  # ts del ultimo aviso de rango enviado (/diag)
@@ -312,6 +317,21 @@ def _objetivo_minutos(entrada: float, tp: float, atr: float, tf: str):
         return (lo, hi)
     except Exception:
         return (0, 0)
+
+
+def _tramo_config(ts_mx) -> str:
+    """Etiqueta del tramo de configuracion al que pertenece una alerta.
+    Sin esto, el CSV mezcla alertas generadas con parametros distintos y
+    cualquier comparacion sale contaminada."""
+    try:
+        marca = ts_mx.strftime("%Y-%m-%d %H:%M")
+        etiqueta = "base"
+        for corte, nombre in _CAMBIOS_CONFIG:
+            if marca >= corte:
+                etiqueta = nombre
+        return etiqueta
+    except Exception:
+        return "?"
 
 
 def _fmt_dur(mins) -> str:
@@ -3740,6 +3760,7 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
             tot_r = tot_s = 0.0          # realizado
             flo_r = flo_s = 0.0          # flotante (abiertas)
             n_flo = 0
+            por_tramo = {}               # tramo de config -> [R realizado, n]
             n_res = n_tom = n_tp = n_sl = n_nl = 0
             # Chequeo de salud: el CSV del 13-nov llego con ATR y SL sombra
             # vacios en las 83 filas y nadie se entero hasta abrirlo.
@@ -3749,7 +3770,7 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                 w.writerow(["fecha_cdmx", "id", "activo", "alerta", "tf", "dir",
                             "confianza", "entrada", "sl", "tp", "rr", "atr",
                             "resultado", "R", "sl_sombra", "resultado_sombra",
-                            "R_sombra", "factores", "smc_score", "tomada", "trade"])
+                            "R_sombra", "factores", "smc_score", "tomada", "trade", "config"])
                 for f in filas:
                     try:
                         ts = pd.to_datetime(f.get("created_at"), errors="coerce", utc=True)
@@ -3774,7 +3795,10 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                         if R is not None:  flo_r += R; n_flo += 1
                         if Rs is not None: flo_s += Rs
                     else:
-                        if R is not None:  tot_r += R; n_res += 1
+                        if R is not None:
+                            tot_r += R; n_res += 1
+                            _tr = por_tramo.setdefault(_tramo_config(ts_mx), [0.0, 0])
+                            _tr[0] += R; _tr[1] += 1
                         if Rs is not None: tot_s += Rs
                     if est == "TP": n_tp += 1
                     elif est == "SL": n_sl += 1
@@ -3790,7 +3814,7 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                                 ("" if Rs is None else f"{Rs:+.2f}"),
                                 f.get("factores", ""), f"{float(f.get('smc_score') or 0):.0f}",
                                 "si" if f.get("tomada") else "no",
-                                f.get("trade_id") or ""])
+                                f.get("trade_id") or "", _tramo_config(ts_mx)])
             resumen = [
                 "📄 *RESUMEN SEMANAL DE ALERTAS*",
                 "━━━━━━━━━━━━━━━━",
@@ -3804,6 +3828,11 @@ async def job_reporte_semanal(ctx: ContextTypes.DEFAULT_TYPE):
                 (f"🌑 SL sombra 2 ATR: *{tot_s:+.2f}R* realizado"
                  if abs(tot_s - tot_r) > 0.01 else
                  "🌑 SL sombra 2 ATR: identico al SL real — ya es el piso vigente"),
+                ("" if len(por_tramo) < 2 else
+                 "\n✂️ *Cambio de configuración en la semana* — estos tramos "
+                 "NO son comparables entre sí:"),
+                *([] if len(por_tramo) < 2 else
+                  [f"   · _{k}_: *{v[0]:+.2f}R* en {v[1]}" for k, v in por_tramo.items()]),
                 "",
                 "",
                 "🩺 *Salud de los datos* (si algo sale en 0, el registro falla):",

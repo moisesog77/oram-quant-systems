@@ -700,7 +700,23 @@ def _calcular_sl_tp_dinamico(
     # ATR y ampliar mas lo dejaria sin RR operable.
     _mult_piso = 2.0 if _es_forex_mayor_sl(ticker) else 0.5
     dist_sl_min = max(atr * _mult_piso, sl_minimo_absoluto(ticker, precio))
-    dist_sl_max = max(atr * 3.0, dist_sl_min)
+    # TECHO del SL. 20-nov-2026: el oro pasa de 3.0 a 4.0 ATR; el resto sigue
+    # en 3.0. El tope, no el piso, era lo que estrangulaba al oro: la alerta A1
+    # del 20-nov salio con el SL a 2.9 ATR -- pegado al techo, con la estructura
+    # pidiendo mas -- y lo toco por una mecha de 0.6 pts antes de que el precio
+    # cayera 54 a favor.
+    # Medido sobre 9.000 entradas por nivel, 3 activos, AMBAS direcciones:
+    #   oro 3.0->4.0 ATR: acierto +1.4 puntos y R neto de spread -0.418 -> -0.315
+    #   GBPUSD 2.0->3.0 ATR: acierto -0.8 puntos (por eso los pares NO se tocan)
+    # El spread fijo del oro (~5 pts) pesa menos cuanto mas ancho el stop: ahi
+    # esta la ganancia, NO en "capturar" los stop-outs que luego se arrepienten.
+    # Eso ultimo pasa el 72% de las veces, pero 1 ATR extra solo rescata 1.4
+    # puntos de ellos: el precio acaba llegando, pero no antes de arruinar.
+    # Solo el ORO: _es_forex_mayor_sl tambien da False para plata, BTC y ETH,
+    # que no se han medido. Lo no medido se queda en 3.0.
+    _es_oro = any(x in (ticker or "").upper() for x in ("GC=F", "XAU", "GOLD"))
+    _mult_techo = 4.0 if _es_oro else 3.0
+    dist_sl_max = max(atr * _mult_techo, dist_sl_min)
 
     sops = sorted([s for s in liquidez.get("support_levels", []) if s < precio], reverse=True)
     ress = sorted([r for r in liquidez.get("resistance_levels", []) if r > precio])
