@@ -25,7 +25,7 @@ try:
 except ImportError:
     TELEGRAM_OK = False
 
-from utils.market_data       import obtener_datos
+from utils.market_data       import obtener_datos, estado_fuente_datos
 from utils.smc_engine        import (analisis_completo, calcular_riesgo,
                                       _detectar_barrido_detalle, sl_minimo_absoluto)
 from utils.multi_timeframe   import analisis_mtf, MTF_COMBOS
@@ -153,6 +153,7 @@ _mfe_trades:     dict = {}         # trade_id -> mejor P/L alcanzado (MFE) y su 
 _emerg_enviada:  dict = {}         # trade_id -> ts del ultimo aviso de emergencia
 _hist_seguimiento: dict = {}       # trade_id -> [(ts, eta_lo, prog)] para detectar
 _avisos_cierre: dict = {}      # trade_id -> veces que se aviso del TP/SL tocado
+_aviso_api_caida: list = [0.0]   # ts del ultimo aviso de fuente de datos caida
 # Cambios de configuracion que parten el historico en tramos no comparables.
 # El CSV marca cada alerta con el tramo al que pertenece para no mezclarlos.
 _CAMBIOS_CONFIG = [
@@ -4255,6 +4256,53 @@ async def job_seguimiento_trades(ctx: ContextTypes.DEFAULT_TYPE):
         logger.error(f"job_seguimiento_trades: {e}")
 
 
+async def job_vigilar_fuente_datos(ctx: ContextTypes.DEFAULT_TYPE):
+    """Avisa en Telegram cuando la API de datos rechaza las peticiones.
+
+    El 23-nov-2026 la suscripcion de Twelve Data expiro. El bot se quedo sin
+    datos, dejo de emitir alertas y paso el dia entero en silencio: el error
+    401 solo iba al log del servidor. Un fallo de credenciales no se arregla
+    solo, asi que tiene que llegar a quien puede resolverlo.
+
+    Se avisa como mucho cada 6 h para no convertirlo en spam.
+    """
+    try:
+        err = estado_fuente_datos()
+        if not err:
+            return
+        ahora = datetime.now(TZ_MX).timestamp()
+        if ahora - _aviso_api_caida[0] < 6 * 3600:
+            return
+        if not _en_horario_notificacion():
+            return                      # se avisara al entrar en horario
+        _aviso_api_caida[0] = ahora
+        _msg  = (err.get("msg") or "")[:200]
+        _cod  = err.get("code")
+        _hora = datetime.now(TZ_MX).strftime("%H:%M")
+        texto = chr(10).join([
+            "🚨 *EL BOT ESTÁ CIEGO — SIN DATOS DE MERCADO*",
+            "━━━━━━━━━━━━━━━━",
+            f"La API de datos rechaza las peticiones (error {_cod}).",
+            "",
+            f"_{_msg}_",
+            "",
+            "⚠️ *No habrá alertas ni seguimiento de trades* hasta que se "
+            "resuelva. Si tienes posiciones abiertas, vigílalas en tu bróker: "
+            "el bot no puede ver el precio.",
+            "",
+            "👉 Suele ser la suscripción o la clave de API. "
+            "Revísalo en el panel de Twelve Data.",
+            f"🕐 {_hora} CDMX",
+        ])
+        for cfg in obtener_todas_configs_bot():
+            cid = cfg.get("telegram_chat_id", "")
+            if cid:
+                await _send(ctx.bot, cid, texto)
+        logger.error(f"AVISO ENVIADO: fuente de datos caida ({err.get('code')})")
+    except Exception as e:
+        logger.error(f"job_vigilar_fuente_datos: {e}")
+
+
 async def job_cierre_nocturno(ctx: ContextTypes.DEFAULT_TYPE):
     """
     11:00 PM CDMX: (1) reinicia los IDs cortos de alerta del día, (2) cierra en
@@ -4685,6 +4733,7 @@ def main():
         jq.run_daily(job_reporte_semanal, time=dtime(hour=22, minute=0), days=(5,))
         # Intervalos calibrados para plan Twelve Data Grow 55 (55 créditos/min,
         # sin límite diario). Consumo sostenido ~10-12/min, pico ~24/min.
+        jq.run_repeating(job_vigilar_fuente_datos,     interval=900, first=120)
         jq.run_repeating(job_monitoreo_senales,        interval=180, first=60)
         jq.run_repeating(job_monitoreo_mtf,            interval=300, first=100)
         jq.run_repeating(job_monitoreo_reversal,       interval=60,  first=90)

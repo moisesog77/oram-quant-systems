@@ -294,9 +294,16 @@ def _obtener_twelve_data(ticker: str, timeframe: str) -> pd.DataFrame | None:
 
             # Twelve Data retorna {"code": 4xx, "message": "..."} en errores
             if "code" in data or ("status" in data and data.get("status") == "error"):
-                _logger.warning(
-                    f"Twelve Data error [{ticker}]: code={data.get('code')} msg={data.get('message','')}"
-                )
+                _cod = data.get("code")
+                _msg = str(data.get("message", ""))
+                _logger.warning(f"Twelve Data error [{ticker}]: code={_cod} msg={_msg}")
+                # Un 401/403 (clave invalida o suscripcion vencida) NO se arregla
+                # solo. El 23-nov la suscripcion expiro y el bot paso el dia
+                # entero sin datos y sin alertas, sin decir por que. Se registra
+                # para que el bot pueda avisarlo en Telegram.
+                if _cod in (401, 403) or any(x in _msg.lower() for x in
+                        ("subscription", "api key", "apikey", "unauthorized", "expired")):
+                    ULTIMO_ERROR_API.update(code=_cod, msg=_msg[:300], ts=time.time())
                 return None
 
             values = data.get("values", [])
@@ -331,7 +338,23 @@ def _obtener_twelve_data(ticker: str, timeframe: str) -> pd.DataFrame | None:
                 continue
             return None
         except Exception as e:
-            _logger.warning(f"Twelve Data excepción [{ticker}]: {e}")
+            # El 401/403 llega como excepcion de raise_for_status(), no como
+            # JSON con "code": sin capturarlo aqui, una suscripcion vencida
+            # pasaba inadvertida (23-nov-2026).
+            _txt = _sin_clave(str(e))
+            _logger.warning(f"Twelve Data excepcion [{ticker}]: {_txt}")
+            _st = getattr(getattr(e, "response", None), "status_code", None)
+            if _st in (401, 403) or any(x in _txt.lower() for x in
+                    ("401", "403", "unauthorized", "forbidden", "subscription")):
+                _detalle = _txt
+                try:                      # el cuerpo trae el motivo real
+                    _j = e.response.json()
+                    _detalle = str(_j.get("message", "")) or _txt
+                except Exception:
+                    pass
+                ULTIMO_ERROR_API.update(code=_st or 401,
+                                        msg=_sin_clave(_detalle)[:300],
+                                        ts=time.time())
             return None
 
 
@@ -421,6 +444,31 @@ def _generar_datos_demo(ticker: str, timeframe: str) -> pd.DataFrame:
 
 
 # ── Función pública principal ─────────────────────────────────────────────────
+def _sin_clave(texto: str) -> str:
+    """Quita la API key de cualquier texto antes de registrarlo.
+    requests incluye la URL completa en el mensaje de error, y esa URL lleva
+    apikey=... en claro: asi la clave acababa en los logs del servidor."""
+    try:
+        import re
+        return re.sub(r"(apikey=)[^&\s]+", r"\1***", str(texto))
+    except Exception:
+        return "(error no imprimible)"
+
+
+# Ultimo fallo de credenciales/suscripcion de Twelve Data (401/403). Sin esto,
+# el bot se queda ciego en silencio: el error solo iba al log del servidor.
+ULTIMO_ERROR_API = {"code": None, "msg": "", "ts": 0.0}
+
+
+def estado_fuente_datos(ventana_seg: int = 1800) -> dict:
+    """Devuelve el fallo de credenciales vigente, o {} si no hay.
+    ventana_seg: cuan reciente debe ser el fallo para considerarlo vigente."""
+    e = ULTIMO_ERROR_API
+    if e.get("ts") and (time.time() - e["ts"]) < ventana_seg:
+        return dict(e)
+    return {}
+
+
 def obtener_datos(ticker: str, timeframe: str = "15m") -> tuple:
     """
     Descarga y valida datos OHLCV con fallback en cascada y caché TTL:
